@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}{{ host.host_name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/hosts">Hosts</a></li>
+            <li class="breadcrumb-item active">{{ host.host_name }}</li>
+        </ol>
+    </nav>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-hdd-rack text-primary"></i> {{ host.host_name }}</h5>
+                    <div>
+                        {% if host.needs_update %}
+                        <span class="badge bg-warning me-2"><i class="bi bi-exclamation-triangle"></i> Needs Update</span>
+                        {% endif %}
+                        {% if host.needs_restart %}
+                        <span class="badge bg-danger me-2"><i class="bi bi-arrow-clockwise"></i> Needs Restart</span>
+                        {% endif %}
+                        <a href="/host/{{ host.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Cluster:</strong> {{ host.cluster_name or '-' }}</p>
+                            <p><strong>Logical Processors:</strong> {{ host.logical_processors }}</p>
+                            <p><strong>Total Memory:</strong> {{ host.total_memory_gb|round(1) }} GB</p>
+                            <p><strong>Available Memory:</strong> {{ host.available_memory_gb|round(1) }} GB</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>VM Count:</strong> {{ host.vm_count }}</p>
+                            <p><strong>OS Version:</strong> {{ host.os_version or 'Unknown' }}</p>
+                            <p><strong>Last Updated:</strong> {{ host.last_updated or 'Never' }}</p>
+                        </div>
+                    </div>
+                    {% if host.notes %}
+                    <hr>
+                    <p><strong>Notes:</strong> {{ host.notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Contacts ({{ contacts|length }})</h5>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-plus-lg"></i> Add Contact
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if contacts %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th>Name</th><th>Job Title</th><th>Email</th><th>Phone</th><th>Mobile</th><th>Primary</th><th>Actions</th></tr></thead>
+                            <tbody>
+                            {% for contact in contacts %}
+                            <tr>
+                                <td>
+                                    {% if contact.is_primary_contact %}
+                                    <i class="bi bi-star-fill text-warning me-1" title="Primary Contact"></i>
+                                    {% endif %}
+                                    {{ contact.name }}
+                                </td>
+                                <td>{{ contact.job_title or '-' }}</td>
+                                <td>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}-{% endif %}</td>
+                                <td>{{ contact.phone or '-' }}</td>
+                                <td>{{ contact.mobile_phone or '-' }}</td>
+                                <td>
+                                    <form action="/host/{{ host.id }}/contact/{{ contact.id }}/toggle-primary" method="POST" class="d-inline">
+                                        <input type="checkbox" {% if contact.is_primary_contact %}checked{% endif %}
+                                               onchange="this.form.submit()" title="Toggle Primary Contact">
+                                    </form>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editContactModal{{ contact.id }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form action="/host/{{ host.id }}/contact/{{ contact.id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete this contact?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center py-3">No contacts yet. <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#addContactModal">Add one</button></p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">VMs on this Host ({{ vms|length }})</h5></div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>VM</th><th>State</th><th>vCPUs</th><th>Memory</th><th>Cluster</th></tr></thead>
+                        <tbody>
+                        {% for vm in vms %}
+                        <tr>
+                            <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                            <td><span class="badge bg-{{ 'success' if vm.state == 'Running' else 'secondary' }}">{{ vm.state }}</span></td>
+                            <td>{{ vm.cpu_count }}</td>
+                            <td>{{ vm.memory_assigned_gb }}GB</td>
+                            <td>{{ vm.cluster_name or '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted">No VMs on this host</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card bg-light">
+                <div class="card-header"><h5 class="mb-0">Quick Stats</h5></div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total VMs:</span>
+                        <strong>{{ vms|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Running VMs:</span>
+                        <strong class="text-success">{{ vms|selectattr('state', 'equalto', 'Running')|list|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Memory Usage:</span>
+                        <strong>{{ ((host.total_memory_gb - host.available_memory_gb) / host.total_memory_gb * 100)|round(1) }}%</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Contact Modal -->
+<div class="modal fade" id="addContactModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/host/{{ host.id }}/contact/add" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job Title</label>
+                        <input type="text" class="form-control" name="job_title">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" name="phone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mobile</label>
+                        <input type="tel" class="form-control" name="mobile_phone">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="addPrimaryCheck">
+                            <label class="form-check-label" for="addPrimaryCheck">Primary Contact</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Contact</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Contact Modals -->
+{% for contact in contacts %}
+<div class="modal fade" id="editContactModal{{ contact.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/host/{{ host.id }}/contact/{{ contact.id }}/edit" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name *</label>
+                        <input type="text" class="form-control" name="name" value="{{ contact.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job Title</label>
+                        <input type="text" class="form-control" name="job_title" value="{{ contact.job_title or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" value="{{ contact.email or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" name="phone" value="{{ contact.phone or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mobile</label>
+                        <input type="tel" class="form-control" name="mobile_phone" value="{{ contact.mobile_phone or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="editPrimaryCheck{{ contact.id }}" {% if contact.is_primary_contact %}checked{% endif %}>
+                            <label class="form-check-label" for="editPrimaryCheck{{ contact.id }}">Primary Contact</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ client.name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/clients">Clients</a></li><li class="breadcrumb-item"><a href="/client/{{ client.id }}">{{ client.name }}</a></li><li class="breadcrumb-item active">Edit</li></ol></nav>
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Edit Client</h5></div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" name="name" value="{{ client.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Website</label>
+                            <input type="url" class="form-control" name="website" value="{{ client.website or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Country</label>
+                            <input type="text" class="form-control" name="country" value="{{ client.country or '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Account Managers</label>
+                            <select class="form-select" name="account_managers" multiple size="4">
+                                {% for manager in managers %}
+                                <option value="{{ manager.id }}" {% if manager.id in assigned_manager_ids %}selected{% endif %}>{{ manager.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Hold Ctrl/Cmd to select multiple managers</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="3">{{ client.description or '' }}</textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" name="state">
+                                <option value="1" {% if client.state == 1 %}selected{% endif %}>Active</option>
+                                <option value="0" {% if client.state == 0 %}selected{% endif %}>Inactive</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="/client/{{ client.id }}" class="btn btn-outline-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

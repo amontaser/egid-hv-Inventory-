@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+            <li class="breadcrumb-item active">Settings</li>
+        </ol>
+    </nav>
+    
+    <h2 class="mb-4">
+        <i class="bi bi-gear"></i> Settings
+    </h2>
+    
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="clusters-tab" data-bs-toggle="tab" data-bs-target="#clusters" type="button" role="tab">
+                <i class="bi bi-diagram-3"></i> Clusters
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="managers-tab" data-bs-toggle="tab" data-bs-target="#managers" type="button" role="tab">
+                <i class="bi bi-person-badge"></i> Account Managers
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab">
+                <i class="bi bi-people"></i> Users & Permissions
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Tab Content -->
+    <div class="tab-content" id="settingsTabContent">
+        <!-- Clusters Tab -->
+        <div class="tab-pane fade show active" id="clusters" role="tabpanel">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-diagram-3"></i> Hyper-V Clusters
+                        <span class="badge bg-primary ms-2">{{ clusters|length }}</span>
+                    </h5>
+                    <a href="/cluster/add" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Cluster
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    {% if clusters %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Domain</th>
+                                    <th>Location</th>
+                                    <th>Username</th>
+                                    <th>Transport</th>
+                                    <th>DNS Servers</th>
+                                    <th>Security</th>
+                                    <th class="text-center">VMs</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cluster in clusters %}
+                                <tr>
+                                    <td>
+                                        <a href="/cluster/{{ cluster.id }}" class="text-decoration-none">
+                                            <strong>{{ cluster.cluster_name }}</strong>
+                                        </a>
+                                    </td>
+                                    <td><code>{{ cluster.domain }}</code></td>
+                                    <td>
+                                        <i class="bi bi-geo-alt"></i> {{ cluster.location or '-' }}
+                                    </td>
+                                    <td>{{ cluster.username }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ cluster.transport|upper }}</span>
+                                    </td>
+                                    <td>
+                                        {% if cluster.dns_servers %}
+                                        <code class="small">{{ cluster.dns_servers }}</code>
+                                        {% else %}
+                                        <span class="text-muted small">System DNS</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cluster.require_https %}
+                                        <span class="badge bg-success" title="HTTPS (port 5986)">
+                                            <i class="bi bi-shield-lock"></i> HTTPS
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark" title="HTTP (port 5985)">
+                                            <i class="bi bi-shield-exclamation"></i> HTTP
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary">{{ cluster.vm_count }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if cluster.is_enabled %}
+                                        <span class="badge bg-success">Enabled</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Disabled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-outline-primary"
+                                                    onclick="testConnection({{ cluster.id }}, '{{ cluster.cluster_name }}')"
+                                                    title="Test Connection">
+                                                <i class="bi bi-wifi"></i>
+                                            </button>
+                                            <a href="/cluster/edit/{{ cluster.id }}" class="btn btn-outline-secondary" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-danger"
+                                                    onclick="confirmDelete({{ cluster.id }}, '{{ cluster.cluster_name }}', {{ cluster.vm_count }})"
+                                                    title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-hdd-rack fs-1 text-muted"></i>
+                        <p class="mt-3 mb-0 text-muted">No clusters configured yet.</p>
+                        <p class="text-muted small">Add your first Hyper-V cluster to get started.</p>
+                        <a href="/cluster/add" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Add Cluster
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Setup Instructions -->
+            <div class="mt-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6><i class="bi bi-info-circle"></i> Setup Instructions</h6>
+                        <ol class="mb-0 small">
+                            <li>Click "Add Cluster" to configure your Hyper-V clusters</li>
+                            <li>Enter cluster details: Name, Domain, Location, Username, Password</li>
+                            <li>Use the "Test Connection" button to verify credentials</li>
+                            <li>Run a full sync to discover VMs from all enabled clusters</li>
+                        </ol>
+                        <div class="alert alert-info mt-3 mb-0">
+                            <strong>Note:</strong> Passwords are encrypted and stored securely using Fernet encryption.
+                            Set the <code>ENCRYPTION_KEY</code> environment variable for production use.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Managers Tab -->
+        <div class="tab-pane fade" id="managers" role="tabpanel">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-badge"></i> Account Managers
+                        <span class="badge bg-primary ms-2">{{ account_managers|length }}</span>
+                    </h5>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addManagerModal">
+                        <i class="bi bi-plus-lg"></i> Add Manager
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    {% if account_managers %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Clients</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for manager in account_managers %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2"
+                                                 style="width: 36px; height: 36px;">
+                                                <i class="bi bi-person-fill text-white small"></i>
+                                            </div>
+                                            <strong>{{ manager.name }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>{{ manager.email or '-' }}</td>
+                                    <td>{{ manager.phone or '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ manager.client_count }}</span>
+                                    </td>
+                                    <td>
+                                        {% if manager.state == 1 %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="editManager({{ manager.id }}, '{{ manager.name }}', '{{ manager.email or '' }}', '{{ manager.phone or '' }}', {{ manager.state }})">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteManager({{ manager.id }}, '{{ manager.name }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="viewManagerClients({{ manager.id }}, '{{ manager.name }}')">
+                                            <i class="bi bi-building"></i> Clients
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <p class="mb-0">No account managers yet. <button class="btn btn-link p-0" data-bs-toggle="modal" data-bs-target="#addManagerModal">Add one</button></p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Users & Permissions Tab -->
+        <div class="tab-pane fade" id="users" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        User management and permissions feature coming soon. Currently, authentication is handled through environment variables.
+                    </div>
+                    <h5><i class="bi bi-shield-lock"></i> Current Authentication</h5>
+                    <p class="text-muted">Single-password authentication is configured via the <code>PASSWORD</code> environment variable.</p>
+                    <p class="text-muted">To configure:</p>
+                    <ol>
+                        <li>Set the <code>PASSWORD</code> environment variable in your <code>.env</code> file</li>
+                        <li>Restart the application</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Manager Modal -->
+<div class="modal fade" id="addManagerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Account Manager</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addManagerForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" name="phone">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Manager</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Manager Modal -->
+<div class="modal fade" id="editManagerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Account Manager</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editManagerForm">
+                <input type="hidden" name="manager_id" id="editManagerId">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name *</label>
+                        <input type="text" class="form-control" name="name" id="editManagerName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" id="editManagerEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" name="phone" id="editManagerPhone">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="state" id="editManagerState">
+                            <label class="form-check-label" for="editManagerState">Active</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manager Clients Modal -->
+<div class="modal fade" id="managerClientsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assigned Clients</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 id="managerClientsTitle"></h6>
+                <div id="managerClientsList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add Manager
+document.getElementById('addManagerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    fetch('/settings/manager/add', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addManagerModal')).hide();
+            this.reset();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+// Edit Manager
+function editManager(id, name, email, phone, state) {
+    document.getElementById('editManagerId').value = id;
+    document.getElementById('editManagerName').value = name;
+    document.getElementById('editManagerEmail').value = email;
+    document.getElementById('editManagerPhone').value = phone;
+    document.getElementById('editManagerState').checked = state === 1;
+    
+    new bootstrap.Modal(document.getElementById('editManagerModal')).show();
+}
+
+document.getElementById('editManagerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const id = document.getElementById('editManagerId').value;
+    
+    fetch(`/settings/manager/${id}/edit`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editManagerModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+// Delete Manager
+function deleteManager(id, name) {
+    if (confirm(`Delete account manager "${name}"?`)) {
+        fetch(`/settings/manager/${id}/delete`, {
+            method: 'POST'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+}
+
+// View Manager Clients
+function viewManagerClients(id, name) {
+    document.getElementById('managerClientsTitle').textContent = `Clients assigned to ${name}`;
+    
+    fetch(`/settings/manager/${id}/clients`)
+        .then(r => r.json())
+        .then(clients => {
+            const container = document.getElementById('managerClientsList');
+            if (clients.length === 0) {
+                container.innerHTML = '<p class="text-muted">No clients assigned.</p>';
+            } else {
+                container.innerHTML = `
+                    <div class="list-group">
+                        ${clients.map(c => `
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${c.name}</strong>
+                                    ${c.country ? `<small class="text-muted d-block">${c.country}</small>` : ''}
+                                </div>
+                                <small class="text-muted">Since ${c.assigned_at}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            new bootstrap.Modal(document.getElementById('managerClientsModal')).show();
+        });
+}
+
+// Test Connection
+function testConnection(clusterId, clusterName) {
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    btn.disabled = true;
+
+    fetch(`/cluster/test/${clusterId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`Server returned ${response.status}: ${text.substring(0, 100)}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const alertClass = data.success ? 'alert-success' : 'alert-danger';
+        const icon = data.success ? 'bi-check-circle' : 'bi-exclamation-triangle';
+        showNotification(`${icon}`, `${clusterName}: ${data.message}`, data.success ? 'success' : 'error');
+    })
+    .catch(error => {
+        showNotification('bi-exclamation-triangle', `Connection test failed: ${error}`, 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    });
+}
+
+// Confirm Delete
+function confirmDelete(clusterId, clusterName, vmCount) {
+    const message = vmCount > 0
+        ? `Cannot delete cluster '<strong>${clusterName}</strong>' because it has ${vmCount} VM(s).<br><br>Please delete or reassign the VMs first.`
+        : `Are you sure you want to delete cluster '<strong>${clusterName}</strong>'?<br><br>This action cannot be undone.`;
+
+    document.getElementById('deleteMessage').innerHTML = message;
+    document.getElementById('deleteForm').action = `/cluster/delete/${clusterId}`;
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+
+    const deleteBtn = document.querySelector('#deleteForm button[type="submit"]');
+    if (vmCount > 0) {
+        deleteBtn.disabled = true;
+        deleteBtn.classList.add('disabled');
+    } else {
+        deleteBtn.disabled = false;
+        deleteBtn.classList.remove('disabled');
+    }
+}
+
+// Show Notification
+function showNotification(icon, message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi ${icon}"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+
+<!-- Cluster Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display:inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

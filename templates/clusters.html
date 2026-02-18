@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Cluster Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Multi-Cluster Management</h1>
+            <small class="text-muted">Manage multiple Hyper-V clusters with different credentials</small>
+        </div>
+        <div>
+            <a href="/cluster/add" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add Cluster
+            </a>
+        </div>
+    </div>
+
+    <!-- Clusters Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-hdd-rack"></i> Configured Clusters</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if clusters %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Domain</th>
+                            <th>Location</th>
+                            <th>Username</th>
+                            <th>Transport</th>
+                            <th>DNS Servers</th>
+                            <th>Security</th>
+                            <th class="text-center">VMs</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cluster in clusters %}
+                        <tr>
+                            <td>
+                                <a href="/cluster/{{ cluster.id }}" class="text-decoration-none">
+                                    <strong>{{ cluster.cluster_name }}</strong>
+                                </a>
+                            </td>
+                            <td><code>{{ cluster.domain }}</code></td>
+                            <td>
+                                <i class="bi bi-geo-alt"></i> {{ cluster.location or '-' }}
+                            </td>
+                            <td>{{ cluster.username }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ cluster.transport|upper }}</span>
+                            </td>
+                            <td>
+                                {% if cluster.dns_servers %}
+                                <code class="small">{{ cluster.dns_servers }}</code>
+                                {% else %}
+                                <span class="text-muted small">System DNS</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cluster.require_https %}
+                                <span class="badge bg-success" title="HTTPS (port 5986)">
+                                    <i class="bi bi-shield-lock"></i> HTTPS
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark" title="HTTP (port 5985)">
+                                    <i class="bi bi-shield-exclamation"></i> HTTP
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ cluster.vm_count }}</span>
+                            </td>
+                            <td class="text-center">
+                                {% if cluster.is_enabled %}
+                                <span class="badge bg-success">Enabled</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Disabled</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary"
+                                            onclick="testConnection({{ cluster.id }}, '{{ cluster.cluster_name }}')"
+                                            title="Test Connection">
+                                        <i class="bi bi-wifi"></i>
+                                    </button>
+                                    <a href="/cluster/edit/{{ cluster.id }}" class="btn btn-outline-secondary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger"
+                                            onclick="confirmDelete({{ cluster.id }}, '{{ cluster.cluster_name }}', {{ cluster.vm_count }})"
+                                            title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-hdd-rack fs-1 text-muted"></i>
+                <p class="mt-3 mb-0 text-muted">No clusters configured yet.</p>
+                <p class="text-muted small">Add your first Hyper-V cluster to get started.</p>
+                <a href="/cluster/add" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Cluster
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Setup Instructions -->
+    <div class="mt-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6><i class="bi bi-info-circle"></i> Setup Instructions</h6>
+                <ol class="mb-0 small">
+                    <li>Click "Add Cluster" to configure your Hyper-V clusters</li>
+                    <li>Enter cluster details: Name, Domain, Location, Username, Password</li>
+                    <li>Use the "Test Connection" button to verify credentials</li>
+                    <li>Run a full sync to discover VMs from all enabled clusters</li>
+                </ol>
+                <div class="alert alert-info mt-3 mb-0">
+                    <strong>Note:</strong> Passwords are encrypted and stored securely using Fernet encryption.
+                    Set the <code>ENCRYPTION_KEY</code> environment variable for production use.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display:inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testConnection(clusterId, clusterName) {
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    btn.disabled = true;
+
+    fetch(`/cluster/test/${clusterId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`Server returned ${response.status}: ${text.substring(0, 100)}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        const alertClass = data.success ? 'alert-success' : 'alert-danger';
+        const icon = data.success ? 'bi-check-circle' : 'bi-exclamation-triangle';
+        showNotification(`${icon}`, `${clusterName}: ${data.message}`, data.success ? 'success' : 'error');
+    })
+    .catch(error => {
+        showNotification('bi-exclamation-triangle', `Connection test failed: ${error}`, 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    });
+}
+
+function confirmDelete(clusterId, clusterName, vmCount) {
+    const message = vmCount > 0
+        ? `Cannot delete cluster '<strong>${clusterName}</strong>' because it has ${vmCount} VM(s).<br><br>Please delete or reassign the VMs first.`
+        : `Are you sure you want to delete cluster '<strong>${clusterName}</strong>'?<br><br>This action cannot be undone.`;
+
+    document.getElementById('deleteMessage').innerHTML = message;
+    document.getElementById('deleteForm').action = `/cluster/delete/${clusterId}`;
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+
+    // Disable delete button if VMs exist
+    const deleteBtn = document.querySelector('#deleteForm button[type="submit"]');
+    if (vmCount > 0) {
+        deleteBtn.disabled = true;
+        deleteBtn.classList.add('disabled');
+    } else {
+        deleteBtn.disabled = false;
+        deleteBtn.classList.remove('disabled');
+    }
+}
+
+function showNotification(icon, message, type) {
+    // Create a temporary alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        <i class="bi ${icon}"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

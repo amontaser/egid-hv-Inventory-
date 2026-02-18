@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+
+{% block title %}{{ vm.machine_name }} - VM Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+            <li class="breadcrumb-item active">{{ vm.machine_name }}</li>
+        </ol>
+    </nav>
+    
+    <!-- VM Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="mb-1">
+                {{ vm.machine_name }}
+                {% if vm.state == 'Running' %}
+                <span class="badge bg-success ms-2">Running</span>
+                {% elif vm.state == 'Off' %}
+                <span class="badge bg-secondary ms-2">Off</span>
+                {% elif vm.state == 'Saved' %}
+                <span class="badge bg-info ms-2">Saved</span>
+                {% else %}
+                <span class="badge bg-warning text-dark ms-2">{{ vm.state }}</span>
+                {% endif %}
+            </h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-hdd-rack"></i> {{ vm.host_name }}
+                {% if vm.cluster_name %}
+                <span class="mx-2">|</span>
+                <i class="bi bi-diagram-3"></i> {{ vm.cluster_name }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <!-- Main Info Column -->
+        <div class="col-lg-8">
+            <!-- Overview Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th class="text-muted" style="width: 40%;">VM ID</th>
+                                    <td><code>{{ vm.vm_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Generation</th>
+                                    <td>{{ vm.generation }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Version</th>
+                                    <td>{{ vm.version or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Created</th>
+                                    <td>{{ vm.created_at or 'Unknown' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <th class="text-muted" style="width: 40%;">vCPUs</th>
+                                    <td>{{ vm.cpu_count }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Memory Assigned</th>
+                                    <td>{{ vm.memory_assigned_gb }} GB</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Memory Demand</th>
+                                    <td>{{ vm.memory_demand_gb }} GB</td>
+                                </tr>
+                                <tr>
+                                    <th class="text-muted">Dynamic Memory</th>
+                                    <td>
+                                        {% if vm.dynamic_memory_enabled %}
+                                        <span class="text-success"><i class="bi bi-check-circle"></i> Enabled</span>
+                                        {% else %}
+                                        <span class="text-muted">Disabled</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                        </table>
+                        </div>
+                </div>
+                </div>
+            </div>
+            
+            <!-- Disks Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-device-hdd"></i> Storage ({{ disks|length }} disks)</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if disks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Disk Name</th>
+                                    <th>Format</th>
+                                    <th class="text-end">Max Size</th>
+                                    <th class="text-end">Actual Size</th>
+                                    <th>Controller</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for disk in disks %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-disc text-primary"></i> {{ disk.disk_name }}
+                                        <br>
+                                        <small class="text-muted text-truncate d-inline-block" style="max-width: 350px;" title="{{ disk.disk_path }}">
+                                            {{ disk.disk_path }}
+                                        </small>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark">{{ disk.disk_format }}</span></td>
+                                    <td class="text-end">{{ disk.size_gb }} GB</td>
+                                    <td class="text-end">{{ disk.used_gb }} GB</td>
+                                    <td>{{ disk.controller_type }} {{ disk.controller_number }}:{{ disk.controller_location }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <p class="mb-0">No disks found</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Network Adapters Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-ethernet"></i> Network Adapters ({{ networks|length }})</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if networks %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Adapter</th>
+                                    <th>Virtual Switch</th>
+                                    <th>VLAN</th>
+                                    <th>MAC Address</th>
+                                    <th>IP Addresses</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for nic in networks %}
+                                <tr>
+                                    <td><i class="bi bi-hdd-network text-info"></i> {{ nic.adapter_name }}</td>
+                                    <td>{{ nic.switch_name or '-' }}</td>
+                                    <td>
+                                        {% if nic.vlan_id and nic.vlan_id > 0 %}
+                                        <span class="badge bg-info">{{ nic.vlan_id }}</span>
+                                        {% else %}
+                                        <span class="text-muted">Untagged</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><code>{{ nic.mac_address }}</code></td>
+                                    <td>{{ nic.ip_addresses or '-' }}</td>
+                                    <td>
+                                        {% if nic.is_connected %}
+                                        <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+                                        {% else %}
+                                        <span class="text-danger"><i class="bi bi-x-circle-fill"></i></span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <p class="mb-0">No network adapters found</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Snapshots Card -->
+            {% if snapshots %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> Snapshots ({{ snapshots|length }})
+                        <span class="badge bg-warning text-dark ms-2">Review Recommended</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Snapshot Name</th>
+                                    <th>Type</th>
+                                    <th>Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for snap in snapshots %}
+                                <tr>
+                                    <td><i class="bi bi-camera text-warning"></i> {{ snap.snapshot_name }}</td>
+                                    <td><span class="badge bg-light text-dark">{{ snap.snapshot_type }}</span></td>
+                                    <td>{{ snap.creation_time }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar Column -->
+        <div class="col-lg-4">
+            <!-- Quick Stats -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">vCPUs</span>
+                        <strong>{{ vm.cpu_count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Memory</span>
+                        <strong>{{ vm.memory_assigned_gb }} GB</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Disks</span>
+                        <strong>{{ disks|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">NICs</span>
+                        <strong>{{ networks|length }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Snapshots</span>
+                        <strong>{{ snapshots|length }}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Replication Status -->
+            {% if replication %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Replication</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">State</span>
+                        <span class="badge bg-{{ 'success' if replication.replication_state == 'Replicating' else 'warning' }}">
+                            {{ replication.replication_state }}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Health</span>
+                        <span class="badge bg-{{ 'success' if replication.replication_health == 'Normal' else 'danger' }}">
+                            {{ replication.replication_health }}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Replica Server</span>
+                        <strong>{{ replication.replica_server or '-' }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Last Sync</span>
+                        <strong>{{ replication.last_replication_time or 'Never' }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recent History -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent History</h5>
+                    {% if history_count > 0 %}
+                    <a href="/vm/{{ vm.vm_id }}/history" class="btn btn-sm btn-outline-primary">View All</a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if history %}
+                    <div class="list-group list-group-flush">
+                        {% for change in history[:5] %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge bg-{{ change.color }} me-2">{{ change.icon }}</span>
+                                    <small class="text-muted">{{ change.detected_at }}</small>
+                                </div>
+                            </div>
+                            <p class="mb-0 mt-2 small">{{ change.change_description }}</p>
+                            {% if change.old_value or change.new_value %}
+                            <div class="mt-1 small">
+                                {% if change.old_value %}
+                                <span class="text-muted">{{ change.old_value }}</span>
+                                {% endif %}
+                                {% if change.old_value and change.new_value %} → {% endif %}
+                                {% if change.new_value %}
+                                <span class="text-success">{{ change.new_value }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0 small">
+                        <i class="bi bi-clock-history"></i> No history recorded yet
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Client Assignment -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Client Assignment</h5>
+                </div>
+                <div class="card-body">
+                    {% if client %}
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px; height: 48px;">
+                            <i class="bi bi-building text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">{{ client.name }}</h6>
+                            <small class="text-muted">{{ client.country or 'No location' }}</small>
+                        </div>
+                    </div>
+                    <a href="/client/{{ client.id }}" class="btn btn-outline-primary btn-sm w-100">
+                        View Client Details
+                    </a>
+                    {% else %}
+                    <p class="text-muted mb-3">No client assigned to this VM.</p>
+                    {% endif %}
+
+                    <hr class="my-3">
+
+                    <form action="/vm/{{ vm.vm_id }}/assign-client" method="POST">
+                        <label class="form-label small text-muted">
+                            <i class="bi bi-building"></i> Assign to Client
+                        </label>
+                        <select name="client_id" class="form-select form-select-sm mb-2">
+                            <option value="">-- No Client --</option>
+                            {% for c in all_clients %}
+                            <option value="{{ c.id }}" {{ 'selected' if client and client.id == c.id else '' }}>
+                                {{ c.name }}
+                                {% if c.country %}({{ c.country }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-check-circle"></i> Save Assignment
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Notes Card with CRUD -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-card-text"></i> Notes</h5>
+                    <button class="btn btn-sm btn-primary" onclick="showAddNoteForm()">
+                        <i class="bi bi-plus-circle"></i> Add Note
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="notesList">
+                        {% if notes %}
+                            {% for note in notes %}
+                            <div class="note-item mb-2 p-2 bg-light rounded" data-note-id="{{ note.id }}">
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-muted">{{ note.created_at }}</small>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-secondary py-0" onclick="editNote({{ note.id }})">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteNote({{ note.id }})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="mb-0 mt-1">{{ note.note_text }}</p>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center mb-0 small">No notes yet</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Add Note Form (hidden by default) -->
+                    <div id="addNoteForm" class="d-none mt-3 p-3 bg-light rounded">
+                        <textarea id="newNoteText" class="form-control mb-2" rows="3" placeholder="Enter note..."></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="addNote()">Save</button>
+                        <button class="btn btn-secondary btn-sm" onclick="hideAddNoteForm()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showAddNoteForm() {
+    document.getElementById('addNoteForm').classList.remove('d-none');
+}
+
+function hideAddNoteForm() {
+    document.getElementById('addNoteForm').classList.add('d-none');
+    document.getElementById('newNoteText').value = '';
+}
+
+function addNote() {
+    const text = document.getElementById('newNoteText').value;
+    fetch(`/vm/{{ vm.vm_id }}/notes/add`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `note_text=${encodeURIComponent(text)}`
+    })
+    .then(r => r.json())
+    .then(() => {
+        hideAddNoteForm();
+        loadNotes();
+    });
+}
+
+function editNote(noteId) {
+    const noteEl = document.querySelector(`[data-note-id="${noteId}"] p`);
+    const newText = prompt('Edit note:', noteEl.textContent);
+    if (newText) {
+        fetch(`/vm/{{ vm.vm_id }}/notes/${noteId}/edit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: `note_text=${encodeURIComponent(newText)}`
+        })
+        .then(r => r.json())
+        .then(() => loadNotes());
+    }
+}
+
+function deleteNote(noteId) {
+    if (confirm('Delete this note?')) {
+        fetch(`/vm/{{ vm.vm_id }}/notes/${noteId}/delete`, {
+            method: 'POST'
+        })
+        .then(r => r.json())
+        .then(() => loadNotes());
+    }
+}
+
+function loadNotes() {
+    fetch(`/vm/{{ vm.vm_id }}/notes`)
+        .then(r => r.json())
+        .then(notes => {
+            const container = document.getElementById('notesList');
+            if (notes.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center mb-0 small">No notes yet</p>';
+                return;
+            }
+            container.innerHTML = notes.map(note => `
+                <div class="note-item mb-2 p-2 bg-light rounded" data-note-id="${note.id}">
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">${note.created_at}</small>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary py-0" onclick="editNote(${note.id})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteNote(${note.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="mb-0 mt-1">${note.note_text}</p>
+                </div>
+            `).join('');
+        });
+}
+</script>
+{% endblock %}

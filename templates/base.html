@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hyper-V Inventory{% endblock %}</title>
+
+    <!-- Bootstrap 5 CSS (CDN fallback) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (CDN fallback) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --sidebar-width: 250px;
+        }
+        
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 12px;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            padding-top: 1rem;
+            z-index: 1000;
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            padding: 0.75rem 1.5rem;
+            margin: 0.25rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            font-size: 0.98rem;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 0.75rem;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .sidebar-brand {
+            color: #fff;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-brand h4 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.15rem;
+        }
+        
+        .sidebar-brand small {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            background: #f8f9fa;
+        }
+        
+        .navbar {
+            background: #fff;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        
+        .card-header {
+            background: #fff;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 1.05rem;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        
+        h1 { font-size: 1.75rem; }
+        h2 { font-size: 1.5rem; }
+        h3 { font-size: 1.25rem; }
+        h4 { font-size: 1.1rem; }
+        h5 { font-size: 1rem; }
+        h6 { font-size: 0.9rem; }
+        
+        /* Form elements */
+        .form-control, .form-select {
+            font-size: 0.95rem;
+            padding: 0.6rem 0.85rem;
+        }
+        
+        .btn {
+            font-size: 0.95rem;
+            padding: 0.55rem 1rem;
+            font-weight: 500;
+        }
+        
+        .table th {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+        }
+        
+        .table td {
+            vertical-align: middle;
+            font-size: 0.95rem;
+        }
+        
+        .badge {
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 0.4em 0.65em;
+        }
+        
+        small {
+            font-size: 0.88rem;
+        }
+        
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 25px !important;
+        }
+
+        .sortable:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sort-icon {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.5;
+        }
+
+        .sortable:hover .sort-icon {
+            opacity: 1;
+        }
+
+        [data-bs-theme="dark"] .sortable:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .sticky-top {
+            background: #fff;
+        }
+
+        /* Sync status animations */
+        .sync-status-enter {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .progress-bar-animated {
+            animation: progress-bar-stripes 1s linear infinite;
+        }
+
+        /* Sync button state */
+        .btn-syncing {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+        }
+
+        .btn-syncing::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .spin-icon {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        
+        /* Dark mode support */
+        [data-bs-theme="dark"] .main-content {
+            background: #1a1a1a;
+        }
+        
+        [data-bs-theme="dark"] .card {
+            background: #2d2d2d;
+        }
+        
+        [data-bs-theme="dark"] .navbar {
+            background: #2d2d2d;
+            border-bottom-color: #404040;
+        }
+        
+        [data-bs-theme="dark"] .table th {
+            color: #adb5bd;
+        }
+        
+        [data-bs-theme="dark"] .sticky-top {
+            background: #2d2d2d;
+        }
+        
+        /* Responsive */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <h4><i class="bi bi-hdd-stack"></i> HV Inventory</h4>
+            <small>Hyper-V Management</small>
+        </div>
+
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if request.path == '/' else '' }}" href="/">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if '/hosts' in request.path else '' }}" href="/hosts">
+                    <i class="bi bi-hdd-rack"></i> Hosts
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if '/storage' in request.path else '' }}" href="/storage">
+                    <i class="bi bi-device-hdd"></i> Storage
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if '/clients' in request.path else '' }}" href="/clients">
+                    <i class="bi bi-building"></i> Clients
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ 'active' if '/history' in request.path else '' }}" href="/history">
+                    <i class="bi bi-clock-history"></i> History
+                </a>
+            </li>
+            <li class="nav-item mt-4">
+                <a class="nav-link {{ 'active' if '/settings' in request.path else '' }}" href="/settings">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/export/csv">
+                    <i class="bi bi-download"></i> Export Data
+                </a>
+            </li>
+        </ul>
+        
+        <div class="mt-auto p-3" style="position: absolute; bottom: 0; width: 100%;">
+            <div class="d-flex align-items-center text-white-50 small">
+                <i class="bi bi-person-circle me-2"></i>
+                <span>Admin</span>
+                <a href="/logout" class="ms-auto text-white-50">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Navbar -->
+        <nav class="navbar navbar-expand-lg px-4 py-2">
+            <button class="btn btn-link d-lg-none me-3" type="button" id="sidebarToggle">
+                <i class="bi bi-list fs-4"></i>
+            </button>
+
+            <!-- Cluster Filter Dropdown (Left Side) -->
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-2"
+                        type="button" id="clusterFilterDropdown" data-bs-toggle="dropdown">
+                    <i class="bi bi-hdd-rack"></i>
+                    <span id="selectedClusterLabel">All Clusters</span>
+                </button>
+                <ul class="dropdown-menu" id="clusterDropdownMenu">
+                    <li><a class="dropdown-item" href="#" data-cluster-id="all">
+                        <i class="bi bi-globe"></i> All Clusters
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                </ul>
+            </div>
+
+            <div class="ms-auto d-flex align-items-center gap-3">
+                <a href="/notifications" class="position-relative text-decoration-none" title="Notifications">
+                    <i class="bi bi-bell fs-5 text-secondary"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                          id="notification-count" style="display: none; font-size: 0.65rem;">
+                        0
+                    </span>
+                </a>
+                <button class="btn btn-link" id="themeToggle" title="Toggle theme">
+                    <i class="bi bi-moon-fill"></i>
+                </button>
+            </div>
+        </nav>
+        
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Bootstrap JS -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script> 
+    
+    <script>
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        // Check saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-bs-theme', savedTheme);
+        updateThemeIcon();
+        
+        themeToggle.addEventListener('click', () => {
+            const current = html.getAttribute('data-bs-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-bs-theme', next);
+            localStorage.setItem('theme', next);
+            updateThemeIcon();
+        });
+        
+        function updateThemeIcon() {
+            const icon = themeToggle.querySelector('i');
+            const isDark = html.getAttribute('data-bs-theme') === 'dark';
+            icon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+        
+        // Sidebar toggle for mobile
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.sidebar');
+        
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('show');
+            });
+        }
+
+        // Poll for new notifications every 30 seconds
+        setInterval(function() {
+            fetch('/api/notifications/unread-count')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('notification-count');
+                    if (badge) {
+                        badge.textContent = data.count;
+                        badge.style.display = data.count > 0 ? 'block' : 'none';
+                    }
+                })
+                .catch(err => console.error('Failed to fetch notifications:', err));
+        }, 30000);
+
+        // Initial fetch
+        fetch('/api/notifications/unread-count')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('notification-count');
+                if (badge) {
+                    badge.textContent = data.count;
+                    badge.style.display = data.count > 0 ? 'block' : 'none';
+                }
+            })
+            .catch(err => console.error('Failed to fetch notifications:', err));
+
+        // ============================================================================
+        // Cluster Filter Functionality
+        // ============================================================================
+
+        // Load clusters and populate dropdown
+        function loadClusters() {
+            console.log('Loading clusters...');
+            fetch('/api/clusters')
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(clusters => {
+                    console.log('Clusters loaded:', clusters);
+                    const menu = document.getElementById('clusterDropdownMenu');
+                    const label = document.getElementById('selectedClusterLabel');
+
+                    if (!menu || !label) {
+                        console.error('Dropdown elements not found!');
+                        return;
+                    }
+
+                    // Clear existing clusters (keep "All Clusters" option)
+                    const allOption = menu.firstElementChild;
+                    const divider = allOption.nextElementSibling;
+                    menu.innerHTML = '';
+                    menu.appendChild(allOption);
+                    menu.appendChild(divider);
+
+                    // Add clusters to dropdown
+                    clusters.forEach(cluster => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <a class="dropdown-item cluster-option" href="#" data-cluster-id="${cluster.id}">
+                                <i class="bi bi-hdd-stack"></i> ${cluster.cluster_name}
+                            </a>
+                        `;
+                        menu.appendChild(li);
+                    });
+
+                    // Add click handlers
+                    document.querySelectorAll('#clusterDropdownMenu .dropdown-item').forEach(item => {
+                        item.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const clusterId = e.currentTarget.dataset.clusterId;
+                            const clusterName = e.currentTarget.textContent.trim();
+                            console.log('Cluster selected:', clusterId, clusterName);
+                            applyClusterFilter(clusterId, clusterName);
+                        });
+                    });
+
+                    // Check current URL for cluster filter
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const currentClusterId = urlParams.get('cluster_id');
+
+                    if (currentClusterId && currentClusterId !== 'all') {
+                        // Find cluster name and update label
+                        const cluster = clusters.find(c => c.id == currentClusterId);
+                        if (cluster) {
+                            label.textContent = cluster.cluster_name;
+                            console.log('Set active cluster:', cluster.cluster_name);
+                            // Highlight active cluster
+                            document.querySelectorAll('.cluster-option').forEach(opt => {
+                                if (opt.dataset.clusterId == currentClusterId) {
+                                    opt.classList.add('active');
+                                }
+                            });
+                        }
+                    } else {
+                        label.textContent = 'All Clusters';
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load clusters:', err);
+                    const label = document.getElementById('selectedClusterLabel');
+                    if (label) {
+                        label.textContent = 'Error loading clusters';
+                    }
+                });
+        }
+
+        // Apply cluster filter and reload page
+        function applyClusterFilter(clusterId, clusterName) {
+            const url = new URL(window.location);
+            
+            if (clusterId === 'all') {
+                url.searchParams.delete('cluster_id');
+            } else {
+                url.searchParams.set('cluster_id', clusterId);
+            }
+            
+            // Update label before navigation
+            const label = document.getElementById('selectedClusterLabel');
+            label.textContent = clusterName;
+            
+            // Navigate to filtered view
+            window.location = url.toString();
+        }
+
+        // Initialize cluster dropdown on page load
+        if (document.getElementById('clusterFilterDropdown')) {
+            loadClusters();
+        }
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

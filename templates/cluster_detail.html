@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cluster.cluster_name }} - Cluster Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/settings#clusters">Clusters</a></li>
+                <li class="breadcrumb-item active">{{ cluster.cluster_name }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-1">{{ cluster.cluster_name }}</h1>
+                <small class="text-muted">{{ cluster.domain }} {% if cluster.location %}| {{ cluster.location }}{% endif %}</small>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary"
+                        onclick="testConnection({{ cluster.id }}, '{{ cluster.cluster_name }}')">
+                    <i class="bi bi-wifi"></i> Test Connection
+                </button>
+                <a href="/cluster/edit/{{ cluster.id }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Statistics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="opacity-75">Total VMs</h6>
+                    <h2>{{ stats.vm_count or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="opacity-75">Running VMs</h6>
+                    <h2>{{ stats.running_vms or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="opacity-75">Hosts</h6>
+                    <h2>{{ stats.host_count or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning">
+                <div class="card-body">
+                    <h6 class="opacity-75">Status</h6>
+                    <h4>{{ 'Enabled' if cluster.is_enabled else 'Disabled' }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Configuration -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-gear"></i> Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted" style="width: 140px;">Cluster Name:</td>
+                            <td><strong>{{ cluster.cluster_name }}</strong></td>
+                        </tr>
+                         <tr>
+                             <td class="text-muted">Domain/FQDN:</td>
+                             <td><code>{{ cluster.domain }}</code></td>
+                         </tr>
+                         {% if cluster.cluster_name_for_ps %}
+                         <tr>
+                             <td class="text-muted">PowerShell Cluster Name:</td>
+                             <td><code class="text-primary">{{ cluster.cluster_name_for_ps }}</code></td>
+                         </tr>
+                         {% endif %}
+                         {% if cluster.domain_name %}
+                         <tr>
+                             <td class="text-muted">Domain Name:</td>
+                             <td><code>{{ cluster.domain_name }}</code></td>
+                         </tr>
+                         {% endif %}
+                         <tr>
+                             <td class="text-muted">Location:</td>
+                             <td>{{ cluster.location or '-' }}</td>
+                         </tr>
+                        <tr>
+                            <td class="text-muted">Username:</td>
+                            <td>{{ cluster.username }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Transport:</td>
+                            <td><span class="badge bg-secondary">{{ cluster.transport|upper }}</span></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Created:</td>
+                            <td>{{ cluster.created_at }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Last Updated:</td>
+                            <td>{{ cluster.updated_at }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-activity"></i> Connection Status</h5>
+                </div>
+                <div class="card-body">
+                    <div id="connectionStatus" class="text-center py-4">
+                        <i class="bi bi-question-circle fs-1 text-muted"></i>
+                        <p class="mt-2 text-muted">Click "Test Connection" to check status</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VMs in this Cluster -->
+    {% if vms %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-hdd-stack"></i> Virtual Machines ({{ vms|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>State</th>
+                        <th>Host</th>
+                        <th>vCPUs</th>
+                        <th>Memory</th>
+                        <th>IP Addresses</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vm in vms %}
+                    <tr>
+                        <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                        <td>
+                            {% if vm.state == 'Running' %}
+                            <span class="badge bg-success">Running</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ vm.state }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ vm.host_name }}</td>
+                        <td>{{ vm.cpu_count }}</td>
+                        <td>{{ vm.memory_assigned_gb }}GB</td>
+                        <td>
+                            {% if vm.ip_addresses %}
+                            <small>{{ vm.ip_addresses }}</small>
+                            {% else %}
+                            <small>-</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-hdd-stack fs-1 text-muted"></i>
+            <p class="mt-3 text-muted">No VMs found for this cluster</p>
+            <a href="/" class="btn btn-primary">Sync Data</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function testConnection(clusterId, clusterName) {
+    const statusDiv = document.getElementById('connectionStatus');
+    statusDiv.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Testing...</span></div><p class="mt-2">Testing connection...</p>';
+
+    fetch(`/cluster/test/${clusterId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusDiv.innerHTML = `
+                <i class="bi bi-check-circle fs-1 text-success"></i>
+                <p class="mt-2 text-success"><strong>Connected</strong></p>
+                <p class="text-muted small">${data.message}</p>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <i class="bi bi-x-circle fs-1 text-danger"></i>
+                <p class="mt-2 text-danger"><strong>Connection Failed</strong></p>
+                <p class="text-muted small">${data.message}</p>
+            `;
+        }
+    })
+    .catch(error => {
+        statusDiv.innerHTML = `
+            <i class="bi bi-exclamation-triangle fs-1 text-warning"></i>
+            <p class="mt-2 text-warning"><strong>Error</strong></p>
+            <p class="text-muted small">${error}</p>
+        `;
+    });
+}
+</script>
+{% endblock %}

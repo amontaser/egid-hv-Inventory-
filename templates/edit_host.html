@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ host.host_name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/hosts">Hosts</a></li>
+            <li class="breadcrumb-item"><a href="/host/{{ host.id }}">{{ host.host_name }}</a></li>
+            <li class="breadcrumb-item active">Edit</li>
+        </ol>
+    </nav>
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Edit Host</h5></div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Host Name</label>
+                            <input type="text" class="form-control" value="{{ host.host_name }}" disabled>
+                            <small class="text-muted">Host name cannot be changed</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="4" placeholder="Add any notes about this host...">{{ host.notes or '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" name="needs_update" id="needsUpdate" {% if host.needs_update %}checked{% endif %}>
+                                <label class="form-check-label" for="needsUpdate">
+                                    <i class="bi bi-exclamation-triangle text-warning"></i> Needs Update
+                                </label>
+                                <small class="form-text text-muted d-block">Mark if this host needs Windows updates</small>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" name="needs_restart" id="needsRestart" {% if host.needs_restart %}checked{% endif %}>
+                                <label class="form-check-label" for="needsRestart">
+                                    <i class="bi bi-arrow-clockwise text-danger"></i> Needs Restart
+                                </label>
+                                <small class="form-text text-muted d-block">Mark if this host needs to be restarted</small>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="/host/{{ host.id }}" class="btn btn-outline-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

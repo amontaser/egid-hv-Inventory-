@@ -1,0 +1,907 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Enhanced Sync Status Alert -->
+    <div id="syncStatus" class="alert alert-info d-none mb-3" role="alert">
+        <div class="d-flex align-items-center mb-3">
+            <div class="spinner-border spinner-border-sm me-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="flex-grow-1">
+                <strong id="syncStatusTitle">Sync in Progress</strong>
+                <div id="syncStatusDetails" class="small text-muted mt-1"></div>
+            </div>
+            <button type="button" class="btn-close" onclick="hideSyncStatus()"></button>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress mb-3" style="height: 8px;">
+            <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                 role="progressbar" style="width: 0%"></div>
+        </div>
+        
+        <!-- Detailed Progress Information -->
+        <div id="syncProgressDetails" class="row g-3 mt-3">
+            <!-- Left Column: Current Status -->
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <h6 class="card-title small mb-2"><i class="bi bi-info-circle"></i> Current Status</h6>
+                        <div class="small mb-1">
+                            <strong>Cluster:</strong> <span id="syncCurrentCluster">-</span>
+                        </div>
+                        <div class="small mb-1">
+                            <strong>Host:</strong> <span id="syncCurrentHost">-</span>
+                        </div>
+                        <div class="small mb-1">
+                            <strong>Progress:</strong> <span id="syncProgressText">-</span>
+                        </div>
+                        <div class="small">
+                            <strong>Elapsed Time:</strong> <span id="syncElapsedTime">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Statistics -->
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <h6 class="card-title small mb-2"><i class="bi bi-bar-chart"></i> Statistics</h6>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="h5 mb-0" id="syncHostsProcessed">0/0</div>
+                                <div class="small text-muted">Hosts</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="h5 mb-0" id="syncVMsDiscovered">0</div>
+                                <div class="small text-muted">VMs Found</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="h5 mb-0" id="syncVMsSynced">0</div>
+                                <div class="small text-muted">VMs Synced</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Host Progress List (collapsible) -->
+        <div class="mt-3">
+            <button class="btn btn-sm btn-outline-secondary w-100" type="button" 
+                    data-bs-toggle="collapse" data-bs-target="#syncHostProgressList">
+                <i class="bi bi-list-ul"></i> Host Progress Details
+            </button>
+            <div class="collapse mt-2" id="syncHostProgressList">
+                <div class="card bg-light">
+                    <div class="card-body py-2">
+                        <div id="syncHostList" class="small">
+                            <div class="text-muted text-center py-2">Waiting for sync to start...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Hyper-V Inventory</h1>
+            <small class="text-muted">{{ last_update_time }}</small>
+        </div>
+        <div>
+            <form id="syncForm" action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
+                <button type="submit" class="btn btn-primary" id="syncButton">
+                    <i class="bi bi-arrow-clockwise"></i> Sync
+                </button>
+            </form>
+            <a href="/export/csv" class="btn btn-outline-secondary"><i class="bi bi-download"></i> Export</a>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2"><div class="card bg-primary text-white"><div class="card-body"><h6 class="opacity-75">Total VMs</h6><h2>{{ stats.total_vms or 0 }}</h2></div></div></div>
+        <div class="col-md-2"><div class="card bg-success text-white"><div class="card-body"><h6 class="opacity-75">Running</h6><h2>{{ stats.running_vms or 0 }}</h2></div></div></div>
+        <div class="col-md-2"><div class="card bg-secondary text-white"><div class="card-body"><h6 class="opacity-75">Stopped</h6><h2>{{ stats.stopped_vms or 0 }}</h2></div></div></div>
+        <div class="col-md-2"><div class="card bg-info text-white"><div class="card-body"><h6 class="opacity-75">vCPUs</h6><h2>{{ stats.total_vcpus or 0 }}</h2></div></div></div>
+        <div class="col-md-2"><div class="card bg-warning"><div class="card-body"><h6 class="opacity-75">Memory</h6><h2>{{ stats.total_memory_gb or 0 }}GB</h2></div></div></div>
+        <div class="col-md-2"><div class="card bg-dark text-white"><div class="card-body"><h6 class="opacity-75">Hosts</h6><h2>{{ stats.host_count or 0 }}</h2></div></div></div>
+    </div>
+
+    {% if clusters %}
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <h5 class="mb-3"><i class="bi bi-hdd-rack"></i> Cluster Overview</h5>
+        </div>
+        {% for cluster in clusters %}
+        <div class="col-md-3">
+            <div class="card h-100 {{ 'border-primary' if cluster.is_enabled else 'border-secondary' }}">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="card-title mb-0 text-truncate" title="{{ cluster.cluster_name }}">{{ cluster.cluster_name }}</h6>
+                        <span class="badge {{ 'bg-success' if cluster.is_enabled else 'bg-secondary' }}">
+                            {{ 'Enabled' if cluster.is_enabled else 'Disabled' }}
+                        </span>
+                    </div>
+                    {% if cluster.location %}
+                    <small class="text-muted d-block mb-2"><i class="bi bi-geo-alt"></i> {{ cluster.location }}</small>
+                    {% endif %}
+                    <div class="row text-center mt-3">
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ cluster.vm_count or 0 }}</div>
+                            <small class="text-muted">VMs</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0 text-success">{{ cluster.running_vms or 0 }}</div>
+                            <small class="text-muted">Running</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h5 mb-0">{{ cluster.host_count or 0 }}</div>
+                            <small class="text-muted">Hosts</small>
+                        </div>
+                    </div>
+                    <a href="/clusters" class="btn btn-sm btn-outline-primary w-100 mt-2">Manage Cluster</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if hosts %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Host Summary</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#hostSummaryTable">
+                <i class="bi bi-eye"></i> Show
+            </button>
+        </div>
+        <div class="collapse" id="hostSummaryTable">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Host</th><th>Cluster</th><th>VMs</th><th>Running</th><th>vCPUs</th><th>Memory</th></tr></thead>
+                    <tbody>
+                    {% for host in hosts %}
+                    <tr><td>{{ host.host_name }}</td><td>{{ host.cluster_name or '-' }}</td><td>{{ host.vm_count }}</td><td><span class="badge bg-success">{{ host.running }}</span></td><td>{{ host.vcpus }}</td><td>{{ host.memory_gb }}GB</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-3">Virtual Machines</h5>
+            <div class="row g-2 align-items-center">
+                {% if clusters %}
+                <div class="col-auto">
+                    <select id="clusterFilter" class="form-select">
+                        <option value="">All Clusters</option>
+                        {% for cluster in clusters %}
+                        <option value="{{ cluster.id }}">{{ cluster.cluster_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-auto">
+                    <select id="stateFilter" class="form-select">
+                        <option value="">All States</option>
+                        <option value="Running">Running</option>
+                        <option value="Off">Off</option>
+                        <option value="Saved">Saved</option>
+                        <option value="Paused">Paused</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" id="search" class="form-control" placeholder="Search: name, host, 'vlan 100', 'ip 192.168'...">
+                        <span id="searchTypeBadge" class="input-group-text d-none" style="border-left: none;"></span>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <small class="text-muted">
+                        Examples: <span class="font-monospace">vlan 100</span>, <span class="font-monospace">ip 192.168</span>, <span class="font-monospace">server01</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="name">
+                            Name <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable" data-sort="state">
+                            State <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable" data-sort="host">
+                            Host <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable" data-sort="cpu">
+                            vCPUs <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable" data-sort="memory">
+                            Memory <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th>IP Addresses</th>
+                        <th class="sortable" data-sort="disk">
+                            Disks <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                        <th class="sortable" data-sort="snapshots">
+                            Snapshots <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        </th>
+                    </tr>
+                </thead>
+                  <tbody id="vmTableBody">
+                   {% for vm in vms %}
+                   <tr class="vm-row"
+                       data-name="{{ vm.machine_name|lower }}"
+                       data-state="{{ vm.state }}"
+                       data-host="{{ vm.host_name|lower }}"
+                       data-cluster="{{ vm.cluster_id or '' }}"
+                       data-cluster-name="{{ vm.cluster_name or '' }}"
+                       data-cpu="{{ vm.cpu_count }}"
+                       data-memory="{{ vm.memory_assigned_gb }}"
+                       data-disk="{{ vm.total_disk_gb or 0 }}"
+                       data-snapshots="{{ vm.snapshot_count or 0 }}"
+                       data-vlans="{{ vm.vlans or '' }}"
+                       data-ips="{{ vm.ip_addresses or '' }}">
+                        <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                       <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
+                       <td>
+                           {{ vm.host_name }}
+                           {% if vm.cluster_name %}
+                           <br>
+                           <small class="text-muted">
+                               <i class="bi bi-hdd-rack"></i> {{ vm.cluster_name.split(' ')[0] }}
+                           </small>
+                           {% endif %}
+                       </td>
+                       <td>{{ vm.cpu_count }}</td>
+                      <td>{{ vm.memory_assigned_gb }}GB</td>
+                       <td>
+                          {% if vm.ip_addresses or vm.vlan_list %}
+                              {% if vm.ip_addresses %}
+                                  <small>{{ vm.ip_addresses }}</small>
+                              {% endif %}
+                              {% if vm.vlan_list %}
+                                  {% for vlan in vm.vlan_list %}
+                                  <span class="badge bg-info ms-1" style="font-size: 0.7em;">{{ vlan }}</span>
+                                  {% endfor %}
+                              {% endif %}
+                          {% else %}
+                              <small>-</small>
+                          {% endif %}
+                       </td>
+                      <td>{{ vm.total_disk_gb or '-' }}GB</td>
+                      <td>{% if vm.snapshot_count %}<span class="badge bg-warning">{{ vm.snapshot_count }}</span>{% else %}-{% endif %}</td>
+                  </tr>
+                  {% endfor %}
+                  </tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted small">
+            <span id="vmCount">{{ vms|length }}</span> VMs displayed
+            {% if vms|length != stats.total_vms %}
+            (filtered from {{ stats.total_vms }} total)
+            {% endif %}
+        </div>
+    </div>
+ </div>
+<script>
+// Enhanced search, filter, and sort functionality
+const vmTableBody = document.getElementById('vmTableBody');
+const searchInput = document.getElementById('search');
+const stateFilter = document.getElementById('stateFilter');
+const vmCountSpan = document.getElementById('vmCount');
+const searchTypeBadge = document.getElementById('searchTypeBadge');
+let currentSort = { column: null, direction: 'asc' };
+
+// Parse search term to detect search type
+function parseSearchTerm(searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+
+    // Empty search
+    if (!term) {
+        return { type: 'none', value: '' };
+    }
+
+    // VLAN search: "vlan 100" or "VLAN 100"
+    const vlanMatch = term.match(/^vlan\s+(\d+)$/i);
+    if (vlanMatch) {
+        return { type: 'vlan', value: vlanMatch[1] };
+    }
+
+    // IP search: "ip 192.168.1.1"
+    const ipMatch = term.match(/^ip\s+(.+)$/i);
+    if (ipMatch) {
+        return { type: 'ip', value: ipMatch[1] };
+    }
+
+    // Default: general search
+    return { type: 'general', value: term };
+}
+
+// Update search type badge
+function updateSearchBadge(search) {
+    if (search.type === 'none') {
+        searchTypeBadge.classList.add('d-none');
+        return;
+    }
+
+    let badgeClass, badgeText, icon;
+
+    switch(search.type) {
+        case 'vlan':
+            badgeClass = 'badge bg-primary';
+            icon = 'bi-hdd-network';
+            badgeText = `VLAN: ${search.value}`;
+            break;
+        case 'ip':
+            badgeClass = 'badge bg-success';
+            icon = 'bi-router';
+            badgeText = `IP: ${search.value}`;
+            break;
+        default:
+            badgeClass = 'badge bg-secondary';
+            icon = 'bi-search';
+            badgeText = `"${search.value}"`;
+            break;
+    }
+
+    searchTypeBadge.innerHTML = `
+        <span class="${badgeClass} d-flex align-items-center gap-1">
+            <i class="bi ${icon}"></i>
+            ${badgeText}
+            <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.65rem;" onclick="clearSearch()"></button>
+        </span>
+    `;
+    searchTypeBadge.classList.remove('d-none');
+}
+
+// Clear search
+function clearSearch() {
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input'));
+    searchInput.focus();
+}
+
+// Filter and display VMs
+function filterAndDisplayVMs() {
+    const search = parseSearchTerm(searchInput.value);
+    const stateValue = stateFilter.value;
+    const clusterValue = document.getElementById('clusterFilter')?.value || '';
+
+    // Update badge
+    updateSearchBadge(search);
+
+    const rows = vmTableBody.querySelectorAll('.vm-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const name = row.dataset.name || '';
+        const state = row.dataset.state || '';
+        const host = row.dataset.host || '';
+        const cluster = row.dataset.cluster || '';
+        const vlans = row.dataset.vlans || '';
+        const ips = (row.dataset.ips || '').toLowerCase();
+
+        let matchesSearch = false;
+
+        switch(search.type) {
+            case 'vlan':
+                // Exact match in VLAN list
+                matchesSearch = vlans.split(',').includes(search.value);
+                break;
+
+            case 'ip':
+                // Partial match in IP addresses
+                matchesSearch = ips.includes(search.value);
+                break;
+
+            case 'general':
+                // Search name, host, state
+                matchesSearch = !search.value ||
+                    name.includes(search.value) ||
+                    host.includes(search.value) ||
+                    state.toLowerCase().includes(search.value);
+                break;
+
+            default:
+                matchesSearch = true;
+        }
+
+        const matchesState = !stateValue || state === stateValue;
+        const matchesCluster = !clusterValue || cluster === clusterValue;
+
+        if (matchesSearch && matchesState && matchesCluster) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    vmCountSpan.textContent = visibleCount;
+}
+
+// Sort VMs
+function sortVMs(column, direction) {
+    const rows = Array.from(vmTableBody.querySelectorAll('.vm-row'));
+
+    rows.sort((a, b) => {
+        let aVal, bVal;
+
+        switch(column) {
+            case 'name':
+                aVal = a.dataset.name;
+                bVal = b.dataset.name;
+                break;
+            case 'state':
+                aVal = a.dataset.state;
+                bVal = b.dataset.state;
+                break;
+            case 'host':
+                aVal = a.dataset.host;
+                bVal = b.dataset.host;
+                break;
+            case 'cluster':
+                aVal = a.dataset.clusterName || '';
+                bVal = b.dataset.clusterName || '';
+                break;
+            case 'cpu':
+                aVal = parseInt(a.dataset.cpu);
+                bVal = parseInt(b.dataset.cpu);
+                break;
+            case 'memory':
+                aVal = parseFloat(a.dataset.memory);
+                bVal = parseFloat(b.dataset.memory);
+                break;
+            case 'disk':
+                aVal = parseFloat(a.dataset.disk);
+                bVal = parseFloat(b.dataset.disk);
+                break;
+            case 'snapshots':
+                aVal = parseInt(a.dataset.snapshots);
+                bVal = parseInt(b.dataset.snapshots);
+                break;
+            default:
+                return 0;
+        }
+
+        if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(row => vmTableBody.appendChild(row));
+}
+
+// Handle column header clicks
+document.querySelectorAll('.sortable').forEach(header => {
+    header.style.cursor = 'pointer';
+    header.addEventListener('click', () => {
+        const column = header.dataset.sort;
+        const icon = header.querySelector('.sort-icon');
+
+        // Toggle direction if clicking same column, otherwise reset to asc
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+
+        // Update icons
+        document.querySelectorAll('.sort-icon').forEach(i => {
+            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-1';
+        });
+
+        icon.className = `bi bi-arrow-${currentSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+
+        // Sort the rows
+        sortVMs(column, currentSort.direction);
+    });
+});
+
+// Search input handler
+searchInput?.addEventListener('input', filterAndDisplayVMs);
+
+// State filter handler
+stateFilter?.addEventListener('change', filterAndDisplayVMs);
+
+// Cluster filter handler
+document.getElementById('clusterFilter')?.addEventListener('change', filterAndDisplayVMs);
+
+// Keyboard shortcut: Escape to clear search
+searchInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        clearSearch();
+    }
+});
+
+// Sync status monitoring
+let syncCheckInterval = null;
+let lastSyncStatus = null;
+let syncStartTime = null;
+let hostProgressCache = [];
+
+function showSyncStatus(title, details, progress = 0) {
+    const alert = document.getElementById('syncStatus');
+    const titleEl = document.getElementById('syncStatusTitle');
+    const detailsEl = document.getElementById('syncStatusDetails');
+    const progressBar = document.getElementById('syncProgressBar');
+    const syncButton = document.getElementById('syncButton');
+
+    alert.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-warning');
+    alert.classList.add('alert-info', 'sync-status-enter');
+    titleEl.textContent = title;
+    detailsEl.textContent = details;
+    progressBar.style.width = progress + '%';
+
+    // Animate spinner
+    const spinner = alert.querySelector('.spinner-border');
+    if (spinner) {
+        spinner.classList.remove('d-none');
+    }
+
+    // Disable sync button
+    if (syncButton) {
+        syncButton.classList.add('btn-syncing', 'disabled');
+        syncButton.disabled = true;
+    }
+}
+
+function updateSyncStatusSuccess(message) {
+    const alert = document.getElementById('syncStatus');
+    const titleEl = document.getElementById('syncStatusTitle');
+    const detailsEl = document.getElementById('syncStatusDetails');
+    const progressBar = document.getElementById('syncProgressBar');
+    const syncButton = document.getElementById('syncButton');
+
+    alert.classList.remove('alert-info');
+    alert.classList.add('alert-success');
+    titleEl.textContent = 'Sync Completed';
+    detailsEl.textContent = message;
+    progressBar.style.width = '100%';
+
+    // Hide spinner
+    const spinner = alert.querySelector('.spinner-border');
+    spinner.classList.add('d-none');
+
+    // Re-enable sync button
+    if (syncButton) {
+        syncButton.classList.remove('btn-syncing', 'disabled');
+        syncButton.disabled = false;
+    }
+
+    // Reset sync start time
+    syncStartTime = null;
+
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        hideSyncStatus();
+    }, 5000);
+}
+
+function updateSyncStatusError(message) {
+    const alert = document.getElementById('syncStatus');
+    const titleEl = document.getElementById('syncStatusTitle');
+    const detailsEl = document.getElementById('syncStatusDetails');
+    const syncButton = document.getElementById('syncButton');
+
+    alert.classList.remove('alert-info');
+    alert.classList.add('alert-danger');
+    titleEl.textContent = 'Sync Failed';
+    detailsEl.textContent = message;
+
+    // Hide spinner
+    const spinner = alert.querySelector('.spinner-border');
+    spinner.classList.add('d-none');
+
+    // Re-enable sync button
+    if (syncButton) {
+        syncButton.classList.remove('btn-syncing', 'disabled');
+        syncButton.disabled = false;
+    }
+
+    // Reset sync start time
+    syncStartTime = null;
+}
+
+function hideSyncStatus() {
+    const alert = document.getElementById('syncStatus');
+    const syncButton = document.getElementById('syncButton');
+
+    alert.classList.add('d-none');
+    stopSyncMonitoring();
+
+    // Re-enable sync button
+    if (syncButton) {
+        syncButton.classList.remove('btn-syncing', 'disabled');
+        syncButton.disabled = false;
+    }
+
+    // Reset sync start time
+    syncStartTime = null;
+}
+
+function showSyncStarting() {
+    showSyncStatus('Starting Sync', 'Initializing data collection...');
+    syncStartTime = new Date();
+    hostProgressCache = [];
+    updateHostProgressList();
+}
+
+async function startSync(event) {
+    event.preventDefault(); // Prevent form submission and page reload
+    
+    showSyncStarting();
+    startSyncMonitoring(); // Start monitoring immediately
+    
+    try {
+        const response = await fetch('/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        });
+        
+        if (response.ok) {
+            // Sync started successfully, monitoring will pick it up
+            console.log('Sync triggered successfully');
+        } else {
+            updateSyncStatusError('Failed to trigger sync');
+            stopSyncMonitoring();
+        }
+    } catch (error) {
+        console.error('Error triggering sync:', error);
+        updateSyncStatusError(`Error: ${error.message}`);
+        stopSyncMonitoring();
+    }
+}
+
+function updateDetailedSyncStatus(data) {
+    // Update basic status fields
+    const hostsDiscovered = data.hosts_discovered || 0;
+    const hostsProcessed = data.hosts_processed || 0;
+    const currentHost = data.current_host || 'Initializing...';
+    const vmsDiscovered = data.vms_discovered || 0;
+    const vmsSynced = data.vms_synced || 0;
+
+    // Calculate progress percentage
+    const progress = hostsDiscovered > 0 ? Math.round((hostsProcessed / hostsDiscovered) * 100) : 0;
+
+    // Update progress bar and main status
+    document.getElementById('syncProgressBar').style.width = progress + '%';
+    document.getElementById('syncStatusTitle').textContent = 'Sync in Progress';
+    document.getElementById('syncStatusDetails').textContent = 
+        `Processing ${hostsProcessed} of ${hostsDiscovered} hosts`;
+
+    // Extract cluster and host info from current_host
+    let clusterName = 'Unknown';
+    let hostName = currentHost;
+    
+    if (currentHost && currentHost.includes('.')) {
+        const parts = currentHost.split('.');
+        // Try to identify cluster from domain
+        if (currentHost.includes('egitdr')) {
+            clusterName = 'EGITDR (Smart Village)';
+        } else if (currentHost.includes('egidegypt')) {
+            clusterName = 'EGID Egypt (HQ NewCairo)';
+        } else if (currentHost.includes('egid-elk')) {
+            clusterName = 'EGID ELK (HQ NewCairo)';
+        } else {
+            clusterName = parts[parts.length - 2] || 'Unknown Cluster';
+        }
+        hostName = parts[0];
+    }
+
+    // Update detailed status
+    document.getElementById('syncCurrentCluster').textContent = clusterName;
+    document.getElementById('syncCurrentHost').textContent = hostName;
+    document.getElementById('syncProgressText').textContent = `${progress}% (${hostsProcessed}/${hostsDiscovered} hosts)`;
+
+    // Calculate elapsed time
+    if (syncStartTime) {
+        const elapsed = Math.round((new Date() - syncStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('syncElapsedTime').textContent = 
+            `${minutes}m ${seconds}s`;
+    }
+
+    // Update statistics
+    document.getElementById('syncHostsProcessed').textContent = 
+        `${hostsProcessed}/${hostsDiscovered}`;
+    document.getElementById('syncVMsDiscovered').textContent = vmsDiscovered;
+    document.getElementById('syncVMsSynced').textContent = vmsSynced;
+
+    // Update host progress list
+    if (currentHost && !hostProgressCache.find(h => h.host === currentHost)) {
+        hostProgressCache.push({
+            host: currentHost,
+            status: 'Processing',
+            vms: vmsDiscovered
+        });
+        updateHostProgressList();
+    }
+
+    // Update current host status in cache
+    const hostEntry = hostProgressCache.find(h => h.host === currentHost);
+    if (hostEntry) {
+        hostEntry.status = 'Processing';
+        hostEntry.vms = vmsDiscovered;
+    }
+
+    // Mark previously processed hosts as completed
+    hostProgressCache.forEach(h => {
+        if (h.host !== currentHost) {
+            h.status = 'Completed';
+        }
+    });
+}
+
+function updateHostProgressList() {
+    const listContainer = document.getElementById('syncHostList');
+    
+    if (hostProgressCache.length === 0) {
+        listContainer.innerHTML = '<div class="text-muted text-center py-2">Waiting for sync to start...</div>';
+        return;
+    }
+
+    let html = '<div class="list-group list-group-flush">';
+    
+    // Sort: processing first, then completed, then pending
+    const sortedHosts = [...hostProgressCache].sort((a, b) => {
+        if (a.status === 'Processing' && b.status !== 'Processing') return -1;
+        if (a.status !== 'Processing' && b.status === 'Processing') return 1;
+        return 0;
+    });
+
+    sortedHosts.forEach((host, index) => {
+        const statusClass = host.status === 'Processing' 
+            ? 'primary' 
+            : host.status === 'Completed' 
+                ? 'success' 
+                : 'secondary';
+        
+        const statusIcon = host.status === 'Processing'
+            ? '<i class="bi bi-arrow-clockwise spin-icon"></i>'
+            : host.status === 'Completed'
+                ? '<i class="bi bi-check-circle"></i>'
+                : '<i class="bi bi-circle"></i>';
+
+        html += `
+            <div class="list-group-item px-2 py-1">
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-${statusClass} me-2">${statusIcon}</span>
+                    <span class="flex-grow-1">${host.host}</span>
+                    ${host.vms > 0 ? `<span class="badge bg-info">${host.vms} VMs</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    listContainer.innerHTML = html;
+}
+
+async function checkSyncStatus() {
+    try {
+        const response = await fetch('/api/sync/status');
+        const data = await response.json();
+
+        const status = data.last_sync_status;
+
+        // Detect state changes
+        if (status === 'running' && status !== lastSyncStatus) {
+            lastSyncStatus = status;
+            
+            // Update with detailed information
+            updateDetailedSyncStatus(data);
+
+        } else if (status === 'running' && status === lastSyncStatus) {
+            // Still running - update details every time
+            updateDetailedSyncStatus(data);
+            
+        } else if (status === 'success' && status !== lastSyncStatus) {
+            lastSyncStatus = status;
+            updateSyncStatusSuccess(
+                `Successfully synced ${data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}`
+            );
+            // Auto-reload disabled to prevent refresh loop
+        } else if (status === 'partial' && status !== lastSyncStatus) {
+            lastSyncStatus = status;
+            updateSyncStatusSuccess(
+                `Partially synced: ${data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}. Some errors occurred.`
+            );
+            // Auto-reload disabled to prevent refresh loop
+        } else if (status === 'error' && status !== lastSyncStatus) {
+            lastSyncStatus = status;
+            updateSyncStatusError(
+                data.errors || 'An error occurred during sync'
+            );
+            stopSyncMonitoring();
+        }
+    } catch (error) {
+        console.error('Failed to check sync status:', error);
+    }
+}
+
+function formatElapsedTime() {
+    if (!syncStartTime) return '0s';
+    
+    const elapsed = Math.round((new Date() - syncStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+}
+
+function startSyncMonitoring() {
+    if (syncCheckInterval) return;
+
+    // Check immediately
+    checkSyncStatus();
+
+    // Then check every 2 seconds
+    syncCheckInterval = setInterval(checkSyncStatus, 2000);
+}
+
+function stopSyncMonitoring() {
+    if (syncCheckInterval) {
+        clearInterval(syncCheckInterval);
+        syncCheckInterval = null;
+    }
+}
+
+ // Toggle host summary button text
+ const hostSummaryToggle = document.querySelector('[data-bs-target="#hostSummaryTable"]');
+ if (hostSummaryToggle) {
+     hostSummaryToggle.addEventListener('click', function() {
+         const icon = this.querySelector('i');
+         const isExpanded = this.getAttribute('aria-expanded') === 'true';
+         
+         if (isExpanded) {
+             this.innerHTML = '<i class="bi bi-eye-slash"></i> Hide';
+         } else {
+             this.innerHTML = '<i class="bi bi-eye"></i> Show';
+         }
+     });
+ }
+
+ // Start monitoring when page loads
+ document.addEventListener('DOMContentLoaded', async () => {
+     // Check sync status immediately on page load
+     try {
+         const response = await fetch('/api/sync/status');
+         const data = await response.json();
+         
+         if (data.last_sync_status === 'running') {
+             // Sync is running, show the status
+             syncStartTime = data.last_sync_start ? new Date(data.last_sync_start) : new Date();
+             showSyncStatus('Sync in Progress', 'Loading current status...');
+             updateDetailedSyncStatus(data);
+         }
+     } catch (error) {
+         console.error('Failed to check initial sync status:', error);
+     }
+     
+     startSyncMonitoring();
+ });
+
+// Cleanup when page is unloaded
+window.addEventListener('beforeunload', () => {
+    stopSyncMonitoring();
+});
+</script>
+{% endblock %}

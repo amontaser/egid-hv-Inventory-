@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Hosts{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Hyper-V Hosts</h1>
+            {% if selected_cluster_name %}
+            <div class="mt-2">
+                <span class="badge bg-primary">
+                    <i class="bi bi-funnel"></i> Filtered by: {{ selected_cluster_name }}
+                    <a href="{{ request.path }}" class="text-white ms-1" title="Clear filter">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </span>
+            </div>
+            {% endif %}
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-primary btn-sm" onclick="expandAll()">
+                <i class="bi bi-chevron-down"></i> Expand All
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="collapseAll()">
+                <i class="bi bi-chevron-up"></i> Collapse All
+            </button>
+        </div>
+    </div>
+
+    {% if clusters_with_hosts %}
+    <div class="accordion" id="clustersAccordion">
+        {% for cluster_name, cluster_data in clusters_with_hosts.items() %}
+        <div class="accordion-item mb-3">
+            <h2 class="accordion-header" id="heading{{ loop.index }}">
+                <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ loop.index }}">
+                    <div class="d-flex w-100 align-items-center justify-content-between me-3">
+                        <div>
+                            <h5 class="mb-1"><i class="bi bi-diagram-3 text-primary"></i> {{ cluster_name }}</h5>
+                            {% if cluster_data.location %}
+                            <small class="text-muted"><i class="bi bi-geo-alt"></i> {{ cluster_data.location }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-4 text-end">
+                            <div class="text-center px-2">
+                                <div class="fw-bold text-primary">{{ cluster_data.hosts|length }}</div>
+                                <small class="text-muted">Hosts</small>
+                            </div>
+                            <div class="text-center px-2">
+                                <div class="fw-bold text-success">{{ cluster_data.total_vms }}</div>
+                                <small class="text-muted">VMs</small>
+                            </div>
+                            <div class="text-center px-2">
+                                <div class="fw-bold text-info">{{ cluster_data.total_cpus }}</div>
+                                <small class="text-muted">CPUs</small>
+                            </div>
+                            <div class="text-center px-2">
+                                <div class="fw-bold text-warning">{{ cluster_data.total_memory_gb|round(0) }} GB</div>
+                                <small class="text-muted">Memory</small>
+                            </div>
+                        </div>
+                    </div>
+                </button>
+            </h2>
+            <div id="collapse{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#clustersAccordion">
+                <div class="accordion-body bg-light">
+                    <div class="row g-3">
+                        {% for host in cluster_data.hosts %}
+                        <div class="col-lg-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-hdd-rack text-primary"></i> {{ host.host_name }}
+                                        {% if host.connection_ip %}
+                                        <small class="text-muted ms-2"><i class="bi bi-arrow-right"></i> {{ host.connection_ip }}</small>
+                                        {% endif %}
+                                    </h6>
+                                    {% if host.fqdn and host.fqdn != host.host_name %}
+                                    <small class="text-muted">{{ host.fqdn }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6"><div class="bg-light rounded p-2"><h5 class="mb-0">{{ host.vm_count }}</h5><small>VMs</small></div></div>
+                                        <div class="col-6"><div class="bg-light rounded p-2"><h5 class="mb-0">{{ host.logical_processors }}</h5><small>CPUs</small></div></div>
+                                    </div>
+
+                                    {% if host.needs_restart or host.needs_update %}
+                                    <div class="alert alert-{% if host.needs_restart %}danger{% else %}warning{% endif %} alert-dismissible fade show py-2 mb-3" role="alert">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-{% if host.needs_restart %}arrow-clockwise{% else %}download{% endif %} me-2"></i>
+                                            <div class="small">
+                                                {% if host.needs_restart %}
+                                                <strong>Restart Required</strong><br>
+                                                {% endif %}
+                                                {% if host.needs_update %}
+                                                <strong>{{ host.pending_updates_count }} Update{{ 's' if host.pending_updates_count != 1 else '' }} Pending</strong>
+                                                {% if host.critical_updates_count > 0 %}
+                                                <span class="badge bg-danger ms-1">{{ host.critical_updates_count }} Critical</span>
+                                                {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <p class="mb-2"><strong>Memory:</strong> {{ host.available_memory_gb|round(1) }} / {{ host.total_memory_gb|round(1) }} GB free</p>
+
+                                    {% if host.c_drive_size_gb %}
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="small"><strong>C Drive:</strong> {{ host.c_drive_free_gb|round(1) }} / {{ host.c_drive_size_gb|round(1) }} GB free</span>
+                                            <span class="small badge bg-{% if host.c_drive_percent_used < 70 %}success{% elif host.c_drive_percent_used < 90 %}warning{% else %}danger{% endif %}">{{ host.c_drive_percent_used|round(1) }}% used</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-{% if host.c_drive_percent_used < 70 %}success{% elif host.c_drive_percent_used < 90 %}warning{% else %}danger{% endif %}" role="progressbar" style="width: {{ host.c_drive_percent_used }}%" aria-valuenow="{{ host.c_drive_percent_used }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if host.last_update_check_time %}
+                                    <p class="mb-1 small text-muted"><strong>Last Update Check:</strong> {{ host.last_update_check_time }}</p>
+                                    {% endif %}
+
+                                    <p class="mb-0 small"><strong>OS:</strong> {{ host.os_version or 'Unknown' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <p class="text-muted">No hosts found. Run a sync to discover hosts.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function expandAll() {
+    document.querySelectorAll('#clustersAccordion .accordion-collapse').forEach(el => {
+        el.classList.add('show');
+    });
+    document.querySelectorAll('#clustersAccordion .accordion-button').forEach(el => {
+        el.classList.remove('collapsed');
+        el.setAttribute('aria-expanded', 'true');
+    });
+}
+
+function collapseAll() {
+    document.querySelectorAll('#clustersAccordion .accordion-collapse').forEach(el => {
+        el.classList.remove('show');
+    });
+    document.querySelectorAll('#clustersAccordion .accordion-button').forEach(el => {
+        el.classList.add('collapsed');
+        el.setAttribute('aria-expanded', 'false');
+    });
+}
+</script>
+{% endblock %}

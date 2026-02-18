@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Add' if mode == 'add' else 'Edit' }} Cluster{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="mb-4">
+                <h1 class="h3 mb-1">{{ 'Add' if mode == 'add' else 'Edit' }} Cluster</h1>
+                <small class="text-muted">
+                    {{ 'Configure a new Hyper-V cluster' if mode == 'add' else 'Update cluster configuration' }}
+                </small>
+            </div>
+
+            <form method="POST">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Cluster Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Cluster Name -->
+                        <div class="mb-3">
+                            <label for="cluster_name" class="form-label">Cluster Name *</label>
+                            <input type="text" class="form-control" id="cluster_name" name="cluster_name"
+                                   value="{{ cluster.cluster_name or '' }}" required
+                                   placeholder="e.g., EGITDR-Cluster">
+                            <div class="form-text">A friendly name to identify this cluster</div>
+                        </div>
+
+                        <!-- Domain -->
+                        <div class="mb-3">
+                            <label for="domain" class="form-label">Domain/FQDN *</label>
+                            <input type="text" class="form-control" id="domain" name="domain"
+                                   value="{{ cluster.domain or '' }}" required
+                                   placeholder="e.g., EGITDRHVclst.egitdr.corp">
+                            <div class="form-text">The fully qualified domain name of the cluster (used for DNS resolution)</div>
+                        </div>
+
+                        <!-- PowerShell Cluster Name -->
+                        <div class="mb-3">
+                            <label for="cluster_name_for_ps" class="form-label">PowerShell Cluster Name</label>
+                            <input type="text" class="form-control" id="cluster_name_for_ps" name="cluster_name_for_ps"
+                                   value="{{ cluster.cluster_name_for_ps or '' }}"
+                                   placeholder="e.g., EGITDRHVclst">
+                            <div class="form-text">
+                                The exact cluster name used in PowerShell commands (e.g., <code>Get-ClusterNode -Cluster <strong>EGITDRHVclst</strong></code>).
+                                Leave empty to use the Domain/FQDN. Required if your cluster name differs from the FQDN.
+                            </div>
+                        </div>
+
+                        <!-- Domain Name -->
+                        <div class="mb-3">
+                            <label for="domain_name" class="form-label">Domain Name (for FQDN)</label>
+                            <input type="text" class="form-control" id="domain_name" name="domain_name"
+                                   value="{{ cluster.domain_name or '' }}"
+                                   placeholder="e.g., egitdr.corp">
+                            <div class="form-text">
+                                The domain suffix for building fully qualified domain names (e.g., <strong>egitdr.corp</strong> in <code>NodeName.egitdr.corp</code>).
+                                Leave empty to use short hostnames only.
+                            </div>
+                        </div>
+
+                        <!-- DNS Servers -->
+                        <div class="mb-3">
+                            <label for="dns_servers" class="form-label">DNS Servers (optional)</label>
+                            <input type="text" class="form-control" id="dns_servers" name="dns_servers"
+                                   value="{{ cluster.dns_servers or '' }}"
+                                   placeholder="e.g., 10.21.0.10,10.21.0.11">
+                            <div class="form-text">
+                                Comma-separated DNS server IPs for this cluster's network.
+                                Leave empty to use system DNS. Use this if cluster domains don't resolve with default DNS.
+                            </div>
+                        </div>
+
+                        <!-- Location -->
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location"
+                                   value="{{ cluster.location or '' }}"
+                                   placeholder="e.g., Smart Village">
+                            <div class="form-text">Physical location of the cluster (optional)</div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Username -->
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">Username *</label>
+                                <input type="text" class="form-control" id="username" name="username"
+                                       value="{{ cluster.username or '' }}" required
+                                       placeholder="DOMAIN\username or username@domain">
+                                <div class="form-text">Account with Hyper-V admin rights</div>
+                            </div>
+
+                            <!-- Transport -->
+                            <div class="col-md-6 mb-3">
+                                <label for="transport" class="form-label">Transport Protocol</label>
+                                <select class="form-select" id="transport" name="transport">
+                                    <option value="ntlm" {{ 'selected' if cluster.transport == 'ntlm' else '' }}>NTLM</option>
+                                    <option value="basic" {{ 'selected' if cluster.transport == 'basic' else '' }}>Basic</option>
+                                    <option value="credssp" {{ 'selected' if cluster.transport == 'credssp' else '' }}>CredSSP</option>
+                                </select>
+                                <div class="form-text">WinRM transport protocol</div>
+                            </div>
+                        </div>
+
+                        <!-- Password -->
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   {{ 'required' if mode == 'add' else '' }}
+                                   placeholder="{{ 'Enter password' if mode == 'add' else 'Leave blank to keep existing password' }}">
+                            <div class="form-text">
+                                {% if mode == 'edit' %}
+                                Leave blank to keep the existing password
+                                {% else %}
+                                Password will be encrypted before storage
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Require HTTPS -->
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="require_https" name="require_https"
+                                   {{ 'checked' if cluster.require_https else '' }}>
+                            <label class="form-check-label" for="require_https">
+                                Require HTTPS (WinRM over SSL/TLS)
+                            </label>
+                            <div class="form-text">
+                                Enable if cluster only accepts HTTPS connections (port 5986).
+                                Uses encrypted connections for improved security.
+                                {% if mode == 'edit' and cluster.require_https %}
+                                <br><strong class="text-warning">Currently using HTTPS - port 5986</strong>
+                                {% elif mode == 'edit' and not cluster.require_https %}
+                                <br><strong class="text-info">Currently using HTTP - port 5985</strong>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Is Enabled (Edit mode only) -->
+                        {% if mode == 'edit' %}
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="is_enabled" name="is_enabled"
+                                   {{ 'checked' if cluster.is_enabled else '' }}>
+                            <label class="form-check-label" for="is_enabled">
+                                Enable this cluster for scanning
+                            </label>
+                            <div class="form-text">Uncheck to temporarily disable this cluster</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> {{ 'Add Cluster' if mode == 'add' else 'Save Changes' }}
+                    </button>
+                    <a href="/settings#clusters" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
