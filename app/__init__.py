@@ -14,8 +14,13 @@ load_dotenv()
 
 def create_app():
     """Create and configure Flask application."""
+    # Get the directory containing this file
+    basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    
     app = Flask(
-        __name__, template_folder="../../templates", static_folder="../../static"
+        __name__,
+        template_folder=os.path.join(basedir, 'templates'),
+        static_folder=os.path.join(basedir, 'static')
     )
 
     # Configuration
