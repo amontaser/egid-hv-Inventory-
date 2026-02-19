@@ -1,12 +1,16 @@
 """Hyper-V Inventory Web Application (entry point)"""
 
 import os
+import sys
 from dotenv import load_dotenv
+
+# Add to Python path
+sys.path.insert(0, '/opt/hyperv_inventory')
 
 # Load environment variables
 load_dotenv()
 
-from hyperv_inventory.app import create_app
+from app import create_app
 
 app = create_app()
 
