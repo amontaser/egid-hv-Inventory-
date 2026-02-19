@@ -104,7 +104,6 @@ def format_last_update(sync_info):
 @login_required
 def index():
     """Main dashboard view."""
-    db = get_db()
 
     # Get selected cluster
     cluster_id = get_selected_cluster()
