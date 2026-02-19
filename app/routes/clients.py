@@ -12,7 +12,7 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime
-from hyperv_inventory.app.utils.db import get_db
+from app.utils.db import get_db
 import logging
 
 logger = logging.getLogger(__name__)

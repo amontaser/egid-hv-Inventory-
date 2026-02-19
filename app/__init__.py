@@ -34,15 +34,16 @@ def create_app():
     Bootstrap5(app)
 
     # Register blueprints
-    from hyperv_inventory.app.routes import api, vms, clients, storage
+    from app.routes import api, vms, clients, storage, auth
 
     app.register_blueprint(api.bp, url_prefix="/api")
     app.register_blueprint(vms.bp)
     app.register_blueprint(clients.bp)
     app.register_blueprint(storage.bp)
+    app.register_blueprint(auth.auth_bp)
 
     # Initialize database
-    from hyperv_inventory.app.utils.db import init_db
+    from app.utils.db import init_db
 
     with app.app_context():
         init_db()

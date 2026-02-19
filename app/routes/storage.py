@@ -11,7 +11,7 @@ from flask import (
 )
 from functools import wraps
 from datetime import datetime
-from hyperv_inventory.app.utils.db import get_db
+from app.utils.db import get_db
 import csv
 from io import StringIO
 import logging
@@ -179,7 +179,7 @@ def storage_view():
 @login_required
 def trigger_storage_rescan():
     """Trigger a forced full sync including CSV storage rescan."""
-    from hyperv_inventory.tasks.csv_scanner import fetch_cluster_csv_storage
+    from tasks.csv_scanner import fetch_cluster_csv_storage
 
     # Clear CSV cache by updating last_scan_end to NULL
     db = get_db()
@@ -205,7 +205,7 @@ def trigger_storage_rescan():
 @login_required
 def trigger_update():
     """Trigger data sync from Hyper-V."""
-    from hyperv_inventory.tasks.sync import fetch_hyperv_data
+    from tasks.sync import fetch_hyperv_data
 
     task = fetch_hyperv_data.delay()
 

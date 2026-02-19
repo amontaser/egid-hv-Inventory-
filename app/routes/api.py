@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request, session, redirect
 from functools import wraps
-from hyperv_inventory.app.utils.db import get_db
+from app.utils.db import get_db
 import logging
 
 logger = logging.getLogger(__name__)
