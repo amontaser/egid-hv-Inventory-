@@ -1,0 +1,14 @@
+# Flask and extensions
+Flask>=3.0.0
+bootstrap-flask>=2.2.0
+python-dotenv>=1.0.0
+
+# Celery for async tasks
+celery>=5.3.0
+redis>=5.0.0
+
+# WinRM for Hyper-V communication
+pywinrm>=0.4.3
+
+# Production server
+gunicorn>=21.0.0
