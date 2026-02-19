@@ -7,7 +7,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-DATABASE_PATH = "database.db"
+DATABASE_PATH = "/opt/hyperv_inventory/database.db"
 
 
 def get_db_connection():
