@@ -15,7 +15,7 @@ def login():
         password = request.form.get('password')
         if password == ADMIN_PASSWORD:
             session['logged_in'] = True
-            return redirect(url_for('vms.dashboard'))
+            return redirect('/')  # Redirect to root instead of vms.dashboard
         else:
             return render_template('login.html', error='Invalid password')
     return render_template('login.html')
