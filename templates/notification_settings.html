@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Notification Settings{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2>Notification Settings</h2>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <form method="POST">
+    <div class="card mb-3">
+      <div class="card-header">Storage Alerts</div>
+      <div class="card-body">
+        <label class="form-label">Low storage threshold (%)</label>
+        <input type="number" name="storage_threshold_pct" class="form-control"
+               value="{{ settings.get('storage_threshold_pct', '20') }}" min="1" max="99">
+        <div class="form-text">Alert when CSV free space drops below this percentage.</div>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header">Email Alerts</div>
+      <div class="card-body">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="enable_email_alerts" value="1"
+                 id="emailCheck" {% if settings.get('enable_email_alerts') == '1' %}checked{% endif %}>
+          <label class="form-check-label" for="emailCheck">Enable email alerts</label>
+        </div>
+        <input type="text" name="smtp_host" placeholder="SMTP Host" class="form-control mb-2"
+               value="{{ settings.get('smtp_host', '') }}">
+        <input type="number" name="smtp_port" placeholder="SMTP Port (587)" class="form-control mb-2"
+               value="{{ settings.get('smtp_port', '587') }}">
+        <input type="text" name="smtp_user" placeholder="SMTP Username" class="form-control mb-2"
+               value="{{ settings.get('smtp_user', '') }}">
+        <input type="password" name="smtp_password" placeholder="SMTP Password" class="form-control mb-2"
+               value="{{ settings.get('smtp_password', '') }}">
+        <input type="email" name="alert_email_to" placeholder="Send alerts to" class="form-control"
+               value="{{ settings.get('alert_email_to', '') }}">
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header">Webhook (Slack / Teams / Generic)</div>
+      <div class="card-body">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" name="enable_webhook_alerts" value="1"
+                 id="whCheck" {% if settings.get('enable_webhook_alerts') == '1' %}checked{% endif %}>
+          <label class="form-check-label" for="whCheck">Enable webhook alerts</label>
+        </div>
+        <input type="url" name="webhook_url" placeholder="https://hooks.slack.com/..." class="form-control"
+               value="{{ settings.get('webhook_url', '') }}">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <a href="/settings" class="btn btn-secondary ms-2">Back</a>
+  </form>
+</div>
+{% endblock %}

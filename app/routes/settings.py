@@ -145,3 +145,44 @@ def settings():
         clusters=clusters,
         account_managers=account_managers,
     )
+
+
+@bp.route("/settings/notifications", methods=["GET", "POST"])
+@login_required
+def notification_settings():
+    """View and update notification settings."""
+    from datetime import datetime
+    from flask import flash
+    from app.db import get_db as get_db_connection
+
+    with get_db_connection() as db:
+        if request.method == "POST":
+            fields = [
+                "storage_threshold_pct",
+                "enable_email_alerts",
+                "enable_webhook_alerts",
+                "webhook_url",
+                "alert_email_to",
+                "smtp_host",
+                "smtp_port",
+                "smtp_user",
+                "smtp_password",
+            ]
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for field in fields:
+                value = request.form.get(field, "")
+                db.execute(
+                    """
+                    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                """,
+                    (field, value, now),
+                )
+            db.commit()
+            flash("Notification settings saved.", "success")
+            return redirect("/settings/notifications")
+
+        # GET: load all settings
+        rows = db.execute("SELECT key, value FROM settings").fetchall()
+        settings = {r["key"]: r["value"] for r in rows}
+        return render_template("notification_settings.html", settings=settings)
