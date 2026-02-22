@@ -10,5 +10,11 @@ redis>=5.0.0
 # WinRM for Hyper-V communication
 pywinrm>=0.4.3
 
+# DNS resolution for cluster nodes
+dnspython>=2.4.0
+
+# Password encryption
+cryptography>=41.0.0
+
 # Production server
 gunicorn>=21.0.0
