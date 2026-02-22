@@ -24,3 +24,5 @@ beat_schedule = {
         "options": {"expires": 86400},
     },
 }
+
+celery.conf.beat_schedule = beat_schedule

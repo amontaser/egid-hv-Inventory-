@@ -90,8 +90,9 @@ def save_csv_to_db(csv_list: List[Dict], cluster_name: str):
                 total_size_gb, free_space_gb, used_space_gb, percent_used,
                 maintenance_mode, redirected_access,
                 vhd_count, vhd_max_size_gb, vhd_actual_size_gb,
-                oversubscription_percent, oversubscription_gb, cluster_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                oversubscription_percent, oversubscription_gb, cluster_name,
+                last_updated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 csv.get("Name"),
@@ -110,6 +111,7 @@ def save_csv_to_db(csv_list: List[Dict], cluster_name: str):
                 csv.get("OversubscriptionPercent", 0),
                 csv.get("OversubscriptionGB", 0),
                 cluster_name,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             ),
         )
 
@@ -162,7 +164,7 @@ def should_rescan_csv(cluster_id: int = None) -> bool:
         # Rescan if more than 1 hour (3600 seconds) has passed
         CSV_CACHE_SECONDS = int(os.getenv("CSV_CACHE_SECONDS", "3600"))
         return time_since_scan > CSV_CACHE_SECONDS
-    except:
+    except (ValueError, TypeError):
         # Error parsing date, should rescan
         return True
 

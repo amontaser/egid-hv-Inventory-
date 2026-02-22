@@ -18,7 +18,7 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
 
     # If no env credentials, try to get from database
     if (not username or not password) and cluster_id:
-        from hyperv_inventory.app.utils.db import get_db_connection
+        from app.utils.db import get_db_connection
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -37,8 +37,9 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
             from cryptography.fernet import Fernet
 
             key = os.getenv("ENCRYPTION_KEY", "")
-            if not key and os.path.exists("encryption_key.key"):
-                with open("encryption_key.key", "rb") as f:
+            key_file = "/opt/hyperv_inventory/encryption_key.key"
+            if not key and os.path.exists(key_file):
+                with open(key_file, "rb") as f:
                     key = f.read().decode()
 
             if key:
@@ -53,22 +54,16 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
             "HYPERV_USERNAME and HYPERV_PASSWORD must be set, or valid cluster_id required"
         )
 
-    # Determine transport
+    # Determine transport from cluster config (already fetched above)
     transport = "ntlm"  # Default
-
-    # Check if cluster requires HTTPS
     if cluster_id:
-        from hyperv_inventory.app.utils.db import get_db_connection
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT require_https FROM clusters WHERE id = ?", (cluster_id,))
-        result = cursor.fetchone()
-        conn.close()
-
-        if result and result[0]:
-            # Cluster requires HTTPS, use SSL transport
-            transport = "ssl"
+        if 'cluster' in locals() and cluster:
+            db_transport = cluster[2]
+            require_https = cluster[3]
+            if require_https:
+                transport = "ssl"
+            elif db_transport:
+                transport = db_transport
 
     return winrm.Session(
         target=host,

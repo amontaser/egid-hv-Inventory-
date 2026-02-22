@@ -74,6 +74,25 @@ def _add_column(db, table, column, col_type):
 def _migrate_cluster_shared_volumes(db):
     """Recreate cluster_shared_volumes with cluster_name in the UNIQUE constraint."""
     try:
+        # Recover from a previous partial migration that left a backup table
+        backup_tables = {row[0] for row in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='_csv_backup'"
+        ).fetchall()}
+        if backup_tables:
+            # Previous migration left a backup - check if main table also exists
+            main_exists = db.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cluster_shared_volumes'"
+            ).fetchone()[0]
+            if main_exists:
+                # Both exist - migration completed but DROP failed; just clean up
+                db.execute("DROP TABLE _csv_backup")
+                logger.info("Cleaned up orphaned _csv_backup table")
+            else:
+                # Only backup exists - migration was interrupted; restore it
+                db.execute("ALTER TABLE _csv_backup RENAME TO cluster_shared_volumes")
+                logger.warning("Restored cluster_shared_volumes from _csv_backup after partial migration")
+            return
+
         cols = {row[1] for row in db.execute("PRAGMA table_info(cluster_shared_volumes)").fetchall()}
         if "cluster_name" in cols:
             return  # already migrated

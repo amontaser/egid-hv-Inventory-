@@ -605,68 +605,6 @@ def discover_cluster_nodes(cluster_name: str, cluster_id: int = None) -> Dict[st
     return node_map
 
 
-def aggregate_sync_results(results):
-    """Aggregate results from parallel worker tasks."""
-    logger.info(f"Aggregating results from {len(results)} worker tasks")
-
-    total_vms = 0
-    errors = []
-
-    # Process results from all workers
-    for result in results:
-        if isinstance(result, dict):
-            if result.get("status") == "success":
-                total_vms += result.get("vms", 0)
-            elif result.get("status") == "error":
-                errors.append(result.get("error", "Unknown error"))
-
-    # Get total hosts processed from database
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(DISTINCT host_name) FROM vm_info")
-    hosts_processed = cursor.fetchone()[0]
-    conn.close()
-
-    # Determine overall status
-    status = "success" if not errors else "partial"
-    error_text = "; ".join(errors) if errors else None
-
-    # Update final sync metadata
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE sync_metadata
-        SET last_sync_end = ?,
-            last_sync_status = ?,
-            vms_synced = ?,
-            hosts_processed = ?,
-            current_host = NULL,
-            errors = ?
-        WHERE id = 1
-    """,
-        (
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            status,
-            total_vms,
-            hosts_processed,
-            error_text,
-        ),
-    )
-    conn.commit()
-    conn.close()
-
-    logger.info(
-        f"Completed parallel sync: {total_vms} VMs from {hosts_processed} hosts"
-    )
-
-    return {
-        "status": status,
-        "vms_synced": total_vms,
-        "hosts_processed": hosts_processed,
-        "errors": errors if errors else None,
-    }
-
 
 @shared_task(name="tasks.sync.aggregate_sync_results_with_csv")
 def aggregate_sync_results_with_csv(results):
@@ -693,6 +631,10 @@ def aggregate_sync_results_with_csv(results):
                     total_vms += result.get("vms", 0)
             elif result.get("status") == "error":
                 errors.append(result.get("error", "Unknown error"))
+            elif result.get("status") == "skipped":
+                cluster = result.get("cluster")
+                if cluster:
+                    logger.info(f"Cluster {cluster}: CSV scan skipped (cache hit)")
 
     # Get total hosts processed from database
     conn = get_db_connection()
