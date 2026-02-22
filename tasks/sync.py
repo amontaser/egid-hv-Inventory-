@@ -12,9 +12,9 @@ from celery import Celery, shared_task, group, chord
 logger = logging.getLogger(__name__)
 
 # Import from our new modules
-from hyperv_inventory.tasks.hyperv import create_winrm_session, run_powershell
-from hyperv_inventory.tasks.csv_scanner import fetch_cluster_csv_storage
-from hyperv_inventory.app.utils.db import get_db_connection
+from .hyperv import create_winrm_session, run_powershell
+from .csv_scanner import fetch_cluster_csv_storage
+from app.utils.db import get_db_connection
 
 
 # ============================================================================
@@ -393,7 +393,7 @@ def save_host_to_db(host_info: Dict):
         """
         INSERT OR REPLACE INTO hyperv_hosts (
             host_name, cluster_name, total_memory_gb, available_memory_gb,
-            logical_processor_count, vm_count, os_version, last_updated
+            logical_processors, vm_count, os_version, last_updated
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
@@ -743,7 +743,7 @@ def aggregate_sync_results_with_csv(results):
 # ============================================================================
 
 
-@shared_task(bind=True, name="hyperv_inventory.tasks.sync.fetch_hyperv_data")
+@shared_task(bind=True, name="tasks.sync.fetch_hyperv_data")
 def fetch_hyperv_data(self):
     """Main task to fetch all Hyper-V data from all configured clusters using parallel workers."""
     logger.info("Starting Hyper-V data collection (parallel mode)")
@@ -851,7 +851,7 @@ def fetch_hyperv_data(self):
         return {"status": "error", "message": str(e)}
 
 
-@shared_task(name="hyperv_inventory.tasks.sync.fetch_single_host")
+@shared_task(name="tasks.sync.fetch_single_host")
 def fetch_single_host(host: str, cluster_id: int = None):
     """Fetch data from a single Hyper-V host (parallel worker task)."""
     logger.info(f"[Worker] Fetching data from {host}")

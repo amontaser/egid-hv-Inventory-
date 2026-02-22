@@ -32,6 +32,82 @@ def get_db():
         conn.close()
 
 
+def _run_migrations(db):
+    """Run schema migrations for existing databases. Safe to call multiple times."""
+
+    # --- clusters: add WinRM connection columns ---
+    _add_column(db, "clusters", "domain", "TEXT")
+    _add_column(db, "clusters", "cluster_name_for_ps", "TEXT")
+    _add_column(db, "clusters", "domain_name", "TEXT")
+    _add_column(db, "clusters", "dns_servers", "TEXT")
+    _add_column(db, "clusters", "username", "TEXT")
+    _add_column(db, "clusters", "password", "TEXT")
+    _add_column(db, "clusters", "transport", "TEXT DEFAULT 'ntlm'")
+    _add_column(db, "clusters", "require_https", "INTEGER DEFAULT 0")
+
+    # --- csv_scan_metadata: add cluster_id ---
+    _add_column(db, "csv_scan_metadata", "cluster_id", "INTEGER")
+
+    # --- sync_metadata: add missing columns ---
+    _add_column(db, "sync_metadata", "hosts_discovered", "INTEGER")
+    _add_column(db, "sync_metadata", "hosts_processed", "INTEGER")
+    _add_column(db, "sync_metadata", "current_host", "TEXT")
+
+    # --- cluster_shared_volumes: add cluster_name + fix UNIQUE constraint ---
+    _migrate_cluster_shared_volumes(db)
+
+    db.commit()
+    logger.info("Schema migrations complete")
+
+
+def _add_column(db, table, column, col_type):
+    """Add a column to a table if it does not already exist."""
+    try:
+        existing = {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in existing:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+            logger.info(f"Added column {table}.{column}")
+    except Exception as e:
+        logger.warning(f"Could not add {table}.{column}: {e}")
+
+
+def _migrate_cluster_shared_volumes(db):
+    """Recreate cluster_shared_volumes with cluster_name in the UNIQUE constraint."""
+    try:
+        cols = {row[1] for row in db.execute("PRAGMA table_info(cluster_shared_volumes)").fetchall()}
+        if "cluster_name" in cols:
+            return  # already migrated
+
+        db.execute("ALTER TABLE cluster_shared_volumes RENAME TO _csv_backup")
+        db.execute("""
+            CREATE TABLE cluster_shared_volumes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                volume_path TEXT,
+                owner_node TEXT,
+                state TEXT,
+                total_size_gb REAL,
+                free_space_gb REAL,
+                used_space_gb REAL,
+                percent_used REAL,
+                maintenance_mode INTEGER DEFAULT 0,
+                redirected_access INTEGER DEFAULT 0,
+                vhd_count INTEGER DEFAULT 0,
+                vhd_max_size_gb REAL DEFAULT 0,
+                vhd_actual_size_gb REAL DEFAULT 0,
+                oversubscription_percent REAL DEFAULT 0,
+                oversubscription_gb REAL DEFAULT 0,
+                cluster_name TEXT,
+                last_updated TEXT,
+                UNIQUE(name, volume_path, cluster_name)
+            )
+        """)
+        db.execute("DROP TABLE _csv_backup")
+        logger.info("Migrated cluster_shared_volumes: added cluster_name to UNIQUE constraint")
+    except Exception as e:
+        logger.warning(f"cluster_shared_volumes migration: {e}")
+
+
 def init_db():
     """Initialize database tables."""
     db = get_db_connection()
@@ -158,13 +234,15 @@ def init_db():
             vhd_actual_size_gb REAL DEFAULT 0,
             oversubscription_percent REAL DEFAULT 0,
             oversubscription_gb REAL DEFAULT 0,
+            cluster_name TEXT,
             last_updated TEXT,
-            UNIQUE(name, volume_path)
+            UNIQUE(name, volume_path, cluster_name)
         );
 
         -- CSV scan metadata table
         CREATE TABLE IF NOT EXISTS csv_scan_metadata (
             id INTEGER PRIMARY KEY,
+            cluster_id INTEGER,
             last_scan_start TEXT,
             last_scan_end TEXT,
             scan_status TEXT,
@@ -292,73 +370,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_notifications_date ON notifications(created_at);
     """)
 
-    # Add new columns to sync_metadata if they don't exist (for existing databases)
-    try:
-        db.execute("ALTER TABLE sync_metadata ADD COLUMN hosts_discovered INTEGER")
-    except:
-        pass
-    try:
-        db.execute("ALTER TABLE sync_metadata ADD COLUMN hosts_processed INTEGER")
-    except:
-        pass
-    try:
-        db.execute("ALTER TABLE sync_metadata ADD COLUMN current_host TEXT")
-    except:
-        pass
-
-    # Create CSV table if it doesn't exist (for existing databases)
-    try:
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS cluster_shared_volumes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                volume_path TEXT,
-                owner_node TEXT,
-                state TEXT,
-                total_size_gb REAL,
-                free_space_gb REAL,
-                used_space_gb REAL,
-                percent_used REAL,
-                maintenance_mode INTEGER DEFAULT 0,
-                redirected_access INTEGER DEFAULT 0,
-                vhd_count INTEGER DEFAULT 0,
-                vhd_max_size_gb REAL DEFAULT 0,
-                vhd_actual_size_gb REAL DEFAULT 0,
-                oversubscription_percent REAL DEFAULT 0,
-                oversubscription_gb REAL DEFAULT 0,
-                last_updated TEXT,
-                UNIQUE(name, volume_path)
-            )
-        """)
-        logger.info("Created cluster_shared_volumes table")
-    except Exception as e:
-        logger.warning(f"Could not create CSV table: {e}")
-
-    # Create CSV scan metadata table if it doesn't exist
-    try:
-        db.execute("""
-            CREATE TABLE IF NOT EXISTS csv_scan_metadata (
-                id INTEGER PRIMARY KEY,
-                last_scan_start TEXT,
-                last_scan_end TEXT,
-                scan_status TEXT,
-                volumes_scanned INTEGER,
-                total_vhds_found INTEGER,
-                scan_duration_seconds REAL,
-                errors TEXT
-            )
-        """)
-        logger.info("Created csv_scan_metadata table")
-
-        # Initialize csv_scan_metadata with default record
-        db.execute("""
-            INSERT OR IGNORE INTO csv_scan_metadata (id, scan_status)
-            VALUES (1, 'never')
-        """)
-        logger.info("Initialized csv_scan_metadata table")
-    except Exception as e:
-        logger.warning(f"Could not create csv_scan_metadata table: {e}")
-
     # Seed initial account managers if table is empty
     try:
         manager_count = db.execute(
@@ -379,5 +390,6 @@ def init_db():
     except Exception as e:
         logger.warning(f"Could not seed account managers: {e}")
 
+    _run_migrations(db)
     db.commit()
     logger.info("Database initialized successfully")
