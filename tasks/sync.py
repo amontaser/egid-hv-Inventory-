@@ -4,3 +4,4 @@ from tasks.orchestrator import (
     fetch_single_host,
     aggregate_and_monitor,
 )  # noqa
+from tasks.collectors.winrm import resolve_node_ip  # noqa
