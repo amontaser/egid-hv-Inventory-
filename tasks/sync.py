@@ -17,6 +17,55 @@ from .csv_scanner import fetch_cluster_csv_storage
 from app.utils.db import get_db_connection
 
 
+def resolve_node_ip(node_name: str, dns_servers_str: str, domain_name: str = None) -> str:
+    """Resolve a cluster node name to an IP using configured DNS servers.
+
+    Args:
+        node_name: Short node name from Get-ClusterNode (e.g. 'NODE1')
+        dns_servers_str: Comma-separated DNS server IPs from cluster config
+        domain_name: Domain suffix to build FQDN (e.g. 'egitdr.corp')
+
+    Returns:
+        Resolved IP address, or node_name if resolution fails
+    """
+    import dns.resolver
+
+    if not dns_servers_str or not dns_servers_str.strip():
+        # No custom DNS — fall back to system resolver
+        try:
+            return socket.gethostbyname(node_name)
+        except socket.gaierror:
+            logger.warning(f"System DNS could not resolve {node_name}")
+            return node_name
+
+    dns_servers = [s.strip() for s in dns_servers_str.split(",") if s.strip()]
+    resolver = dns.resolver.Resolver(configure=False)
+    resolver.nameservers = dns_servers
+    resolver.timeout = 3
+    resolver.lifetime = 5
+
+    # Try FQDN first when domain_name is configured
+    if domain_name:
+        fqdn = f"{node_name}.{domain_name}"
+        try:
+            answer = resolver.resolve(fqdn, "A")
+            ip = str(answer[0])
+            logger.info(f"Resolved {fqdn} -> {ip}")
+            return ip
+        except Exception:
+            pass  # fall through to short name
+
+    # Try short name
+    try:
+        answer = resolver.resolve(node_name, "A")
+        ip = str(answer[0])
+        logger.info(f"Resolved {node_name} -> {ip}")
+        return ip
+    except Exception:
+        logger.warning(f"Could not resolve {node_name} via custom DNS, using as-is")
+        return node_name
+
+
 # ============================================================================
 # PowerShell Scripts (extracted from tasks.py lines 69-480)
 # ============================================================================
@@ -494,12 +543,18 @@ def clear_old_data():
 
 
 def discover_cluster_nodes(cluster_name: str, cluster_id: int = None) -> Dict[str, str]:
-    """Discover all nodes in a Hyper-V cluster."""
+    """Discover all Up nodes in a Hyper-V cluster and resolve their IPs.
+
+    Connects directly to the cluster FQDN (domain field) to run Get-ClusterNode,
+    then resolves each node name to an IP using the cluster's configured DNS servers.
+
+    Returns:
+        Dict mapping node_name -> ip_address
+    """
     logger.info(f"Discovering nodes for cluster: {cluster_name}")
 
-    # Get cluster DNS servers, PowerShell cluster name, and domain name if available
-    cluster_dns = None
-    ps_cluster_name = cluster_name
+    domain = cluster_name  # fallback if no DB record
+    dns_servers = None
     domain_name = None
 
     if cluster_id:
@@ -507,96 +562,47 @@ def discover_cluster_nodes(cluster_name: str, cluster_id: int = None) -> Dict[st
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT dns_servers, cluster_name_for_ps, domain_name FROM clusters WHERE id = ?",
+                "SELECT domain, dns_servers, domain_name FROM clusters WHERE id = ?",
                 (cluster_id,),
             )
             result = cursor.fetchone()
             conn.close()
-
             if result:
-                cluster_dns = result[0]
-                ps_cluster_name = result[1] or cluster_name
+                domain = result[0] or cluster_name
+                dns_servers = result[1]
                 domain_name = result[2]
-
-                if cluster_dns:
-                    logger.info(f"Using custom DNS servers for cluster: {cluster_dns}")
+                logger.info(
+                    f"Cluster config: domain={domain}, dns_servers={dns_servers}, "
+                    f"domain_name={domain_name}"
+                )
         except Exception as e:
-            logger.warning(f"Failed to get cluster config: {e}")
+            logger.warning(f"Failed to get cluster config from DB: {e}")
 
-    # Try to get cluster nodes
-    session = None
-    try:
-        # Try to get a node to query
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    # Connect directly to the cluster FQDN
+    logger.info(f"Connecting to cluster FQDN: {domain}")
+    session = create_winrm_session(domain, cluster_id=cluster_id)
 
-        if cluster_id:
-            cursor.execute(
-                "SELECT host_name FROM hyperv_hosts WHERE cluster_name = ? LIMIT 1",
-                (cluster_name,),
-            )
-        else:
-            cursor.execute("SELECT host_name FROM hyperv_hosts LIMIT 1")
+    # Query cluster nodes
+    nodes_info = run_powershell(session, PS_GET_CLUSTER_NODES)
+    if not nodes_info:
+        raise Exception(f"Get-ClusterNode returned no results from {domain}")
 
-        result = cursor.fetchone()
-        conn.close()
+    node_map = {}
+    for node in nodes_info:
+        state = node.get("State", "")
+        node_name = node.get("Name", "")
+        if state != "Up":
+            logger.info(f"Skipping node {node_name} — state={state}")
+            continue
+        ip = resolve_node_ip(node_name, dns_servers, domain_name)
+        node_map[node_name] = ip
+        logger.info(f"Node {node_name} -> {ip}")
 
-        if result:
-            test_host = result[0]
-            logger.info(f"Using {test_host} to query cluster {cluster_name}")
-            session = create_winrm_session(test_host, cluster_id=cluster_id)
+    if not node_map:
+        raise Exception(f"No Up nodes found in cluster {cluster_name}")
 
-        # If no host in DB, try cluster name as FQDN
-        if not session:
-            test_host = cluster_name
-            if domain_name:
-                test_host = f"{cluster_name}.{domain_name}"
-            session = create_winrm_session(test_host, cluster_id=cluster_id)
-
-        if not session:
-            raise Exception(
-                f"Could not create WinRM session for cluster {cluster_name}"
-            )
-
-        # Query cluster nodes
-        nodes_info = run_powershell(session, PS_GET_CLUSTER_NODES)
-
-        if not nodes_info:
-            raise Exception("Failed to get cluster nodes")
-
-        node_map = {}
-
-        # Resolve node IPs using custom DNS if configured
-        for node in nodes_info:
-            if node.get("State") != "Up":
-                logger.info(f"Skipping node {node['Name']} - state is {node['State']}")
-                continue
-
-            node_name = node["Name"]
-            ip_address = node_name  # Default to hostname
-
-            # Try to resolve IP
-            try:
-                import socket
-
-                ip_address = socket.gethostbyname(node_name)
-                logger.info(f"Resolved {node_name} to {ip_address}")
-            except socket.gaierror:
-                logger.warning(f"Could not resolve {node_name} to IP")
-
-            node_map[node_name] = ip_address
-
-        if not node_map:
-            raise Exception("No accessible nodes found in cluster")
-
-        logger.info(
-            f"Discovered {len(node_map)} accessible nodes: {list(node_map.keys())}"
-        )
-        return node_map
-
-    except Exception as e:
-        logger.error(f"Cluster node discovery failed: {e}")
-        raise
+    logger.info(f"Discovered {len(node_map)} node(s): {list(node_map.keys())}")
+    return node_map
 
 
 def aggregate_sync_results(results):
