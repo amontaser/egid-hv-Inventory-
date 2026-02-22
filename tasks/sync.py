@@ -104,7 +104,7 @@ Get-VM | ForEach-Object {
         Generation = $vm.Generation
         Version = $vm.Version
         IntegrationServicesVersion = if ($vm.IntegrationServicesVersion) { $vm.IntegrationServicesVersion.ToString() } else { $null }
-        VirtualHardDiskPath = $vm.VirtualHardDisks[0].Path if ($vm.VirtualHardDisks.Count -gt 0) { $null }
+        VirtualHardDiskPath = if ($vm.VirtualHardDisks.Count -gt 0) { $vm.VirtualHardDisks[0].Path } else { $null }
         VirtualMachinePath = $vm.ConfigurationLocation
         PrimaryIPAddress = ($vm.NetworkAdapters | Where-Object {$_.IPAddresses} | Select-Object -First 1 -ExpandProperty IPAddresses) -join ','
         ClusterName = $clusterName
