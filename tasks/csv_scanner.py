@@ -5,17 +5,16 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+from celery import shared_task
+
 logger = logging.getLogger(__name__)
 
-from hyperv_inventory.tasks.hyperv import create_winrm_session, run_powershell_long
+from .hyperv import create_winrm_session, run_powershell_long
 
 
 PS_GET_CSV_INFO = """
 # CSV Storage Collection Script
 $ErrorActionPreference = 'SilentlyContinue'
-
-# Force using cluster name parameter
-$clusterName = $UsingClusterName
 
 $volumes = Get-ClusterSharedVolume
 if ($volumes) {
@@ -73,7 +72,7 @@ def save_csv_to_db(csv_list: List[Dict], cluster_name: str):
     if not csv_list:
         return
 
-    from hyperv_inventory.app.utils.db import get_db_connection
+    from app.utils.db import get_db_connection
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -129,7 +128,7 @@ def should_rescan_csv(cluster_id: int = None) -> bool:
     Returns:
         True if rescan is needed, False otherwise
     """
-    from hyperv_inventory.app.utils.db import get_db_connection
+    from app.utils.db import get_db_connection
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -188,7 +187,7 @@ def update_csv_scan_metadata(
         errors: Error message if any
         start: True if starting scan, False if ending
     """
-    from hyperv_inventory.app.utils.db import get_db_connection
+    from app.utils.db import get_db_connection
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -272,6 +271,7 @@ def update_csv_scan_metadata(
     logger.info(f"CSV scan metadata updated: {status}")
 
 
+@shared_task(name="tasks.csv_scanner.fetch_cluster_csv_storage")
 def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
     """Scan CSV storage for a specific cluster with explicit cluster attribution.
 
