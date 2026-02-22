@@ -12,7 +12,7 @@ from celery import Celery, shared_task, group, chord
 logger = logging.getLogger(__name__)
 
 # Import from our new modules
-from .hyperv import create_winrm_session, run_powershell
+from .hyperv import create_winrm_session, run_powershell, run_powershell_long
 from .csv_scanner import fetch_cluster_csv_storage
 from app.utils.db import get_db_connection
 
@@ -35,8 +35,17 @@ def resolve_node_ip(node_name: str, dns_servers_str: str, domain_name: str = Non
         try:
             return socket.gethostbyname(node_name)
         except socket.gaierror:
-            logger.warning(f"System DNS could not resolve {node_name}")
-            return node_name
+            pass
+        if domain_name:
+            fqdn = f"{node_name}.{domain_name}"
+            try:
+                return socket.gethostbyname(fqdn)
+            except socket.gaierror:
+                pass
+            logger.warning(f"System DNS could not resolve {node_name}, using FQDN {fqdn}")
+            return fqdn
+        logger.warning(f"System DNS could not resolve {node_name}")
+        return node_name
 
     dns_servers = [s.strip() for s in dns_servers_str.split(",") if s.strip()]
     resolver = dns.resolver.Resolver(configure=False)
@@ -62,8 +71,12 @@ def resolve_node_ip(node_name: str, dns_servers_str: str, domain_name: str = Non
         logger.info(f"Resolved {node_name} -> {ip}")
         return ip
     except Exception:
-        logger.warning(f"Could not resolve {node_name} via custom DNS, using as-is")
-        return node_name
+        pass
+
+    # All DNS attempts failed — use FQDN as fallback so the OS resolver has a chance
+    fqdn_fallback = f"{node_name}.{domain_name}" if domain_name else node_name
+    logger.warning(f"Could not resolve {node_name} via custom DNS, using {fqdn_fallback}")
+    return fqdn_fallback
 
 
 # ============================================================================
@@ -106,10 +119,10 @@ Get-VM | ForEach-Object {
         IntegrationServicesVersion = if ($vm.IntegrationServicesVersion) { $vm.IntegrationServicesVersion.ToString() } else { $null }
         VirtualHardDiskPath = if ($vm.VirtualHardDisks.Count -gt 0) { $vm.VirtualHardDisks[0].Path } else { $null }
         VirtualMachinePath = $vm.ConfigurationLocation
-        PrimaryIPAddress = ($vm.NetworkAdapters | Where-Object {$_.IPAddresses} | Select-Object -First 1 -ExpandProperty IPAddresses) -join ','
+        PrimaryIPAddress = ($vm.NetworkAdapters | Where-Object {$_.IPAddresses} | ForEach-Object {$_.IPAddresses} | Where-Object {$_ -match '^\d+\.\d+\.\d+\.\d+$'} | Select-Object -First 1)
         ClusterName = $clusterName
         CreatedTime = if ($vm.CreationTime) { $vm.CreationTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
-    } | ConvertTo-Json -Depth 3
+    }
 } | ConvertTo-Json -Depth 3
 """
 
@@ -117,16 +130,25 @@ PS_GET_VM_DISKS = """
 $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    $vm.VirtualHardDisks | ForEach-Object {
+    Get-VMHardDiskDrive -VM $vm -ErrorAction SilentlyContinue | ForEach-Object {
+        $drive = $_
+        $vhd = $null
+        if ($drive.Path) {
+            try { $vhd = Get-VHD -Path $drive.Path -ErrorAction Stop } catch {}
+        }
+        $diskFormat = if ($vhd) { $vhd.VhdFormat.ToString() } `
+                      elseif ($drive.Path -match '\.vhdx$') { 'VHDX' } `
+                      elseif ($drive.Path -match '\.vhd$') { 'VHD' } `
+                      else { 'Unknown' }
         [PSCustomObject]@{
             VMId = $vm.Id
-            DiskName = $_.Name
-            DiskPath = $_.Path
-            DiskFormat = $_.VhdFormat.ToString()
-            Size = [math]::Round($_.FileSize / 1GB, 2)
-            ControllerType = $_.ControllerType.ToString()
-            ControllerNumber = $_.ControllerNumber
-            ControllerLocation = $_.ControllerLocation
+            DiskName = $drive.Name
+            DiskPath = $drive.Path
+            DiskFormat = $diskFormat
+            Size = if ($vhd) { [math]::Round($vhd.FileSize / 1GB, 2) } else { 0 }
+            ControllerType = $drive.ControllerType.ToString()
+            ControllerNumber = $drive.ControllerNumber
+            ControllerLocation = $drive.ControllerLocation
         }
     }
 } | ConvertTo-Json -Depth 3
@@ -137,13 +159,18 @@ $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
     $vm.NetworkAdapters | ForEach-Object {
+        $adapter = $_
+        $vlanInfo = $null
+        try { $vlanInfo = Get-VMNetworkAdapterVlan -VMNetworkAdapter $adapter -ErrorAction Stop } catch {}
+        $vlanId = if ($vlanInfo -and $vlanInfo.OperationMode -eq 'Access') { $vlanInfo.AccessVlanId } else { 0 }
         [PSCustomObject]@{
             VMId = $vm.Id
-            AdapterName = $_.Name
-            SwitchName = $_.SwitchName
-            MacAddress = $_.MacAddress
-            IPAddresses = $_.IPAddresses -join ','
-            IsConnected = $_.Status -eq 'Ok'
+            AdapterName = $adapter.Name
+            SwitchName = $adapter.SwitchName
+            MacAddress = $adapter.MacAddress
+            IPAddresses = ($adapter.IPAddresses | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' }) -join ','
+            IsConnected = $adapter.Status -eq 'Ok'
+            VlanId = $vlanId
             BandwidthMode = if ($vm.BandwidthMode) { $vm.BandwidthMode.GetType().Name } else { $null }
         }
     }
@@ -154,7 +181,7 @@ PS_GET_VM_SNAPSHOTS = """
 $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    $vm.Snapshots | ForEach-Object {
+    try { Get-VMSnapshot -VMName $vm.Name -ErrorAction Stop } catch { return } | ForEach-Object {
         [PSCustomObject]@{
             VMId = $vm.Id
             SnapshotName = $_.Name
@@ -170,7 +197,8 @@ PS_GET_VM_REPLICATION = """
 $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    $replication = $vm | Get-VMReplication
+    $replication = $null
+    try { $replication = $vm | Get-VMReplication -ErrorAction Stop } catch {}
     if ($replication) {
         [PSCustomObject]@{
             VMId = $vm.Id
@@ -238,13 +266,41 @@ try {
 PS_GET_CLUSTER_NODES = """
 $ErrorActionPreference = "SilentlyContinue"
 
-# Get cluster nodes
+# Get cluster nodes with IPv4 addresses resolved from within Windows
 try {
     $nodes = Get-ClusterNode -ErrorAction Stop
     $nodes | ForEach-Object {
+        $nodeName = $_.Name
+        $nodeState = $_.State.ToString()
+
+        # Resolve IPv4 using Windows DNS (reliable from within the cluster network)
+        # Exclude link-local (169.254.x.x) and loopback (127.x.x.x) addresses
+        $ip = $null
+        try {
+            $addr = [System.Net.Dns]::GetHostAddresses($nodeName) |
+                Where-Object {
+                    $_.AddressFamily -eq 'InterNetwork' -and
+                    -not $_.ToString().StartsWith('169.254.') -and
+                    -not $_.ToString().StartsWith('127.')
+                } |
+                Select-Object -First 1
+            if ($addr) { $ip = $addr.IPAddressToString }
+        } catch {}
+
+        # Fallback: check cluster network interfaces for an Up IPv4 address
+        if (-not $ip) {
+            try {
+                $iface = Get-ClusterNetworkInterface -Node $nodeName -ErrorAction SilentlyContinue |
+                    Where-Object { $_.State -eq 'Up' -and $_.Address -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$' } |
+                    Select-Object -First 1
+                if ($iface) { $ip = $iface.Address }
+            } catch {}
+        }
+
         [PSCustomObject]@{
-            Name = $_.Name
-            State = $_.State.ToString()
+            Name      = $nodeName
+            State     = $nodeState
+            IPAddress = $ip
         }
     } | ConvertTo-Json -Depth 3
 } catch {
@@ -258,8 +314,16 @@ try {
 # ============================================================================
 
 
-def save_vms_to_db(vms: List[Dict], host_name: str):
-    """Save VM information to database."""
+def save_vms_to_db(vms: List[Dict], host_name: str, cluster_name: str = None):
+    """Save VM information to database.
+
+    Args:
+        vms: List of VM dicts from PowerShell
+        host_name: Host IP/name used for WinRM (stored as-is)
+        cluster_name: DB cluster name override. When provided, this is stored
+                      instead of the Windows Get-Cluster name so that the
+                      vm_info.cluster_name always matches clusters.cluster_name.
+    """
     if not vms:
         return
 
@@ -267,6 +331,9 @@ def save_vms_to_db(vms: List[Dict], host_name: str):
     cursor = conn.cursor()
 
     for vm in vms:
+        # Use the explicit DB cluster name if supplied; fall back to what
+        # Windows reported via Get-Cluster (legacy / standalone hosts).
+        effective_cluster = cluster_name if cluster_name is not None else vm.get("ClusterName")
         cursor.execute(
             """
             INSERT OR REPLACE INTO vm_info (
@@ -280,7 +347,7 @@ def save_vms_to_db(vms: List[Dict], host_name: str):
                 vm.get("VMId"),
                 vm.get("Name"),
                 host_name,
-                vm.get("ClusterName"),
+                effective_cluster,
                 vm.get("State"),
                 vm.get("UptimeSeconds", 0),
                 vm.get("CPUCount", 0),
@@ -347,8 +414,8 @@ def save_networks_to_db(networks: List[Dict]):
             """
             INSERT OR REPLACE INTO vm_network_adapters (
                 vm_id, adapter_name, switch_name, mac_address,
-                ip_addresses, is_connected, bandwidth_setting
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ip_addresses, is_connected, vlan_id, bandwidth_setting
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 net.get("VMId"),
@@ -357,6 +424,7 @@ def save_networks_to_db(networks: List[Dict]):
                 net.get("MacAddress"),
                 net.get("IPAddresses"),
                 1 if net.get("IsConnected") else 0,
+                net.get("VlanId", 0),
                 net.get("BandwidthMode"),
             ),
         )
@@ -430,30 +498,51 @@ def save_replication_to_db(replications: List[Dict]):
     logger.info(f"Saved {len(replications)} replication records")
 
 
-def save_host_to_db(host_info: Dict):
-    """Save Hyper-V host information to database."""
+def save_host_to_db(host_info: Dict, cluster_name: str = None, connection_ip: str = None):
+    """Save Hyper-V host information to database.
+
+    Args:
+        host_info: Dict from PS_GET_HOST_INFO
+        cluster_name: DB cluster name override (use this instead of Windows Get-Cluster name)
+        connection_ip: IP address used to connect (stored so hosts page can display it)
+    """
     if not host_info:
         return
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Use the DB cluster_name if supplied; fall back to what Windows reported.
+    effective_cluster = cluster_name if cluster_name is not None else host_info.get("ClusterName")
+
+    # UPSERT: insert new row or update only the sync-sourced columns on conflict.
+    # Preserves extra columns (c_drive_*, needs_update, notes, etc.) set by other processes.
     cursor.execute(
         """
-        INSERT OR REPLACE INTO hyperv_hosts (
+        INSERT INTO hyperv_hosts (
             host_name, cluster_name, total_memory_gb, available_memory_gb,
-            logical_processors, vm_count, os_version, last_updated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            logical_processors, vm_count, os_version, last_updated, connection_ip
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(host_name) DO UPDATE SET
+            cluster_name       = excluded.cluster_name,
+            total_memory_gb    = excluded.total_memory_gb,
+            available_memory_gb= excluded.available_memory_gb,
+            logical_processors = excluded.logical_processors,
+            vm_count           = excluded.vm_count,
+            os_version         = excluded.os_version,
+            last_updated       = excluded.last_updated,
+            connection_ip      = excluded.connection_ip
         """,
         (
             host_info.get("HostName"),
-            host_info.get("ClusterName"),
+            effective_cluster,
             host_info.get("TotalMemoryGB", 0),
             host_info.get("AvailableMemoryGB", 0),
             host_info.get("LogicalProcessors", 0),
             host_info.get("VMCount", 0),
             host_info.get("OSVersion"),
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            connection_ip,
         ),
     )
 
@@ -594,9 +683,14 @@ def discover_cluster_nodes(cluster_name: str, cluster_id: int = None) -> Dict[st
         if state != "Up":
             logger.info(f"Skipping node {node_name} — state={state}")
             continue
-        ip = resolve_node_ip(node_name, dns_servers, domain_name)
+        # Prefer IP resolved by Windows itself (avoids Linux-side DNS failures)
+        ip = node.get("IPAddress")
+        if ip:
+            logger.info(f"Node {node_name} -> {ip} (resolved by Windows)")
+        else:
+            ip = resolve_node_ip(node_name, dns_servers, domain_name)
+            logger.info(f"Node {node_name} -> {ip} (resolved by Linux DNS)")
         node_map[node_name] = ip
-        logger.info(f"Node {node_name} -> {ip}")
 
     if not node_map:
         raise Exception(f"No Up nodes found in cluster {cluster_name}")
@@ -780,19 +874,34 @@ def fetch_hyperv_data(self):
         return {"status": "error", "message": str(e)}
 
 
+def _increment_hosts_processed():
+    """Atomically increment hosts_processed counter in sync_metadata."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sync_metadata SET hosts_processed = hosts_processed + 1 WHERE id = 1"
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to increment hosts_processed: {e}")
+
+
 @shared_task(name="tasks.sync.fetch_single_host")
 def fetch_single_host(host: str, cluster_id: int = None):
     """Fetch data from a single Hyper-V host (parallel worker task)."""
     logger.info(f"[Worker] Fetching data from {host}")
 
-    # Get cluster_id for this host if not provided
+    # Resolve cluster_id and cluster_name for status tracking
+    cluster_name = None
     if cluster_id is None:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT c.id
+                SELECT c.id, c.cluster_name
                 FROM clusters c
                 INNER JOIN hyperv_hosts h ON h.cluster_name = c.cluster_name
                 WHERE h.host_name = ?
@@ -803,16 +912,41 @@ def fetch_single_host(host: str, cluster_id: int = None):
             conn.close()
             if result and result[0]:
                 cluster_id = result[0]
+                cluster_name = result[1]
         except Exception as e:
             logger.warning(f"Failed to get cluster_id for {host}: {e}")
+    else:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT cluster_name FROM clusters WHERE id = ?", (cluster_id,))
+            result = cursor.fetchone()
+            conn.close()
+            if result:
+                cluster_name = result[0]
+        except Exception as e:
+            logger.warning(f"Failed to get cluster_name for cluster_id={cluster_id}: {e}")
+
+    # Mark this host as in-progress in sync metadata
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sync_metadata SET current_host = ?, current_cluster = ? WHERE id = 1",
+            (host, cluster_name),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to update current_host: {e}")
 
     try:
         session = create_winrm_session(host, cluster_id=cluster_id)
 
-        # Fetch VMs
+        # Fetch VMs — pass DB cluster_name so vm_info matches clusters table
         vms = run_powershell(session, PS_GET_VMS)
         if vms:
-            save_vms_to_db(vms, host)
+            save_vms_to_db(vms, host, cluster_name=cluster_name)
 
         # Fetch disks
         disks = run_powershell(session, PS_GET_VM_DISKS)
@@ -837,11 +971,13 @@ def fetch_single_host(host: str, cluster_id: int = None):
         # Fetch host info
         host_info = run_powershell(session, PS_GET_HOST_INFO)
         if host_info and len(host_info) > 0:
-            save_host_to_db(host_info[0])
+            save_host_to_db(host_info[0], cluster_name=cluster_name, connection_ip=host)
 
         logger.info(f"[Worker] Completed data collection from {host}")
+        _increment_hosts_processed()
         return {"status": "success", "host": host, "vms": len(vms) if vms else 0}
 
     except Exception as e:
         logger.error(f"[Worker] Error fetching from {host}: {e}")
+        _increment_hosts_processed()
         return {"status": "error", "host": host, "error": str(e)}

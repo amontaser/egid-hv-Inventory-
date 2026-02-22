@@ -99,6 +99,11 @@ def run_powershell(session: winrm.Session, script: str) -> Optional[Any]:
         logger.error(f"JSON decode error: {e}")
         logger.debug(f"Raw output: {output[:500] if output else 'empty'}")
         return None
+    except OSError as e:
+        # Re-raise connection-level errors (DNS failure, connection refused, etc.)
+        # so callers can detect an unreachable host and bail early instead of
+        # repeating the same failure for every subsequent script.
+        raise
     except Exception as e:
         logger.error(f"PowerShell execution error: {e}")
         return None
@@ -107,6 +112,11 @@ def run_powershell(session: winrm.Session, script: str) -> Optional[Any]:
 def run_powershell_long(session: winrm.Session, script: str) -> Optional[Any]:
     """Execute large PowerShell scripts via Base64 encoding to bypass WinRM size limits.
 
+    For scripts under 7000 bytes, delegates to run_powershell (standard WinRM
+    -encodedcommand path). The manual Base64/Invoke-Expression wrapper is only
+    used for genuinely oversized scripts — AV software flags that pattern as
+    suspicious on smaller scripts.
+
     Args:
         session: WinRM session
         script: PowerShell script to execute
@@ -114,14 +124,10 @@ def run_powershell_long(session: winrm.Session, script: str) -> Optional[Any]:
     Returns:
         Parsed JSON result or None on error
     """
-    # Check script size - use regular method for small scripts
     script_bytes = script.encode("utf-8")
     if len(script_bytes) < 7000:
-        logger.debug(f"Script size: {len(script_bytes)} bytes, using regular method")
         return run_powershell(session, script)
 
-    # Encode large script to Base64
-    logger.info(f"Script size: {len(script_bytes)} bytes, using Base64 encoding")
     encoded_script = base64.b64encode(script_bytes).decode("ascii")
 
     # Wrapper that decodes and executes on remote host
@@ -137,6 +143,9 @@ def run_powershell_long(session: winrm.Session, script: str) -> Optional[Any]:
         }}
     """
 
+    # OSError (including requests.exceptions.ConnectionError for DNS/connection failures)
+    # is intentionally not caught here — let it propagate to the caller so they can
+    # detect an unreachable host and bail early.
     result = session.run_ps(wrapper)
 
     if result.status_code != 0:

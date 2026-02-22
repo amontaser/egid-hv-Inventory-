@@ -52,6 +52,7 @@ def _run_migrations(db):
     _add_column(db, "sync_metadata", "hosts_discovered", "INTEGER")
     _add_column(db, "sync_metadata", "hosts_processed", "INTEGER")
     _add_column(db, "sync_metadata", "current_host", "TEXT")
+    _add_column(db, "sync_metadata", "current_cluster", "TEXT")
 
     # --- cluster_shared_volumes: add cluster_name + fix UNIQUE constraint ---
     _migrate_cluster_shared_volumes(db)

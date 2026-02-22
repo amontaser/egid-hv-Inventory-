@@ -697,112 +697,53 @@ async function startSync(event) {
 }
 
 function updateDetailedSyncStatus(data) {
-    // Update basic status fields
     const hostsDiscovered = data.hosts_discovered || 0;
     const hostsProcessed = data.hosts_processed || 0;
-    const currentHost = data.current_host || 'Initializing...';
+    const currentHost = data.current_host || '';
+    const currentCluster = data.current_cluster || '';
     const vmsDiscovered = data.vms_discovered || 0;
-    const vmsSynced = data.vms_synced || 0;
 
-    // Calculate progress percentage
+    // Progress percentage
     const progress = hostsDiscovered > 0 ? Math.round((hostsProcessed / hostsDiscovered) * 100) : 0;
 
-    // Update progress bar and main status
+    // Progress bar + subtitle
     document.getElementById('syncProgressBar').style.width = progress + '%';
     document.getElementById('syncStatusTitle').textContent = 'Sync in Progress';
-    document.getElementById('syncStatusDetails').textContent = 
+    document.getElementById('syncStatusDetails').textContent =
         `Processing ${hostsProcessed} of ${hostsDiscovered} hosts`;
 
-    // Extract cluster and host info from current_host
-    let clusterName = 'Unknown';
-    let hostName = currentHost;
-    
-    if (currentHost) {
-        // Check if it's an IP address (all numeric parts)
-        const isIP = /^(\d+\.){3}\d+$/.test(currentHost);
-        
-        if (isIP) {
-            // It's an IP address - try to map to known cluster or show as-is
-            // Try to match IP to known cluster ranges
-            if (currentHost.startsWith('10.21.0.')) {
-                clusterName = 'EGIT DR (Smart Village)';
-            } else if (currentHost.startsWith('192.168.60.10') || currentHost.startsWith('192.168.60.11')) {
-                clusterName = 'ELK HV Cluster (HQ NewCairo)';
-            } else if (currentHost.startsWith('192.168.60.') || currentHost.startsWith('192.168.60.2')) {
-                clusterName = 'HyperV-Cluster (HQ NewCairo)';
-            } else {
-                clusterName = 'Unknown Cluster';
-            }
-            // For IPs, keep the full IP as hostname
-            hostName = currentHost;
-        } else if (currentHost.includes('.')) {
-            // It's a hostname/FQDN - parse it
-            const parts = currentHost.split('.');
-            // Try to identify cluster from domain
-            if (currentHost.includes('egitdr')) {
-                clusterName = 'EGIT DR (Smart Village)';
-            } else if (currentHost.includes('egidegypt')) {
-                clusterName = 'HyperV-Cluster (HQ NewCairo)';
-            } else if (currentHost.includes('egid-elk')) {
-                clusterName = 'ELK HV Cluster (HQ NewCairo)';
-            } else {
-                clusterName = parts[parts.length - 2] || 'Unknown Cluster';
-            }
-            hostName = parts[0];
-        }
-    }
+    // Current status panel — use values directly from the DB, no guesswork
+    document.getElementById('syncCurrentCluster').textContent = currentCluster || 'Discovering…';
+    document.getElementById('syncCurrentHost').textContent = currentHost || 'Waiting…';
+    document.getElementById('syncProgressText').textContent =
+        `${progress}% (${hostsProcessed}/${hostsDiscovered} hosts)`;
 
-    // Update detailed status
-    document.getElementById('syncCurrentCluster').textContent = clusterName;
-    document.getElementById('syncCurrentHost').textContent = hostName;
-    document.getElementById('syncProgressText').textContent = `${progress}% (${hostsProcessed}/${hostsDiscovered} hosts)`;
-
-    // Calculate elapsed time
+    // Elapsed time
     if (syncStartTime) {
         const elapsed = Math.round((new Date() - syncStartTime) / 1000);
         const minutes = Math.floor(elapsed / 60);
         const seconds = elapsed % 60;
-        document.getElementById('syncElapsedTime').textContent = 
-            `${minutes}m ${seconds}s`;
+        document.getElementById('syncElapsedTime').textContent = `${minutes}m ${seconds}s`;
     }
 
-    // Update statistics
-    document.getElementById('syncHostsProcessed').textContent = 
-        `${hostsProcessed}/${hostsDiscovered}`;
+    // Statistics
+    document.getElementById('syncHostsProcessed').textContent = `${hostsProcessed}/${hostsDiscovered}`;
     document.getElementById('syncVMsDiscovered').textContent = vmsDiscovered;
-    document.getElementById('syncVMsSynced').textContent = vmsSynced;
+    document.getElementById('syncVMsSynced').textContent = vmsDiscovered;
 
-    // Update host progress list
+    // Host progress list — track unique hosts seen
     if (currentHost && !hostProgressCache.find(h => h.host === currentHost)) {
-        // Calculate per-host VMs (difference from last known total)
-        const hostVms = vmsDiscovered - lastVmsDiscovered;
-        hostProgressCache.push({
-            host: currentHost,
-            status: 'Processing',
-            vms: hostVms > 0 ? hostVms : 0
-        });
+        hostProgressCache.push({ host: currentHost, cluster: currentCluster, status: 'Processing' });
         updateHostProgressList();
     }
 
-    // Update current host status in cache
-    const hostEntry = hostProgressCache.find(h => h.host === currentHost);
-    if (hostEntry) {
-        hostEntry.status = 'Processing';
-        // Only update VMs if we have a new count (difference)
-        const hostVms = vmsDiscovered - lastVmsDiscovered;
-        if (hostVms > 0) {
-            hostEntry.vms = hostVms;
-        }
-    }
-
-    // Mark previously processed hosts as completed and update lastVmsDiscovered
+    // Mark all previous entries (not current) as completed
     hostProgressCache.forEach(h => {
         if (h.host !== currentHost && h.status === 'Processing') {
             h.status = 'Completed';
-            // Update lastVmsDiscovered when a host completes
-            lastVmsDiscovered = vmsDiscovered;
         }
     });
+    updateHostProgressList();
 }
 
 function updateHostProgressList() {
@@ -823,24 +764,27 @@ function updateHostProgressList() {
     });
 
     sortedHosts.forEach((host, index) => {
-        const statusClass = host.status === 'Processing' 
-            ? 'primary' 
-            : host.status === 'Completed' 
-                ? 'success' 
+        const statusClass = host.status === 'Processing'
+            ? 'primary'
+            : host.status === 'Completed'
+                ? 'success'
                 : 'secondary';
-        
+
         const statusIcon = host.status === 'Processing'
             ? '<i class="bi bi-arrow-clockwise spin-icon"></i>'
             : host.status === 'Completed'
                 ? '<i class="bi bi-check-circle"></i>'
                 : '<i class="bi bi-circle"></i>';
 
+        const clusterBadge = host.cluster
+            ? `<span class="badge bg-secondary me-1" style="font-size:0.7em;">${host.cluster}</span>`
+            : '';
+
         html += `
             <div class="list-group-item px-2 py-1">
                 <div class="d-flex align-items-center">
                     <span class="badge bg-${statusClass} me-2">${statusIcon}</span>
-                    <span class="flex-grow-1">${host.host}</span>
-                    ${host.vms > 0 ? `<span class="badge bg-info">${host.vms} VMs</span>` : ''}
+                    <span class="flex-grow-1">${host.host} ${clusterBadge}</span>
                 </div>
             </div>
         `;
@@ -880,21 +824,15 @@ async function checkSyncStatus() {
         } else if (status === 'success' && status !== lastSyncStatus) {
             lastSyncStatus = status;
             updateSyncStatusSuccess(
-                `Successfully synced ${data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}`
+                `Successfully synced ${data.vms_discovered || data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}`
             );
             stopSyncMonitoring();
         } else if (status === 'partial' && status !== lastSyncStatus) {
             lastSyncStatus = status;
             updateSyncStatusSuccess(
-                `Partially synced: ${data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}. Some errors occurred.`
+                `Partially synced: ${data.vms_discovered || data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}. Some errors occurred.`
             );
             stopSyncMonitoring();
-        } else if (status === 'partial' && status !== lastSyncStatus) {
-            lastSyncStatus = status;
-            updateSyncStatusSuccess(
-                `Partially synced: ${data.vms_synced || 0} VMs from ${data.hosts_processed || 0} hosts in ${formatElapsedTime()}. Some errors occurred.`
-            );
-            // Auto-reload disabled to prevent refresh loop
         } else if (status === 'error' && status !== lastSyncStatus) {
             lastSyncStatus = status;
             updateSyncStatusError(
@@ -1007,10 +945,10 @@ function stopSyncMonitoring() {
                  alert.classList.remove('alert-info', 'alert-danger');
                  alert.classList.add('alert-success');
                  document.getElementById('syncStatusTitle').textContent = 'Sync Completed';
-                 
-                 const vmCount = data.vms_synced || 0;
+
+                 const vmCount = data.vms_discovered || data.vms_synced || 0;
                  const hostCount = data.hosts_processed || 0;
-                 document.getElementById('syncStatusDetails').textContent = 
+                 document.getElementById('syncStatusDetails').textContent =
                      `Successfully synced ${vmCount} VMs from ${hostCount} hosts`;
                  
                  // Hide spinner

@@ -16,11 +16,11 @@ def create_app():
     """Create and configure Flask application."""
     # Get the directory containing this file
     basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    
+
     app = Flask(
         __name__,
-        template_folder=os.path.join(basedir, 'templates'),
-        static_folder=os.path.join(basedir, 'static')
+        template_folder=os.path.join(basedir, "templates"),
+        static_folder=os.path.join(basedir, "static"),
     )
 
     # Configuration
@@ -39,13 +39,27 @@ def create_app():
     Bootstrap5(app)
 
     # Register blueprints
-    from app.routes import api, vms, clients, storage, auth
+    from app.routes import (
+        api,
+        vms,
+        clients,
+        storage,
+        auth,
+        hosts,
+        settings,
+        clusters,
+        notifications,
+    )
 
     app.register_blueprint(api.bp, url_prefix="/api")
     app.register_blueprint(vms.bp)
     app.register_blueprint(clients.bp)
     app.register_blueprint(storage.bp)
     app.register_blueprint(auth.auth_bp)
+    app.register_blueprint(hosts.bp)
+    app.register_blueprint(settings.bp)
+    app.register_blueprint(clusters.bp)
+    app.register_blueprint(notifications.bp)
 
     # Initialize database
     from app.utils.db import init_db

@@ -8,6 +8,7 @@ celery = Celery("tasks")
 celery.conf.update(
     broker_url="redis://localhost:6379/0",
     result_backend="redis://localhost:6379/0",
+    include=["tasks.sync", "tasks.csv_scanner"],
     task_routes={
         "tasks.sync.fetch_hyperv_data": {"queue": "hyperv"},
         "tasks.sync.fetch_single_host": {"queue": "hyperv"},

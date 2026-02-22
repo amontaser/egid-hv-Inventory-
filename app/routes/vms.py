@@ -26,30 +26,30 @@ def login_required(f):
 
 def get_all_clusters():
     """Get all clusters with statistics."""
-    db = get_db()
-    return db.execute(
-        """
-        SELECT 
-            c.id,
-            c.cluster_name,
-            c.location,
-            c.is_enabled,
-            COALESCE(stats.vm_count, 0) as vm_count,
-            COALESCE(stats.running_vms, 0) as running_vms,
-            COALESCE(stats.host_count, 0) as host_count
-        FROM clusters c
-        LEFT JOIN (
+    with get_db() as db:
+        return db.execute(
+            """
             SELECT 
-                cluster_name,
-                COUNT(*) as vm_count,
-                SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
-                COUNT(DISTINCT host_name) as host_count
-            FROM vm_info
-            GROUP BY cluster_name
-        ) stats ON c.cluster_name = stats.cluster_name
-        ORDER BY c.cluster_name
-        """
-    ).fetchall()
+                c.id,
+                c.cluster_name,
+                c.location,
+                c.is_enabled,
+                COALESCE(stats.vm_count, 0) as vm_count,
+                COALESCE(stats.running_vms, 0) as running_vms,
+                COALESCE(stats.host_count, 0) as host_count
+            FROM clusters c
+            LEFT JOIN (
+                SELECT 
+                    cluster_name,
+                    COUNT(*) as vm_count,
+                    SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
+                    COUNT(DISTINCT host_name) as host_count
+                FROM vm_info
+                GROUP BY cluster_name
+            ) stats ON c.cluster_name = stats.cluster_name
+            ORDER BY c.cluster_name
+            """
+        ).fetchall()
 
 
 def get_selected_cluster():
@@ -68,11 +68,11 @@ def get_cluster_name(cluster_id):
     """Get cluster name by ID."""
     if not cluster_id:
         return None
-    db = get_db()
-    cluster = db.execute(
-        "SELECT cluster_name FROM clusters WHERE id = ?", (cluster_id,)
-    ).fetchone()
-    return cluster["cluster_name"] if cluster else None
+    with get_db() as db:
+        cluster = db.execute(
+            "SELECT cluster_name FROM clusters WHERE id = ?", (cluster_id,)
+        ).fetchone()
+        return cluster["cluster_name"] if cluster else None
 
 
 def format_last_update(sync_info):
@@ -122,57 +122,58 @@ def index():
         cluster_filter = "WHERE cluster_name = ?"
         params = [cluster_name]
 
-    # Get VM summary statistics
-    stats = db.execute(
-        f"""
-        SELECT 
-            COUNT(*) as total_vms,
-            SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
-            SUM(CASE WHEN state = 'Off' THEN 1 ELSE 0 END) as stopped_vms,
-            SUM(cpu_count) as total_vcpus,
-            ROUND(SUM(memory_assigned_gb), 2) as total_memory_gb,
-            COUNT(DISTINCT host_name) as host_count
-        FROM vm_info
-        {cluster_filter}
-    """,
-        params,
-    ).fetchone()
+    # Get all clusters for dropdown
+    all_clusters = get_all_clusters()
 
-    # Get all VMs
-    vms_raw = db.execute(
-        f"""
-        SELECT
-            v.*,
-            (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id) as disk_count,
-            (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id) as total_disk_gb,
-            (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id) as snapshot_count,
-            (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
-            (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans
-        FROM vm_info v
-        {cluster_filter}
-        ORDER BY v.machine_name
-    """,
-        params,
-    ).fetchall()
+    # Get data from database
+    with get_db() as db:
+        # Get VM summary statistics
+        stats = db.execute(
+            f"""
+            SELECT 
+                COUNT(*) as total_vms,
+                SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
+                SUM(CASE WHEN state = 'Off' THEN 1 ELSE 0 END) as stopped_vms,
+                SUM(cpu_count) as total_vcpus,
+                ROUND(SUM(memory_assigned_gb), 2) as total_memory_gb,
+                COUNT(DISTINCT host_name) as host_count
+            FROM vm_info
+            {cluster_filter}
+        """,
+            params,
+        ).fetchone()
 
-    # Convert to list of dicts and pre-sort VLANs
+        # Get all VMs
+        vms_raw = db.execute(
+            f"""
+            SELECT
+                v.*,
+                (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id) as disk_count,
+                (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id) as total_disk_gb,
+                (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id) as snapshot_count,
+                (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
+                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans
+            FROM vm_info v
+            {cluster_filter}
+            ORDER BY v.machine_name
+        """,
+            params,
+        ).fetchall()
+
+        # Get last sync info
+        sync_info = db.execute("SELECT * FROM sync_metadata WHERE id = 1").fetchone()
+
+    # Process data outside database context
     vms = []
     for vm in vms_raw:
         vm_dict = dict(vm)
-        # Pre-sort VLANs as a list
         if vm_dict["vlans"]:
             vm_dict["vlan_list"] = sorted([int(v) for v in vm_dict["vlans"].split(",")])
         else:
             vm_dict["vlan_list"] = []
         vms.append(vm_dict)
 
-    # Get last sync info
-    sync_info = db.execute("SELECT * FROM sync_metadata WHERE id = 1").fetchone()
-
     last_update_time = format_last_update(sync_info)
-
-    # Get all clusters for dropdown
-    all_clusters = get_all_clusters()
 
     return render_template(
         "index.html",
@@ -190,56 +191,62 @@ def index():
 @login_required
 def vm_details(vm_id):
     """Detailed view for a single VM."""
-    db = get_db()
+    with get_db() as db:
+        vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
+        if not vm:
+            abort(404)
 
-    vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
-    if not vm:
-        abort(404)
+        disks = db.execute(
+            "SELECT * FROM vm_disks WHERE vm_id = ?", (vm_id,)
+        ).fetchall()
+        networks = db.execute(
+            "SELECT * FROM vm_network_adapters WHERE vm_id = ?", (vm_id,)
+        ).fetchall()
+        snapshots = db.execute(
+            "SELECT * FROM vm_snapshots WHERE vm_id = ?", (vm_id,)
+        ).fetchall()
+        replication = db.execute(
+            "SELECT * FROM vm_replication WHERE vm_id = ?", (vm_id,)
+        ).fetchone()
 
-    disks = db.execute("SELECT * FROM vm_disks WHERE vm_id = ?", (vm_id,)).fetchall()
-    networks = db.execute(
-        "SELECT * FROM vm_network_adapters WHERE vm_id = ?", (vm_id,)
-    ).fetchall()
-    snapshots = db.execute(
-        "SELECT * FROM vm_snapshots WHERE vm_id = ?", (vm_id,)
-    ).fetchall()
-    replication = db.execute(
-        "SELECT * FROM vm_replication WHERE vm_id = ?", (vm_id,)
-    ).fetchone()
+        # Get assigned client
+        client = db.execute(
+            """
+            SELECT c.* FROM clients c
+            JOIN vm_clients vc ON c.id = vc.client_id
+            WHERE vc.vm_id = ?
+        """,
+            (vm_id,),
+        ).fetchone()
 
-    # Get assigned client
-    client = db.execute(
-        """
-        SELECT c.* FROM clients c
-        JOIN vm_clients vc ON c.id = vc.client_id
-        WHERE vc.vm_id = ?
-    """,
-        (vm_id,),
-    ).fetchone()
+        # Get VM notes
+        notes = db.execute(
+            """
+            SELECT id, note_text, created_at, updated_at 
+            FROM vm_notes 
+            WHERE vm_id = ? 
+            ORDER BY created_at DESC
+        """,
+            (vm_id,),
+        ).fetchall()
 
-    # Get VM notes
-    notes = db.execute(
-        """
-        SELECT id, note_text, created_at, updated_at 
-        FROM vm_notes 
-        WHERE vm_id = ? 
-        ORDER BY created_at DESC
-    """,
-        (vm_id,),
-    ).fetchall()
+        # Get history
+        history = db.execute(
+            """
+            SELECT * FROM vm_history 
+            WHERE vm_id = ?
+            ORDER BY detected_at DESC
+            LIMIT 20
+        """,
+            (vm_id,),
+        ).fetchall()
 
-    # Get history
-    history = db.execute(
-        """
-        SELECT * FROM vm_history 
-        WHERE vm_id = ?
-        ORDER BY detected_at DESC
-        LIMIT 20
-    """,
-        (vm_id,),
-    ).fetchall()
+        # Get all active clients for assignment dropdown
+        all_clients = db.execute(
+            "SELECT * FROM clients WHERE state = 1 ORDER BY name"
+        ).fetchall()
 
-    # Add styling
+    # Add styling (outside database context)
     change_styles = {
         "created": {"color": "success", "icon": "➕ Created"},
         "deleted": {"color": "danger", "icon": "🗑️ Deleted"},
@@ -260,11 +267,6 @@ def vm_details(vm_id):
         h_dict.update(style)
         history_with_style.append(h_dict)
 
-    # Get all active clients for assignment dropdown
-    all_clients = db.execute(
-        "SELECT * FROM clients WHERE state = 1 ORDER BY name"
-    ).fetchall()
-
     return render_template(
         "vm_details.html",
         vm=vm,
@@ -284,23 +286,22 @@ def vm_details(vm_id):
 @login_required
 def vm_history(vm_id):
     """View change history for a specific VM."""
-    db = get_db()
+    with get_db() as db:
+        vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
+        if not vm:
+            abort(404)
 
-    vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
-    if not vm:
-        abort(404)
+        history = db.execute(
+            """
+            SELECT * FROM vm_history 
+            WHERE vm_id = ?
+            ORDER BY detected_at DESC
+            LIMIT 100
+        """,
+            (vm_id,),
+        ).fetchall()
 
-    history = db.execute(
-        """
-        SELECT * FROM vm_history 
-        WHERE vm_id = ?
-        ORDER BY detected_at DESC
-        LIMIT 100
-    """,
-        (vm_id,),
-    ).fetchall()
-
-    # Add color/icon info
+    # Add color/icon info (outside database context)
     change_styles = {
         "created": {"color": "success", "icon": "➕ Created"},
         "deleted": {"color": "danger", "icon": "🗑️ Deleted"},
