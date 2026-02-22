@@ -668,6 +668,7 @@ def aggregate_sync_results(results):
     }
 
 
+@shared_task(name="tasks.sync.aggregate_sync_results_with_csv")
 def aggregate_sync_results_with_csv(results):
     """Aggregate results from VM sync and per-cluster CSV scans."""
     logger.info(f"Aggregating results from {len(results)} tasks (VMs + CSV)")
@@ -751,109 +752,89 @@ def aggregate_sync_results_with_csv(results):
 
 @shared_task(bind=True, name="tasks.sync.fetch_hyperv_data")
 def fetch_hyperv_data(self):
-    """Main task to fetch all Hyper-V data from all configured clusters using parallel workers."""
-    logger.info("Starting Hyper-V data collection (parallel mode)")
+    """Orchestrate parallel Hyper-V sync: discover nodes, dispatch worker tasks."""
+    logger.info("Starting Hyper-V data collection (parallel chord mode)")
 
-    # Node discovery logic
-    nodes = []
-    node_to_cluster_map = {}
-    cluster_info = []
-    cluster_name = os.getenv("HYPERV_CLUSTER")
+    # Load all enabled clusters from database
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    clusters = cursor.execute(
+        "SELECT id, cluster_name, domain FROM clusters WHERE is_enabled = 1"
+    ).fetchall()
+    conn.close()
 
-    # Priority 1: Auto-discover from cluster (if env var set)
-    if cluster_name:
+    if not clusters:
+        msg = "No enabled clusters found in database"
+        logger.error(msg)
+        update_sync_metadata("error", errors=msg, hosts_discovered=0)
+        return {"status": "error", "message": msg}
+
+    logger.info(f"Found {len(clusters)} enabled cluster(s)")
+
+    all_task_signatures = []
+    cluster_info = []          # (cluster_id, cluster_name, [node_ips])
+    node_to_cluster = {}       # ip -> cluster_id
+    total_nodes = 0
+
+    for row in clusters:
+        cluster_id, cluster_name, domain = row[0], row[1], row[2] or row[1]
+        logger.info(f"Discovering nodes for: {cluster_name}")
+
         try:
-            nodes = list(discover_cluster_nodes(cluster_name).keys())
-            cluster_info = [(None, cluster_name, nodes)]
+            node_map = discover_cluster_nodes(cluster_name, cluster_id=cluster_id)
+            # node_map: {node_name: ip}
+            node_ips = list(node_map.values())
+            cluster_info.append((cluster_id, cluster_name, node_ips))
+            total_nodes += len(node_ips)
+
+            for ip in node_ips:
+                node_to_cluster[ip] = cluster_id
+
+            logger.info(f"Cluster {cluster_name}: {len(node_ips)} node(s) -> {node_ips}")
+
         except Exception as e:
-            logger.warning(f"Cluster discovery failed: {e}")
+            logger.error(f"Node discovery failed for {cluster_name}: {e}")
+            # Continue with other clusters
 
-    # Priority 2: Database clusters (if env var NOT set)
-    elif not cluster_name:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        clusters = cursor.execute(
-            "SELECT id, cluster_name, domain, cluster_name_for_ps FROM clusters WHERE is_enabled = 1"
-        ).fetchall()
-        conn.close()
+    if total_nodes == 0:
+        msg = "No nodes discovered from any cluster"
+        logger.error(msg)
+        update_sync_metadata("error", errors=msg, hosts_discovered=0)
+        return {"status": "error", "message": msg}
 
-        if clusters:
-            logger.info(
-                f"Found {len(clusters)} enabled cluster(s) in database - will sync each"
-            )
-
-            for cluster in clusters:
-                cluster_id = cluster[0]
-                cluster_name = cluster[1]
-                domain = cluster[2] or cluster_name
-                logger.info(f"Discovered cluster: {cluster_name} (domain: {domain})")
-
-                try:
-                    cluster_nodes = list(
-                        discover_cluster_nodes(domain, cluster_id=cluster_id).keys()
-                    )
-                    cluster_info.append((cluster_id, cluster_name, cluster_nodes))
-                    nodes.extend(cluster_nodes)
-                    for node in cluster_nodes:
-                        node_to_cluster_map[node] = cluster_id
-                except Exception as e:
-                    logger.error(f"Failed to discover nodes for {cluster_name}: {e}")
-
-    # Priority 3: Manual node list (fallback)
-    if not nodes:
-        nodes = os.getenv("HYPERV_NODES", "").split(",")
-        nodes = [n.strip() for n in nodes if n.strip()]
-
-    if not nodes:
-        error_msg = (
-            "No Hyper-V nodes configured. "
-            "Set HYPERV_CLUSTER for auto-discovery or HYPERV_NODES for manual configuration."
-        )
-        logger.error(error_msg)
-        update_sync_metadata("error", errors=error_msg, hosts_discovered=0)
-        return {"status": "error", "message": error_msg}
-
-    # Initialize sync with discovered nodes count
-    update_sync_metadata("running", start=True, hosts_discovered=len(nodes))
-
-    # Clear old data before sync
+    update_sync_metadata("running", start=True, hosts_discovered=total_nodes)
     clear_old_data()
 
-    # Create per-cluster CSV tasks
-    csv_tasks = []
-    if cluster_info:
-        for cluster_id, cluster_name, cluster_nodes in cluster_info:
-            try:
-                csv_tasks.append(
-                    fetch_cluster_csv_storage.s(cluster_id, cluster_name, cluster_nodes)
-                )
-            except Exception as e:
-                logger.error(f"Failed to create CSV task for {cluster_name}: {e}")
+    # Build a FLAT list of all worker tasks
+    # Per-node VM sync tasks (one per host IP)
+    for ip, cluster_id in node_to_cluster.items():
+        all_task_signatures.append(fetch_single_host.s(ip, cluster_id))
 
-    # Create VM sync tasks (per-host)
-    vm_sync_job = group(
-        fetch_single_host.s(node, node_to_cluster_map.get(node)) for node in nodes
+    # Per-cluster CSV scan tasks (one per cluster)
+    for cluster_id, cluster_name, node_ips in cluster_info:
+        all_task_signatures.append(
+            fetch_cluster_csv_storage.s(cluster_id, cluster_name, node_ips)
+        )
+
+    logger.info(
+        f"Dispatching {len(all_task_signatures)} tasks "
+        f"({total_nodes} hosts + {len(cluster_info)} CSV scans)"
     )
 
-    # CSV scan tasks (per-cluster)
-    csv_scan_job = group(csv_tasks) if csv_tasks else group()
-
-    # Combine VM sync and CSV scan into single parallel job
-    combined_job = group(vm_sync_job, csv_scan_job)
-
-    # Use chord to execute in parallel and collect results
-    header = combined_job
-    callback = aggregate_sync_results_with_csv.s()
-
-    # Execute asynchronously
     try:
-        result = chord(header)(callback)
-        logger.info("Parallel sync started asynchronously")
-        return {"status": "started", "message": "Data collection started in background"}
+        result = chord(group(all_task_signatures))(
+            aggregate_sync_results_with_csv.s()
+        )
+        return {
+            "status": "started",
+            "message": (
+                f"Syncing {total_nodes} node(s) across "
+                f"{len(cluster_info)} cluster(s)"
+            ),
+        }
     except Exception as e:
-        logger.error(f"Parallel sync failed: {e}")
-        logger.info("Falling back to sequential execution")
-        # Fallback would go here
+        logger.error(f"Failed to dispatch parallel sync: {e}")
+        update_sync_metadata("error", errors=str(e))
         return {"status": "error", "message": str(e)}
 
 
