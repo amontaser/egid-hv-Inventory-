@@ -53,7 +53,7 @@ Get-VM | ForEach-Object {
     Get-VMHardDiskDrive -VM $vm -ErrorAction SilentlyContinue | ForEach-Object {
         $drive = $_
         $vhd = $null
-        if ($drive.Path) { try { $vhd = Get-VHD -Path $drive.Path -ErrorAction Stop } catch {} }
+        if ($drive.Path) { try { $vhd = Get-VHD -Path $drive.Path -ErrorAction SilentlyContinue } catch {} }
         $fmt = if ($vhd) { $vhd.VhdFormat.ToString() } elseif ($drive.Path -match '\\.vhdx$') { 'VHDX' } elseif ($drive.Path -match '\\.vhd$') { 'VHD' } else { 'Unknown' }
         [PSCustomObject]@{
             VMId = $vm.Id
@@ -76,7 +76,7 @@ Get-VM | ForEach-Object {
     $vm.NetworkAdapters | ForEach-Object {
         $a = $_
         $vlan = $null
-        try { $vlan = Get-VMNetworkAdapterVlan -VMNetworkAdapter $a -ErrorAction Stop } catch {}
+        try { $vlan = Get-VMNetworkAdapterVlan -VMNetworkAdapter $a -ErrorAction SilentlyContinue } catch {}
         $vlanId = if ($vlan -and $vlan.OperationMode -eq 'Access') { $vlan.AccessVlanId } else { 0 }
         [PSCustomObject]@{
             VMId = $vm.Id
@@ -95,7 +95,7 @@ PS_GET_VM_SNAPSHOTS = """
 $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    try { Get-VMSnapshot -VMName $vm.Name -ErrorAction Stop } catch { return } | ForEach-Object {
+    try { Get-VMSnapshot -VMName $vm.Name -ErrorAction SilentlyContinue } catch { return } | ForEach-Object {
         [PSCustomObject]@{
             VMId = $vm.Id
             SnapshotName = $_.Name
