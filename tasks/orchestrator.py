@@ -239,7 +239,45 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
 
         logger.info(f"[Host] Collecting host info from {host_ip}")
         host_info = collect_host_info(session)
-        save_host(host_info, cluster_name=cluster_name, connection_ip=host_ip)
+
+        # If host collection failed, create minimal host info from vm_info
+        if not host_info:
+            logger.warning(
+                f"[Host] Failed to collect detailed info from {host_ip}, using minimal info"
+            )
+            # Get VM count for this host from already-collected VMs
+            try:
+                conn = get_db_connection()
+                vm_count_result = conn.execute(
+                    "SELECT COUNT(*) as vm_count FROM vm_info WHERE host_name = ?",
+                    (host_ip,),
+                ).fetchone()
+                vm_count = vm_count_result["vm_count"] if vm_count_result else 0
+
+                minimal_host_info = {
+                    "HostName": f"HOST-{host_ip.replace('.', '-')}",  # Fallback hostname
+                    "ClusterName": cluster_name if cluster_name else "Unknown",
+                    "TotalMemoryGB": 0,
+                    "AvailableMemoryGB": 0,
+                    "LogicalProcessors": 0,
+                    "VMCount": vm_count,
+                    "OSVersion": "Unknown",
+                    "HyperVVersion": None,
+                    "VirtualHardDiskPath": None,
+                    "VirtualMachinePath": None,
+                }
+                logger.info(
+                    f"[Host] Created minimal host info for {host_ip} with {vm_count} VMs"
+                )
+                save_host(
+                    minimal_host_info, cluster_name=cluster_name, connection_ip=host_ip
+                )
+            except Exception as e:
+                logger.error(
+                    f"[Host] Failed to create minimal host info for {host_ip}: {e}"
+                )
+        else:
+            save_host(host_info, cluster_name=cluster_name, connection_ip=host_ip)
 
         logger.info(f"[Host] Collecting physical disks from {host_ip}")
         phys_disks = collect_physical_disks(session)
