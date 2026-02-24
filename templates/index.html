@@ -270,7 +270,7 @@
                    <tr class="vm-row"
                        data-name="{{ vm.machine_name|lower }}"
                        data-state="{{ vm.state }}"
-                       data-host="{{ vm.host_name|lower }}"
+                       data-host="{{ vm.host_node_name|lower if vm.host_node_name else vm.host_name|lower }}"
                        data-cluster="{{ vm.cluster_id or '' }}"
                        data-cluster-name="{{ vm.cluster_name or '' }}"
                        data-cpu="{{ vm.cpu_count }}"
@@ -279,10 +279,17 @@
                        data-snapshots="{{ vm.snapshot_count or 0 }}"
                        data-vlans="{{ vm.vlans or '' }}"
                        data-ips="{{ vm.ip_addresses or '' }}">
-                        <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                        <td>
+                            <a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a>
+                            {% if vm.client_name %}
+                            <a href="/client/{{ vm.client_id }}" class="badge bg-primary ms-2" style="text-decoration: none;">
+                                <i class="bi bi-building"></i> {{ vm.client_name }}
+                            </a>
+                            {% endif %}
+                        </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
                        <td>
-                           {{ vm.host_name }}
+                           {{ vm.host_node_name if vm.host_node_name else vm.host_name }}
                            {% if vm.cluster_name %}
                            <br>
                            <small class="text-muted">

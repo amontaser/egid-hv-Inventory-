@@ -143,7 +143,7 @@ def index():
             params,
         ).fetchone()
 
-        # Get all VMs
+        # Get all VMs with host node names and client info
         vms_raw = db.execute(
             f"""
             SELECT
@@ -152,8 +152,14 @@ def index():
                 (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id) as total_disk_gb,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id) as snapshot_count,
                 (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
-                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans
+                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
+                h.host_name as host_node_name,
+                c.id as client_id,
+                c.name as client_name
             FROM vm_info v
+            LEFT JOIN hyperv_hosts h ON v.host_name = h.connection_ip
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id
+            LEFT JOIN clients c ON vc.client_id = c.id AND c.state = 1
             {cluster_filter}
             ORDER BY v.machine_name
         """,
