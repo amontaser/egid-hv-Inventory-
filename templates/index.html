@@ -42,86 +42,43 @@
     <i class="bi bi-chevron-up"></i>
 </button>
 
-    <!-- Enhanced Sync Status Alert -->
+    <!-- Sync Status Alert - Simplified -->
     <div id="syncStatus" class="alert alert-info d-none mb-3" role="alert">
-        <div class="d-flex align-items-center mb-3">
-            <div class="spinner-border spinner-border-sm me-3" role="status">
-                <span class="visually-hidden">Loading...</span>
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div>
+                    <strong id="syncStatusTitle">Syncing...</strong>
+                    <div class="small text-muted" id="syncStatusDetails">Initializing</div>
+                </div>
             </div>
-            <div class="flex-grow-1">
-                <strong id="syncStatusTitle">Sync in Progress</strong>
-                <div id="syncStatusDetails" class="small text-muted mt-1"></div>
+            <div class="text-end">
+                <div class="h5 mb-0" id="syncProgressText">0%</div>
+                <small class="text-muted">Complete</small>
             </div>
-            <button type="button" class="btn-close" onclick="hideSyncStatus()"></button>
         </div>
         
-        <!-- Progress Bar -->
-        <div class="progress mb-3" style="height: 8px;">
+        <!-- Simple Progress Bar -->
+        <div class="progress mt-2" style="height: 6px;">
             <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
                  role="progressbar" style="width: 0%"></div>
         </div>
         
-        <!-- Detailed Progress Information -->
-        <div id="syncProgressDetails" class="row g-3 mt-3">
-            <!-- Left Column: Current Status -->
-            <div class="col-md-6">
-                <div class="card bg-light">
-                    <div class="card-body py-2">
-                        <h6 class="card-title small mb-2"><i class="bi bi-info-circle"></i> Current Status</h6>
-                        <div class="small mb-1">
-                            <strong>Cluster:</strong> <span id="syncCurrentCluster">-</span>
-                        </div>
-                        <div class="small mb-1">
-                            <strong>Host:</strong> <span id="syncCurrentHost">-</span>
-                        </div>
-                        <div class="small mb-1">
-                            <strong>Progress:</strong> <span id="syncProgressText">-</span>
-                        </div>
-                        <div class="small">
-                            <strong>Elapsed Time:</strong> <span id="syncElapsedTime">-</span>
-                        </div>
-                    </div>
-                </div>
+        <!-- Quick Stats -->
+        <div class="row text-center mt-2">
+            <div class="col-4">
+                <strong id="syncHostsProcessed">0/0</strong>
+                <div class="small text-muted">Hosts</div>
             </div>
-            
-            <!-- Right Column: Statistics -->
-            <div class="col-md-6">
-                <div class="card bg-light">
-                    <div class="card-body py-2">
-                        <h6 class="card-title small mb-2"><i class="bi bi-bar-chart"></i> Statistics</h6>
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <div class="h5 mb-0" id="syncHostsProcessed">0/0</div>
-                                <div class="small text-muted">Hosts</div>
-                            </div>
-                            <div class="col-4">
-                                <div class="h5 mb-0" id="syncVMsDiscovered">0</div>
-                                <div class="small text-muted">VMs Found</div>
-                            </div>
-                            <div class="col-4">
-                                <div class="h5 mb-0" id="syncVMsSynced">0</div>
-                                <div class="small text-muted">VMs Synced</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="col-4">
+                <strong id="syncVMsDiscovered">0</strong>
+                <div class="small text-muted">VMs</div>
             </div>
-        </div>
-        
-        <!-- Host Progress List (collapsible) -->
-        <div class="mt-3">
-            <button class="btn btn-sm btn-outline-secondary w-100" type="button" 
-                    data-bs-toggle="collapse" data-bs-target="#syncHostProgressList">
-                <i class="bi bi-list-ul"></i> Host Progress Details
-            </button>
-            <div class="collapse mt-2" id="syncHostProgressList">
-                <div class="card bg-light">
-                    <div class="card-body py-2">
-                        <div id="syncHostList" class="small">
-                            <div class="text-muted text-center py-2">Waiting for sync to start...</div>
-                        </div>
-                    </div>
-                </div>
+            <div class="col-4">
+                <strong id="syncElapsedTime">0:00</strong>
+                <div class="small text-muted">Time</div>
             </div>
         </div>
     </div>
@@ -670,9 +627,6 @@ function hideSyncStatus() {
 function showSyncStarting() {
     showSyncStatus('Starting Sync', 'Initializing data collection...');
     syncStartTime = new Date();
-    hostProgressCache = [];
-    lastVmsDiscovered = 0;  // Reset per-host tracking
-    updateHostProgressList();
 }
 
 async function startSync(event) {
@@ -707,98 +661,42 @@ function updateDetailedSyncStatus(data) {
     const hostsDiscovered = data.hosts_discovered || 0;
     const hostsProcessed = data.hosts_processed || 0;
     const currentHost = data.current_host || '';
-    const currentCluster = data.current_cluster || '';
     const vmsDiscovered = data.vms_discovered || 0;
 
     // Progress percentage
     const progress = hostsDiscovered > 0 ? Math.round((hostsProcessed / hostsDiscovered) * 100) : 0;
 
-    // Progress bar + subtitle
+    // Progress bar
     document.getElementById('syncProgressBar').style.width = progress + '%';
-    document.getElementById('syncStatusTitle').textContent = 'Sync in Progress';
-    document.getElementById('syncStatusDetails').textContent =
-        `Processing ${hostsProcessed} of ${hostsDiscovered} hosts`;
+    
+    // Title and details - simple and clear
+    if (currentHost) {
+        document.getElementById('syncStatusTitle').textContent = `Scanning ${currentHost}`;
+        document.getElementById('syncStatusDetails').textContent = 
+            `Host ${hostsProcessed} of ${hostsDiscovered} • ${vmsDiscovered} VMs found`;
+    } else {
+        document.getElementById('syncStatusTitle').textContent = 'Syncing...';
+        document.getElementById('syncStatusDetails').textContent = 'Initializing';
+    }
 
-    // Current status panel — use values directly from the DB, no guesswork
-    document.getElementById('syncCurrentCluster').textContent = currentCluster || 'Discovering…';
-    document.getElementById('syncCurrentHost').textContent = currentHost || 'Waiting…';
-    document.getElementById('syncProgressText').textContent =
-        `${progress}% (${hostsProcessed}/${hostsDiscovered} hosts)`;
+    // Progress percentage text
+    document.getElementById('syncProgressText').textContent = `${progress}%`;
 
     // Elapsed time
     if (syncStartTime) {
         const elapsed = Math.round((new Date() - syncStartTime) / 1000);
         const minutes = Math.floor(elapsed / 60);
         const seconds = elapsed % 60;
-        document.getElementById('syncElapsedTime').textContent = `${minutes}m ${seconds}s`;
+        if (minutes > 0) {
+            document.getElementById('syncElapsedTime').textContent = `${minutes}m ${seconds}s`;
+        } else {
+            document.getElementById('syncElapsedTime').textContent = `${seconds}s`;
+        }
     }
 
     // Statistics
     document.getElementById('syncHostsProcessed').textContent = `${hostsProcessed}/${hostsDiscovered}`;
     document.getElementById('syncVMsDiscovered').textContent = vmsDiscovered;
-    document.getElementById('syncVMsSynced').textContent = vmsDiscovered;
-
-    // Host progress list — track unique hosts seen
-    if (currentHost && !hostProgressCache.find(h => h.host === currentHost)) {
-        hostProgressCache.push({ host: currentHost, cluster: currentCluster, status: 'Processing' });
-        updateHostProgressList();
-    }
-
-    // Mark all previous entries (not current) as completed
-    hostProgressCache.forEach(h => {
-        if (h.host !== currentHost && h.status === 'Processing') {
-            h.status = 'Completed';
-        }
-    });
-    updateHostProgressList();
-}
-
-function updateHostProgressList() {
-    const listContainer = document.getElementById('syncHostList');
-    
-    if (hostProgressCache.length === 0) {
-        listContainer.innerHTML = '<div class="text-muted text-center py-2">Waiting for sync to start...</div>';
-        return;
-    }
-
-    let html = '<div class="list-group list-group-flush">';
-    
-    // Sort: processing first, then completed, then pending
-    const sortedHosts = [...hostProgressCache].sort((a, b) => {
-        if (a.status === 'Processing' && b.status !== 'Processing') return -1;
-        if (a.status !== 'Processing' && b.status === 'Processing') return 1;
-        return 0;
-    });
-
-    sortedHosts.forEach((host, index) => {
-        const statusClass = host.status === 'Processing'
-            ? 'primary'
-            : host.status === 'Completed'
-                ? 'success'
-                : 'secondary';
-
-        const statusIcon = host.status === 'Processing'
-            ? '<i class="bi bi-arrow-clockwise spin-icon"></i>'
-            : host.status === 'Completed'
-                ? '<i class="bi bi-check-circle"></i>'
-                : '<i class="bi bi-circle"></i>';
-
-        const clusterBadge = host.cluster
-            ? `<span class="badge bg-secondary me-1" style="font-size:0.7em;">${host.cluster}</span>`
-            : '';
-
-        html += `
-            <div class="list-group-item px-2 py-1">
-                <div class="d-flex align-items-center">
-                    <span class="badge bg-${statusClass} me-2">${statusIcon}</span>
-                    <span class="flex-grow-1">${host.host} ${clusterBadge}</span>
-                </div>
-            </div>
-        `;
-    });
-
-    html += '</div>';
-    listContainer.innerHTML = html;
 }
 
 async function checkSyncStatus() {
