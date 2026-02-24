@@ -67,12 +67,17 @@
                         <div class="col-lg-4">
                             <div class="card h-100">
                                 <div class="card-header">
-                                    <h6 class="mb-0">
-                                        <i class="bi bi-hdd-rack text-primary"></i> {{ host.host_name }}
-                                        {% if host.connection_ip %}
-                                        <small class="text-muted ms-2"><i class="bi bi-arrow-right"></i> {{ host.connection_ip }}</small>
-                                        {% endif %}
-                                    </h6>
+                                     <h6 class="mb-0">
+                                         <i class="bi bi-hdd-rack text-primary"></i> {{ host.display_name }}
+                                         {% if host.connection_ip and host.connection_ip != host.display_name %}
+                                         <small class="text-muted ms-2"><i class="bi bi-arrow-right"></i> {{ host.connection_ip }}</small>
+                                         {% endif %}
+                                         {% if host.host_id == 0 %}
+                                         <span class="badge bg-warning ms-2" title="Host not in inventory">
+                                             <i class="bi bi-exclamation-triangle"></i> Not in Inventory
+                                         </span>
+                                         {% endif %}
+                                     </h6>
                                     {% if host.fqdn and host.fqdn != host.host_name %}
                                     <small class="text-muted">{{ host.fqdn }}</small>
                                     {% endif %}

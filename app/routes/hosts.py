@@ -81,23 +81,38 @@ def host_list():
                 (cluster_id,),
             ).fetchone()
             selected_cluster_name = cluster["cluster_name"] if cluster else None
-            cluster_filter = "AND hh.cluster_name = ?"
+            cluster_filter = "AND v.cluster_name = ?"
             params = [selected_cluster_name]
         else:
             selected_cluster_name = None
             cluster_filter = ""
             params = []
 
-        # Get all hosts with VM counts
+        # Get ALL hosts from VM info, joined with hyperv_hosts for details
+        # This ensures we show hosts that have VMs even if they're not in hyperv_hosts table
         hosts = db.execute(
             f"""
             SELECT 
-                hh.*,
-                c.location as cluster_location
-            FROM hyperv_hosts hh
-            LEFT JOIN clusters c ON hh.cluster_name = c.cluster_name
-            WHERE 1=1 {cluster_filter}
-            ORDER BY hh.cluster_name, hh.host_name
+                COALESCE(hh.host_name, v.host_name) as display_name,
+                COALESCE(hh.id, 0) as host_id,
+                v.host_name as connection_ip,
+                v.cluster_name,
+                c.location as cluster_location,
+                hh.total_memory_gb,
+                hh.available_memory_gb,
+                hh.logical_processors,
+                hh.os_version,
+                hh.vm_count,
+                COUNT(v.machine_name) as actual_vm_count
+            FROM (
+                SELECT DISTINCT host_name, cluster_name
+                FROM vm_info
+                {cluster_filter}
+            ) v
+            LEFT JOIN hyperv_hosts hh ON v.host_name = hh.connection_ip
+            LEFT JOIN clusters c ON v.cluster_name = c.cluster_name
+            GROUP BY v.host_name, v.cluster_name, hh.host_name, hh.id
+            ORDER BY v.cluster_name, COALESCE(hh.host_name, v.host_name)
         """,
             params,
         ).fetchall()
@@ -116,8 +131,10 @@ def host_list():
             }
 
         host_dict = dict(host)
+        # Use actual VM count from the query
+        host_dict["vm_count"] = host["actual_vm_count"]
         clusters_with_hosts[cluster_name]["hosts"].append(host_dict)
-        clusters_with_hosts[cluster_name]["total_vms"] += host["vm_count"] or 0
+        clusters_with_hosts[cluster_name]["total_vms"] += host["actual_vm_count"] or 0
         clusters_with_hosts[cluster_name]["total_cpus"] += (
             host["logical_processors"] or 0
         )
