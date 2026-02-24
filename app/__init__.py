@@ -26,7 +26,7 @@ def create_app():
     # Configuration
     app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
     app.config.update(
-        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SECURE=False,  # Disabled for HTTP access (enable for HTTPS)
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=3600,  # 60 minutes
