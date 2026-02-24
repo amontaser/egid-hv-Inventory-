@@ -264,7 +264,7 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
         return {"status": "error", "host": host_ip, "error": str(e)}
 
 
-@shared_task(name="tasks.csv_scanner.fetch_cluster_csv_storage")
+@shared_task(name="tasks.sync.fetch_cluster_csv_storage")
 def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
     """Scan CSV volumes for a cluster (tries each node until one succeeds)."""
     import os
