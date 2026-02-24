@@ -76,6 +76,7 @@ def save_disks(disks: List[Dict]):
         )
     conn.commit()
     conn.close()
+    logger.info(f"Saved {len(disks)} VM disks")
 
 
 def save_networks(networks: List[Dict]):

@@ -95,7 +95,7 @@ PS_GET_VM_SNAPSHOTS = """
 $ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    try { Get-VMSnapshot -VMName $vm.Name -ErrorAction SilentlyContinue } catch { return } | ForEach-Object {
+    Get-VMSnapshot -VMName $vm.Name -ErrorAction SilentlyContinue | ForEach-Object {
         [PSCustomObject]@{
             VMId = $vm.Id
             SnapshotName = $_.Name
@@ -139,16 +139,21 @@ def collect_vms(session: winrm.Session) -> List[Dict]:
 
 
 def collect_disks(session: winrm.Session) -> List[Dict]:
-    return run_ps(session, PS_GET_VM_DISKS) or []
+    result = run_ps(session, PS_GET_VM_DISKS, context="collect_disks")
+    logger.info(f"Collected {len(result or [])} VM disks")
+    return result or []
 
 
 def collect_networks(session: winrm.Session) -> List[Dict]:
-    return run_ps(session, PS_GET_VM_NETWORKS) or []
+    result = run_ps(session, PS_GET_VM_NETWORKS, context="collect_networks")
+    return result or []
 
 
 def collect_snapshots(session: winrm.Session) -> List[Dict]:
-    return run_ps(session, PS_GET_VM_SNAPSHOTS) or []
+    result = run_ps(session, PS_GET_VM_SNAPSHOTS, context="collect_snapshots")
+    return result or []
 
 
 def collect_replication(session: winrm.Session) -> List[Dict]:
-    return run_ps(session, PS_GET_VM_REPLICATION) or []
+    result = run_ps(session, PS_GET_VM_REPLICATION, context="collect_replication")
+    return result or []

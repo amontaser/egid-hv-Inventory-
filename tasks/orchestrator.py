@@ -69,7 +69,7 @@ def _update_sync_metadata(status: str, **kwargs):
             values = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status] + values
             fields_sql = ", ".join(fields)
             values.append(1)
-            c.execute(f"UPDATE sync_metadata SET {fields_sql} WHERE id = 1", values)
+            c.execute(f"UPDATE sync_metadata SET {fields_sql} WHERE id = ?", values)
         conn.commit()
         conn.close()
     except Exception as e:
@@ -218,19 +218,30 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
             pass
 
     try:
+        logger.info(f"[Host] Starting collection for {host_ip}")
         session = create_winrm_session(host_ip, cluster_id=cluster_id)
 
+        logger.info(f"[Host] Collecting VMs from {host_ip}")
         vms = collect_vms(session)
         save_vms(vms, host_ip, cluster_name=cluster_name)
 
+        logger.info(f"[Host] Collecting disks from {host_ip}")
         save_disks(collect_disks(session))
+
+        logger.info(f"[Host] Collecting networks from {host_ip}")
         save_networks(collect_networks(session))
+
+        logger.info(f"[Host] Collecting snapshots from {host_ip}")
         save_snapshots(collect_snapshots(session))
+
+        logger.info(f"[Host] Collecting replication from {host_ip}")
         save_replication(collect_replication(session))
 
+        logger.info(f"[Host] Collecting host info from {host_ip}")
         host_info = collect_host_info(session)
         save_host(host_info, cluster_name=cluster_name, connection_ip=host_ip)
 
+        logger.info(f"[Host] Collecting physical disks from {host_ip}")
         phys_disks = collect_physical_disks(session)
         if host_info and phys_disks:
             save_physical_disks(phys_disks, host_info.get("HostName", host_ip))

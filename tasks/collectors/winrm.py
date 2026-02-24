@@ -75,13 +75,44 @@ def _decrypt_password(encrypted_pw: str) -> Optional[str]:
         return None
 
 
-def run_ps(session: winrm.Session, script: str) -> Optional[Any]:
+def run_ps(session: winrm.Session, script: str, context: str = "") -> Optional[Any]:
     """Run a PowerShell script; return parsed JSON or None on error."""
     try:
         result = session.run_ps(script)
         if result.status_code != 0:
-            logger.error(f"PS error: {result.std_err.decode('utf-8', errors='ignore')}")
+            err = result.std_err.decode("utf-8", errors="ignore")
+            out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
+            ctx_msg = f" ({context})" if context else ""
+            logger.error(
+                f"PS error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
+            )
             return None
+        output = result.std_out.decode("utf-8", errors="ignore").strip()
+        if not output or output in ("null", "[]"):
+            return []
+        data = json.loads(output)
+        return [data] if isinstance(data, dict) else data
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error: {e}")
+        return None
+    except OSError:
+        raise  # propagate connection failures to caller
+    except Exception as e:
+        logger.error(f"PS execution error: {e}")
+        return None
+        output = result.std_out.decode("utf-8", errors="ignore").strip()
+        if not output or output in ("null", "[]"):
+            return []
+        data = json.loads(output)
+        return [data] if isinstance(data, dict) else data
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error: {e}")
+        return None
+    except OSError:
+        raise  # propagate connection failures to caller
+    except Exception as e:
+        logger.error(f"PS execution error: {e}")
+        return None
         output = result.std_out.decode("utf-8", errors="ignore").strip()
         if not output or output in ("null", "[]"):
             return []
@@ -97,12 +128,14 @@ def run_ps(session: winrm.Session, script: str) -> Optional[Any]:
         return None
 
 
-def run_ps_long(session: winrm.Session, script: str) -> Optional[Any]:
+def run_ps_long(
+    session: winrm.Session, script: str, context: str = ""
+) -> Optional[Any]:
     """Run large PS scripts via Base64 encoding to bypass WinRM size limits.
     Falls back to run_ps for scripts under 7000 bytes."""
     script_bytes = script.encode("utf-8")
     if len(script_bytes) < 7000:
-        return run_ps(session, script)
+        return run_ps(session, script, context)
 
     encoded = base64.b64encode(script_bytes).decode("ascii")
     wrapper = f"""
@@ -118,8 +151,11 @@ def run_ps_long(session: winrm.Session, script: str) -> Optional[Any]:
     """
     result = session.run_ps(wrapper)
     if result.status_code != 0:
+        err = result.std_err.decode("utf-8", errors="ignore")
+        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
+        ctx_msg = f" ({context})" if context else ""
         logger.error(
-            f"PS Base64 error: {result.std_err.decode('utf-8', errors='ignore')}"
+            f"PS Base64 error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
         )
         return None
     output = result.std_out.decode("utf-8", errors="ignore").strip()
