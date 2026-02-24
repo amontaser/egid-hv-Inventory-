@@ -13,7 +13,7 @@ celery.conf.update(
         "tasks.sync.fetch_hyperv_data": {"queue": "hyperv"},
         "tasks.sync.fetch_single_host": {"queue": "hyperv"},
         "tasks.sync.aggregate_sync_results_with_csv": {"queue": "hyperv"},
-        "tasks.csv_scanner.fetch_cluster_csv_storage": {"queue": "csv"},
+        "tasks.sync.fetch_cluster_csv_storage": {"queue": "csv"},
     },
 )
 
