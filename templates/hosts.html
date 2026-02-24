@@ -107,7 +107,7 @@
                                     </div>
                                     {% endif %}
 
-                                    <p class="mb-2"><strong>Memory:</strong> {{ host.available_memory_gb|round(1) }} / {{ host.total_memory_gb|round(1) }} GB free</p>
+                                     <p class="mb-2"><strong>Memory:</strong> {{ host.available_memory_gb|round(1) if host.available_memory_gb else 0 }} / {{ host.total_memory_gb|round(1) if host.total_memory_gb else 0 }} GB free</p>
 
                                     {% if host.c_drive_size_gb %}
                                     <div class="mb-2">

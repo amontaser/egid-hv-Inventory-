@@ -103,15 +103,15 @@ def host_list():
                 hh.logical_processors,
                 hh.os_version,
                 hh.vm_count,
-                COUNT(v.machine_name) as actual_vm_count
+                v.actual_vm_count
             FROM (
-                SELECT DISTINCT host_name, cluster_name
+                SELECT host_name, cluster_name, COUNT(*) as actual_vm_count
                 FROM vm_info
                 {cluster_filter}
+                GROUP BY host_name, cluster_name
             ) v
             LEFT JOIN hyperv_hosts hh ON v.host_name = hh.connection_ip
             LEFT JOIN clusters c ON v.cluster_name = c.cluster_name
-            GROUP BY v.host_name, v.cluster_name, hh.host_name, hh.id
             ORDER BY v.cluster_name, COALESCE(hh.host_name, v.host_name)
         """,
             params,
