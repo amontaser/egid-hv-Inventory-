@@ -13,21 +13,14 @@ venv/
 env/
 ENV/
 
-# Environment variables
-.env
-
 # Database
 *.db
 *.sqlite
 *.sqlite3
-data/
 
 # Logs
 logs/
 *.log
-
-# PIDs
-pids/
 *.pid
 
 # IDE
@@ -36,11 +29,27 @@ pids/
 *.swp
 *.swo
 
-# Git worktrees
-.worktrees/
-
 # OS
 .DS_Store
 Thumbs.db
-*.db-schedule
-celerybeat-schedule
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+
+# Encryption
+encryption_key.key
+
+# Environment
+.env
+.env.local
+
+# PID files
+pids/
+*.pid
+
+# Test files
+test_*.py
+*_test.py
