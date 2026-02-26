@@ -97,37 +97,35 @@ def storage_view():
         # Get CSV scan metadata
         csv_scan = db.execute("SELECT * FROM csv_scan_metadata WHERE id = 1").fetchone()
 
-        # Build query with cluster filter (join with hyperv_hosts)
+        # Build query with cluster filter
         if cluster_name:
-            # Filter by cluster through owner_node (case-insensitive join)
+            # Filter directly by cluster_name column (already populated in CSV data)
             totals = db.execute(
                 """
                 SELECT
                     COUNT(*) as volume_count,
-                    COALESCE(SUM(csv.total_size_gb), 0) as total_capacity_gb,
-                    COALESCE(SUM(csv.used_space_gb), 0) as total_used_gb,
-                    COALESCE(SUM(csv.free_space_gb), 0) as total_free_gb,
-                    COALESCE(SUM(csv.vhd_max_size_gb), 0) as total_vhd_max_gb,
-                    COALESCE(SUM(csv.vhd_actual_size_gb), 0) as total_vhd_actual_gb
-                FROM cluster_shared_volumes csv
-                INNER JOIN hyperv_hosts hh ON LOWER(csv.owner_node) = LOWER(hh.host_name)
-                WHERE hh.cluster_name = ?
+                    COALESCE(SUM(total_size_gb), 0) as total_capacity_gb,
+                    COALESCE(SUM(used_space_gb), 0) as total_used_gb,
+                    COALESCE(SUM(free_space_gb), 0) as total_free_gb,
+                    COALESCE(SUM(vhd_max_size_gb), 0) as total_vhd_max_gb,
+                    COALESCE(SUM(vhd_actual_size_gb), 0) as total_vhd_actual_gb
+                FROM cluster_shared_volumes
+                WHERE cluster_name = ?
             """,
                 (cluster_name,),
             ).fetchone()
 
             storage = db.execute(
                 """
-                SELECT csv.* 
-                FROM cluster_shared_volumes csv
-                INNER JOIN hyperv_hosts hh ON LOWER(csv.owner_node) = LOWER(hh.host_name)
-                WHERE hh.cluster_name = ?
-                ORDER BY csv.name
+                SELECT * 
+                FROM cluster_shared_volumes
+                WHERE cluster_name = ?
+                ORDER BY name
             """,
                 (cluster_name,),
             ).fetchall()
         else:
-            # No filter - show all, grouped by cluster
+            # No filter - show all, ordered by cluster
             totals = db.execute("""
                 SELECT
                     COUNT(*) as volume_count,
@@ -140,10 +138,9 @@ def storage_view():
             """).fetchone()
 
             storage = db.execute("""
-                SELECT csv.*, hh.cluster_name
-                FROM cluster_shared_volumes csv
-                LEFT JOIN hyperv_hosts hh ON LOWER(csv.owner_node) = LOWER(hh.host_name)
-                ORDER BY hh.cluster_name, csv.name
+                SELECT *
+                FROM cluster_shared_volumes
+                ORDER BY cluster_name, name
             """).fetchall()
 
     # Calculate overall percentage and oversubscription

@@ -10,179 +10,76 @@ logger = logging.getLogger(__name__)
 
 PS_GET_CSV_INFO = """
 $ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
-
-$result = @()
+$ErrorActionPreference = 'Stop'
 
 try {
     $csvs = Get-ClusterSharedVolume -ErrorAction Stop
+    $result = @()
 
-    # Process CSVs in parallel using ForEach-Object -Parallel (PowerShell 7+)
-    # Fallback to sequential processing if parallel not available
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        $result = $csvs | ForEach-Object -Parallel {
-            $csv = $_
-            $i = $csv.SharedVolumeInfo[0]
-
-            # Get VHD information for this CSV
-            $vhdFiles = @()
-
+    foreach ($csv in $csvs) {
+        $i = $csv.SharedVolumeInfo[0]
+        $volPath = $i.FriendlyVolumeName
+        
+        # Get VHD files (simplified - skip system dirs)
+        $vhdFiles = @()
+        if ($volPath -and (Test-Path $volPath)) {
             try {
-                # Get all VHD/VHDX files on this CSV
-                $volumePath = $i.FriendlyVolumeName
-                if (Test-Path $volumePath) {
-                    # Use .NET enumeration for better performance (10x faster than Get-ChildItem)
-                    $vhdFiles = [System.IO.Directory]::EnumerateFiles($volumePath, '*.vhd', 'AllTopLevelDirectories') +
-                                [System.IO.Directory]::EnumerateFiles($volumePath, '*.vhdx', 'AllTopLevelDirectories')
+                $vhdFiles = Get-ChildItem $volPath -Recurse -Include *.vhd,*.vhdx -ErrorAction SilentlyContinue -Depth 2 |
+                    Where-Object { $_.DirectoryName -notmatch 'Recovery|System Volume Information|\$Recycle\.Bin|Config' }
+            } catch { }
+        }
 
-                    # Filter out system directories
-                    $excludePaths = @('Recovery', 'System Volume Information', '$Recycle.Bin', 'Config')
-                    $vhdFiles = $vhdFiles | Where-Object {
-                        $file = $_
-                        -not ($excludePaths | Where-Object { $file -like "*\$_*" })
-                    }
+        # Calculate VHD stats
+        $vhdCount = $vhdFiles.Count
+        $vhdMaxGB = 0
+        $vhdActualGB = 0
+
+        foreach ($vhd in $vhdFiles) {
+            try {
+                $details = Get-VHD -Path $vhd.FullName -ErrorAction SilentlyContinue
+                if ($details) {
+                    $vhdMaxGB += [math]::Round($details.Size / 1GB, 2)
+                    $vhdActualGB += [math]::Round($details.FileSize / 1GB, 2)
                 }
             } catch {
-                # Ignore errors accessing VHD files
-            }
-
-            # Calculate VHD statistics
-            $vhdCount = $vhdFiles.Count
-            $vhdMaxSizeGB = 0
-            $vhdActualSizeGB = 0
-
-            # Batch process VHD details (limit concurrent Get-VHD calls)
-            $batchSize = 10
-            for ($idx = 0; $idx -lt $vhdFiles.Count; $idx += $batchSize) {
-                $batch = $vhdFiles[$idx..[Math]::Min($idx + $batchSize - 1, $vhdFiles.Count - 1)]
-
-                foreach ($vhdPath in $batch) {
-                    try {
-                        $vhdDetails = Get-VHD -Path $vhdPath -ErrorAction SilentlyContinue
-                        if ($vhdDetails) {
-                            $vhdMaxSizeGB += [math]::Round($vhdDetails.Size / 1GB, 2)
-                            $vhdActualSizeGB += [math]::Round($vhdDetails.FileSize / 1GB, 2)
-                        }
-                    } catch {
-                        # If we can't get VHD details, estimate from file size
-                        try {
-                            $fileSize = (Get-Item $vhdPath -ErrorAction SilentlyContinue).Length
-                            $vhdMaxSizeGB += [math]::Round($fileSize / 1GB, 2)
-                            $vhdActualSizeGB += [math]::Round($fileSize / 1GB, 2)
-                        } catch {
-                            # Skip files we can't access
-                        }
-                    }
-                }
-            }
-
-            # Calculate oversubscription
-            $partitionSizeGB = [math]::Round($i.Partition.Size / 1GB, 2)
-            $oversubscriptionPercent = if ($partitionSizeGB -gt 0) {
-                [math]::Round(($vhdMaxSizeGB / $partitionSizeGB) * 100, 1)
-            } else { 0 }
-
-            [PSCustomObject]@{
-                Name = $csv.Name
-                VolumePath = $i.FriendlyVolumeName
-                OwnerNode = if ($csv.OwnerNode) { $csv.OwnerNode.Name } else { $null }
-                State = $csv.State.ToString()
-                TotalSizeGB = $partitionSizeGB
-                FreeSpaceGB = [math]::Round($i.Partition.FreeSpace / 1GB, 2)
-                UsedSpaceGB = [math]::Round(($i.Partition.Size - $i.Partition.FreeSpace) / 1GB, 2)
-                PercentUsed = if ($partitionSizeGB -gt 0) {
-                    [math]::Round((($i.Partition.Size - $i.Partition.FreeSpace) / $i.Partition.Size) * 100, 1)
-                } else { 0 }
-                MaintenanceMode = $csv.MaintenanceMode
-                RedirectedAccess = $csv.RedirectedAccess
-                VHDCount = $vhdCount
-                VHDMaxSizeGB = $vhdMaxSizeGB
-                VHDActualSizeGB = $vhdActualSizeGB
-                OversubscriptionPercent = $oversubscriptionPercent
-                OversubscriptionGB = if ($vhdMaxSizeGB -gt $partitionSizeGB) {
-                    [math]::Round($vhdMaxSizeGB - $partitionSizeGB, 2)
-                } else { 0 }
-            }
-        } -ThrottleLimit 4
-    } else {
-        # Fallback for PowerShell 5.x (sequential but optimized)
-        foreach ($csv in $csvs) {
-            $i = $csv.SharedVolumeInfo[0]
-
-            # Get VHD information for this CSV
-            $vhdFiles = @()
-
-            try {
-                # Get all VHD/VHDX files on this CSV
-                $volumePath = $i.FriendlyVolumeName
-                if (Test-Path $volumePath) {
-                    # Use Get-ChildItem with optimized parameters
-                    $vhdFiles = Get-ChildItem -Path $volumePath -Recurse -Include *.vhd,*.vhdx -ErrorAction SilentlyContinue -Depth 3 |
-                        Where-Object {
-                            $_.DirectoryName -notmatch '(Recovery|System Volume Information|\$Recycle\.Bin|Config)'
-                        }
-                }
-            } catch {
-                # Ignore errors accessing VHD files
-            }
-
-            # Calculate VHD statistics
-            $vhdCount = $vhdFiles.Count
-            $vhdMaxSizeGB = 0
-            $vhdActualSizeGB = 0
-
-            foreach ($vhd in $vhdFiles) {
-                try {
-                    $vhdDetails = Get-VHD -Path $vhd.FullName -ErrorAction SilentlyContinue
-                    if ($vhdDetails) {
-                        $vhdMaxSizeGB += [math]::Round($vhdDetails.Size / 1GB, 2)
-                        $vhdActualSizeGB += [math]::Round($vhdDetails.FileSize / 1GB, 2)
-                    }
-                } catch {
-                    # If we can't get VHD details, use file size
-                    $vhdMaxSizeGB += [math]::Round($vhd.Length / 1GB, 2)
-                    $vhdActualSizeGB += [math]::Round($vhd.Length / 1GB, 2)
-                }
-            }
-
-            # Calculate oversubscription
-            $partitionSizeGB = [math]::Round($i.Partition.Size / 1GB, 2)
-            $oversubscriptionPercent = if ($partitionSizeGB -gt 0) {
-                [math]::Round(($vhdMaxSizeGB / $partitionSizeGB) * 100, 1)
-            } else { 0 }
-
-            $result += [PSCustomObject]@{
-                Name = $csv.Name
-                VolumePath = $i.FriendlyVolumeName
-                OwnerNode = if ($csv.OwnerNode) { $csv.OwnerNode.Name } else { $null }
-                State = $csv.State.ToString()
-                TotalSizeGB = $partitionSizeGB
-                FreeSpaceGB = [math]::Round($i.Partition.FreeSpace / 1GB, 2)
-                UsedSpaceGB = [math]::Round(($i.Partition.Size - $i.Partition.FreeSpace) / 1GB, 2)
-                PercentUsed = if ($partitionSizeGB -gt 0) {
-                    [math]::Round((($i.Partition.Size - $i.Partition.FreeSpace) / $i.Partition.Size) * 100, 1)
-                } else { 0 }
-                MaintenanceMode = $csv.MaintenanceMode
-                RedirectedAccess = $csv.RedirectedAccess
-                VHDCount = $vhdCount
-                VHDMaxSizeGB = $vhdMaxSizeGB
-                VHDActualSizeGB = $vhdActualSizeGB
-                OversubscriptionPercent = $oversubscriptionPercent
-                OversubscriptionGB = if ($vhdMaxSizeGB -gt $partitionSizeGB) {
-                    [math]::Round($vhdMaxSizeGB - $partitionSizeGB, 2)
-                } else { 0 }
+                $vhdMaxGB += [math]::Round($vhd.Length / 1GB, 2)
+                $vhdActualGB += [math]::Round($vhd.Length / 1GB, 2)
             }
         }
+
+        $totalGB = [math]::Round($i.Partition.Size / 1GB, 2)
+        $freeGB = [math]::Round($i.Partition.FreeSpace / 1GB, 2)
+        $usedGB = [math]::Round(($i.Partition.Size - $i.Partition.FreeSpace) / 1GB, 2)
+        $pctUsed = if ($totalGB -gt 0) { [math]::Round(($usedGB / $totalGB) * 100, 1) } else { 0 }
+        $oversubPct = if ($totalGB -gt 0) { [math]::Round(($vhdMaxGB / $totalGB) * 100, 1) } else { 0 }
+
+        $result += [PSCustomObject]@{
+            Name = $csv.Name
+            VolumePath = $volPath
+            OwnerNode = if ($csv.OwnerNode) { $csv.OwnerNode.Name } else { $null }
+            State = $csv.State.ToString()
+            TotalSizeGB = $totalGB
+            FreeSpaceGB = $freeGB
+            UsedSpaceGB = $usedGB
+            PercentUsed = $pctUsed
+            MaintenanceMode = $csv.MaintenanceMode
+            RedirectedAccess = $csv.RedirectedAccess
+            VHDCount = $vhdCount
+            VHDMaxSizeGB = $vhdMaxGB
+            VHDActualSizeGB = $vhdActualGB
+            OversubscriptionPercent = $oversubPct
+            OversubscriptionGB = if ($vhdMaxGB -gt $totalGB) { [math]::Round($vhdMaxGB - $totalGB, 2) } else { 0 }
+        }
     }
+
+    if ($result.Count -eq 0) {
+        throw "No Cluster Shared Volumes found"
+    }
+
+    $result | ConvertTo-Json -Depth 3
 } catch {
     throw "Failed to get Cluster Shared Volumes: $($_.Exception.Message)"
 }
-
-if ($result.Count -eq 0) {
-    throw "No Cluster Shared Volumes found"
-}
-
-$result | ConvertTo-Json -Depth 3
 """
 
 

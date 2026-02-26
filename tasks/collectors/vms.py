@@ -17,10 +17,42 @@ $ErrorActionPreference = "SilentlyContinue"
 $clusterName = $null
 try { $c = Get-Cluster -ErrorAction SilentlyContinue; if ($c) { $clusterName = $c.Name } } catch {}
 
-Get-VM | ForEach-Object {
-    $vm = $_
+# Use Get-ClusterGroup to get ALL VMs (more reliable than Get-VM)
+Get-ClusterGroup | Where-Object { $_.GroupType -eq 'VirtualMachine' } | ForEach-Object {
+    $cg = $_
+    $vm = $null
+    try {
+        $vm = Get-VM -Id $cg.Id -ErrorAction SilentlyContinue
+    } catch { }
+    
+    # If Get-VM fails, create minimal object from cluster group
+    if (-not $vm) {
+        $vm = [PSCustomObject]@{
+            Id = $cg.Id
+            Name = $cg.Name
+            State = $cg.State
+            ComputerName = if ($cg.OwnerNode) { $cg.OwnerNode.Name } else { $null }
+            ProcessorCount = 0
+            MemoryAssigned = 0
+            MemoryDemand = 0
+            MemoryStartup = 0
+            MemoryMinimum = 0
+            MemoryMaximum = 0
+            DynamicMemoryEnabled = $false
+            Generation = 0
+            Version = $null
+            IntegrationServicesVersion = $null
+            VirtualHardDisks = @()
+            ConfigurationLocation = $null
+            NetworkAdapters = @()
+            CreationTime = $null
+            Uptime = $null
+        }
+    }
+    
     $uptime = 0
     if ($vm.State -eq 'Running' -and $vm.Uptime) { $uptime = [int]$vm.Uptime.TotalSeconds }
+    
     [PSCustomObject]@{
         VMId = $vm.Id
         Name = $vm.Name

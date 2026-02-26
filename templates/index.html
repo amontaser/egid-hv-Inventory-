@@ -521,7 +521,6 @@ searchInput?.addEventListener('keydown', (e) => {
 let syncCheckInterval = null;
 let lastSyncStatus = null;
 let syncStartTime = null;
-let hostProgressCache = [];
 let lastVmsDiscovered = 0;  // Track previous value for per-host calculation
 
 function showSyncStatus(title, details, progress = 0) {
