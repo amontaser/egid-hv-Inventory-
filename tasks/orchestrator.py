@@ -112,7 +112,7 @@ def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str
 
     node_map = {}
     for node in nodes:
-        if node.get("State") != "Up":
+        if node.get("State") == "Down":
             continue
         name = node.get("Name", "")
         ip = node.get("IPAddress") or resolve_node_ip(name, dns_servers, domain_name)
