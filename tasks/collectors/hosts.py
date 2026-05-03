@@ -13,22 +13,44 @@ $ErrorActionPreference = "SilentlyContinue"
 $clusterName = $null
 try { $c = Get-Cluster -ErrorAction SilentlyContinue; if ($c) { $clusterName = $c.Name } } catch {}
 
-$mem = Get-CimInstance -ClassName Win32_OperatingSystem
-$totalMemGB  = [math]::Round($mem.TotalVisibleMemorySize / 1MB, 2)
-$freeMemGB   = [math]::Round($mem.FreePhysicalMemory / 1MB, 2)
+$totalMemGB = 0
+$freeMemGB = 0
+$cpuSum = 0
+$osCaption = "Unknown"
+$osVersion = $null
 
-$cpuSum = (Get-CimInstance -ClassName Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+try {
+    $mem = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+    $totalMemGB  = [math]::Round($mem.TotalVisibleMemorySize / 1MB, 2)
+    $freeMemGB   = [math]::Round($mem.FreePhysicalMemory / 1MB, 2)
+    $cpuSum = (Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+    $osCaption = $mem.Caption
+    $osVersion = $mem.Version
+} catch {
+    try {
+        $osInfo = Invoke-Command -ScriptBlock { [System.Environment]::OSVersion } -ErrorAction SilentlyContinue
+        if ($osInfo) { $osCaption = "Windows"; $osVersion = $osInfo.Version.ToString() }
+    } catch {}
+    try {
+        $cpuSum = (Get-VMHost -ErrorAction SilentlyContinue).LogicalProcessorCount
+        if (-not $cpuSum) { $cpuSum = 0 }
+    } catch {}
+}
+
 $vmCount = (Get-VM -ErrorAction SilentlyContinue).Count
-$os = Get-CimInstance -ClassName Win32_OperatingSystem
+if (-not $vmCount) { $vmCount = 0 }
 
 $hvVersion = $null
 $vhdPath = $null
 $vmPath = $null
 try {
-    $hvHost = Get-VMHost
-    $hvVersion = if ($hvHost.IntegrationServicesVersion) { $hvHost.IntegrationServicesVersion.ToString() } else { $null }
-    $vhdPath = $hvHost.VirtualHardDiskPath
-    $vmPath  = $hvHost.VirtualMachinePath
+    $hvHost = Get-VMHost -ErrorAction SilentlyContinue
+    if ($hvHost) {
+        $hvVersion = if ($hvHost.IntegrationServicesVersion) { $hvHost.IntegrationServicesVersion.ToString() } else { $null }
+        $vhdPath = $hvHost.VirtualHardDiskPath
+        $vmPath  = $hvHost.VirtualMachinePath
+        if ($totalMemGB -eq 0) { $totalMemGB = [math]::Round((Get-VMHostNumaNode -ErrorAction SilentlyContinue | Measure-Object -Property MemoryAvailable -Sum).Sum / 1GB, 2) }
+    }
 } catch {}
 
 [PSCustomObject]@{
@@ -38,7 +60,7 @@ try {
     AvailableMemoryGB  = $freeMemGB
     LogicalProcessors  = $cpuSum
     VMCount            = $vmCount
-    OSVersion          = ($os.Caption + " " + $os.Version)
+    OSVersion          = ($osCaption + " " + $osVersion)
     HyperVVersion      = $hvVersion
     VirtualHardDiskPath = $vhdPath
     VirtualMachinePath  = $vmPath

@@ -117,9 +117,11 @@ def index():
 
     # Build cluster filter for queries
     cluster_filter = ""
+    cluster_filter_v = ""
     params = []
     if cluster_name:
         cluster_filter = "WHERE cluster_name = ?"
+        cluster_filter_v = "WHERE v.cluster_name = ?"
         params = [cluster_name]
 
     # Get all clusters for dropdown
@@ -160,7 +162,7 @@ def index():
             LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id
             LEFT JOIN clients c ON vc.client_id = c.id AND c.state = 1
-            {cluster_filter}
+            {cluster_filter_v}
             ORDER BY v.machine_name
         """,
             params,

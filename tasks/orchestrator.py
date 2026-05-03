@@ -245,16 +245,19 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
             logger.warning(
                 f"[Host] Failed to collect detailed info from {host_ip}, using minimal info"
             )
+            effective_hostname = (
+                vms[0].get("ComputerName") if vms else None
+            ) or f"HOST-{host_ip.replace('.', '-')}"
             try:
                 conn = get_db_connection()
                 vm_count_result = conn.execute(
                     "SELECT COUNT(*) as vm_count FROM vm_info WHERE host_name = ?",
-                    (host_ip,),
+                    (effective_hostname,),
                 ).fetchone()
                 vm_count = vm_count_result["vm_count"] if vm_count_result else 0
 
                 minimal_host_info = {
-                    "HostName": f"HOST-{host_ip.replace('.', '-')}",  # Fallback hostname
+                    "HostName": effective_hostname,
                     "ClusterName": cluster_name if cluster_name else "Unknown",
                     "TotalMemoryGB": 0,
                     "AvailableMemoryGB": 0,
@@ -266,7 +269,7 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
                     "VirtualMachinePath": None,
                 }
                 logger.info(
-                    f"[Host] Created minimal host info for {host_ip} with {vm_count} VMs"
+                    f"[Host] Created minimal host info for {host_ip} ({effective_hostname}) with {vm_count} VMs"
                 )
                 save_host(
                     minimal_host_info, cluster_name=cluster_name, connection_ip=host_ip

@@ -81,7 +81,7 @@ def host_list():
                 (cluster_id,),
             ).fetchone()
             selected_cluster_name = cluster["cluster_name"] if cluster else None
-            cluster_filter = "AND v.cluster_name = ?"
+            cluster_filter = "WHERE cluster_name = ?"
             params = [selected_cluster_name]
         else:
             selected_cluster_name = None
