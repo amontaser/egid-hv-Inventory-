@@ -4,67 +4,30 @@ import logging
 from typing import List, Dict, Optional
 import winrm
 
-from .winrm import run_ps
+from .winrm import run_ps, run_ps_long
 
 logger = logging.getLogger(__name__)
 
-PS_GET_HOST_INFO = """
+PS_GET_HOST_MEMORY = """
+$ErrorActionPreference = "SilentlyContinue"
+$m = Get-CimInstance Win32_OperatingSystem
+@{HostName = $env:COMPUTERNAME; TotalMemoryGB = [math]::Round($m.TotalVisibleMemorySize / 1MB, 2); AvailableMemoryGB = [math]::Round($m.FreePhysicalMemory / 1MB, 2); OSVersion = ($m.Caption + " " + $m.Version)} | ConvertTo-Json
+"""
+
+PS_GET_HOST_CPU = """
+$ErrorActionPreference = "SilentlyContinue"
+$c = (Get-CimInstance Win32_Processor | Measure-Object NumberOfLogicalProcessors -Sum).Sum
+$v = (Get-VM).Count
+@{LogicalProcessors = $c; VMCount = $v} | ConvertTo-Json
+"""
+
+PS_GET_HOST_HYPERV = """
 $ErrorActionPreference = "SilentlyContinue"
 $clusterName = $null
-try { $c = Get-Cluster -ErrorAction SilentlyContinue; if ($c) { $clusterName = $c.Name } } catch {}
-
-$totalMemGB = 0
-$freeMemGB = 0
-$cpuSum = 0
-$osCaption = "Unknown"
-$osVersion = $null
-
-try {
-    $mem = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
-    $totalMemGB  = [math]::Round($mem.TotalVisibleMemorySize / 1MB, 2)
-    $freeMemGB   = [math]::Round($mem.FreePhysicalMemory / 1MB, 2)
-    $cpuSum = (Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
-    $osCaption = $mem.Caption
-    $osVersion = $mem.Version
-} catch {
-    try {
-        $osInfo = Invoke-Command -ScriptBlock { [System.Environment]::OSVersion } -ErrorAction SilentlyContinue
-        if ($osInfo) { $osCaption = "Windows"; $osVersion = $osInfo.Version.ToString() }
-    } catch {}
-    try {
-        $cpuSum = (Get-VMHost -ErrorAction SilentlyContinue).LogicalProcessorCount
-        if (-not $cpuSum) { $cpuSum = 0 }
-    } catch {}
-}
-
-$vmCount = (Get-VM -ErrorAction SilentlyContinue).Count
-if (-not $vmCount) { $vmCount = 0 }
-
-$hvVersion = $null
-$vhdPath = $null
-$vmPath = $null
-try {
-    $hvHost = Get-VMHost -ErrorAction SilentlyContinue
-    if ($hvHost) {
-        $hvVersion = if ($hvHost.IntegrationServicesVersion) { $hvHost.IntegrationServicesVersion.ToString() } else { $null }
-        $vhdPath = $hvHost.VirtualHardDiskPath
-        $vmPath  = $hvHost.VirtualMachinePath
-        if ($totalMemGB -eq 0) { $totalMemGB = [math]::Round((Get-VMHostNumaNode -ErrorAction SilentlyContinue | Measure-Object -Property MemoryAvailable -Sum).Sum / 1GB, 2) }
-    }
-} catch {}
-
-[PSCustomObject]@{
-    HostName           = $env:COMPUTERNAME
-    ClusterName        = $clusterName
-    TotalMemoryGB      = $totalMemGB
-    AvailableMemoryGB  = $freeMemGB
-    LogicalProcessors  = $cpuSum
-    VMCount            = $vmCount
-    OSVersion          = ($osCaption + " " + $osVersion)
-    HyperVVersion      = $hvVersion
-    VirtualHardDiskPath = $vhdPath
-    VirtualMachinePath  = $vmPath
-} | ConvertTo-Json -Depth 2
+try { $c = Get-Cluster; if ($c) { $clusterName = $c.Name } } catch {}
+$h = Get-VMHost
+$hvVer = if ($h.IntegrationServicesVersion) { $h.IntegrationServicesVersion.ToString() } else { $null }
+@{ClusterName = $clusterName; HyperVVersion = $hvVer; VirtualHardDiskPath = $h.VirtualHardDiskPath; VirtualMachinePath = $h.VirtualMachinePath} | ConvertTo-Json
 """
 
 PS_GET_PHYSICAL_DISKS = """
@@ -119,11 +82,14 @@ try {
 
 
 def collect_host_info(session: winrm.Session) -> Optional[Dict]:
-    """Returns single host info dict or None."""
-    result = run_ps(session, PS_GET_HOST_INFO)
-    if result and len(result) > 0:
-        return result[0]
-    return None
+    """Returns single host info dict or None. Uses multiple small PS calls
+    to stay under WinRM input size limits on hosts with restricted configs."""
+    info = {}
+    for script in [PS_GET_HOST_MEMORY, PS_GET_HOST_CPU, PS_GET_HOST_HYPERV]:
+        result = run_ps(session, script)
+        if result and len(result) > 0 and isinstance(result[0], dict):
+            info.update(result[0])
+    return info if info else None
 
 
 def collect_physical_disks(session: winrm.Session) -> List[Dict]:
