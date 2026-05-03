@@ -157,7 +157,7 @@ def index():
                 c.id as client_id,
                 c.name as client_name
             FROM vm_info v
-            LEFT JOIN hyperv_hosts h ON v.host_name = h.connection_ip
+            LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id
             LEFT JOIN clients c ON vc.client_id = c.id AND c.state = 1
             {cluster_filter}

@@ -103,25 +103,46 @@ def run_ps(session: winrm.Session, script: str, context: str = "") -> Optional[A
 
 
 def run_ps_long(
-    session: winrm.Session, script: str, context: str = ""
+    session: winrm.Session, script: str, context: str = "", force_encoded: bool = False
 ) -> Optional[Any]:
     """Run large PS scripts via PowerShell native -EncodedCommand.
-    This bypasses WinRM size limits and file permission issues.
-    Falls back to run_ps for scripts under 7000 bytes."""
+    Uses temp-file approach for large outputs to bypass WinRM envelope size limits.
+    Falls back to run_ps for scripts under 7000 bytes unless force_encoded=True."""
     script_bytes = script.encode("utf-8")
-    if len(script_bytes) < 7000:
+    if len(script_bytes) < 7000 and not force_encoded:
         return run_ps(session, script, context)
 
-    # For large scripts, use PowerShell's native -EncodedCommand parameter
-    # This avoids all file permission and command length issues
-    # Must be UTF-16 LE for PowerShell compatibility
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    import time as _time
 
-    logger.info(f"Using PowerShell -EncodedCommand ({len(encoded)} chars)")
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    temp_name = f"hyperv_out_{int(_time.time())}_{os.getpid()}.json"
+    temp_path = f"C:\\Windows\\Temp\\{temp_name}"
+
+    # Write output to temp file instead of stdout to bypass WinRM envelope limits
+    wrapper = (
+        f"$null = Set-Item WSMan:\\localhost\\MaxEnvelopeSizeKB 4096 -ErrorAction SilentlyContinue; "
+        + script.replace(
+            "ConvertTo-Json",
+            f"ConvertTo-Json | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'DONE'",
+        )
+    )
+    # Only replace the first occurrence of ConvertTo-Json
+    wrapper = script
+    wrapper_parts = wrapper.split("ConvertTo-Json", 1)
+    if len(wrapper_parts) == 2:
+        wrapper = (
+            wrapper_parts[0]
+            + f"ConvertTo-Json | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
+            + wrapper_parts[1]
+        )
+
+    encoded_wrapper = base64.b64encode(wrapper.encode("utf-16-le")).decode("ascii")
+    logger.info(
+        f"Using PowerShell -EncodedCommand with temp file ({len(encoded_wrapper)} chars)"
+    )
 
     try:
-        # Use run_cmd with powershell.exe -EncodedCommand for better compatibility
-        result = session.run_cmd("powershell.exe", ["-EncodedCommand", encoded])
+        result = session.run_cmd("powershell.exe", ["-EncodedCommand", encoded_wrapper])
     except Exception as e:
         logger.error(f"Failed to execute encoded command: {e}")
         return None
@@ -133,189 +154,45 @@ def run_ps_long(
         logger.error(
             f"PS encoded cmd error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
         )
+        session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
         return None
 
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
+    stdout = result.std_out.decode("utf-8", errors="ignore").strip()
+
+    # If output was written to file, read it back in chunks
+    if "FILE_WRITTEN" in stdout:
+        logger.info(f"Reading output from temp file {temp_path}")
+        all_content = ""
+        offset = 0
+        chunk_size = 50000
+        while True:
+            read_script = (
+                f"$c = Get-Content '{temp_path}' -TotalCount {offset + chunk_size} -Encoding UTF8; "
+                f"$c | Select-Object -Skip {offset} | Out-String"
+            )
+            chunk_result = session.run_ps(read_script)
+            if chunk_result.status_code != 0:
+                break
+            chunk_text = chunk_result.std_out.decode("utf-8", errors="ignore")
+            if not chunk_text.strip():
+                break
+            all_content += chunk_text
+            if len(chunk_text.strip().split("\n")) < chunk_size:
+                break
+            offset += chunk_size
+
+        session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
+        output = all_content.strip()
+    else:
+        output = stdout
+
     if not output or output in ("null", "[]"):
         return []
     try:
         return json.loads(output)
     except json.JSONDecodeError as e:
         logger.error(f"JSON parse error: {e}")
-        logger.error(f"Output preview: {output[:500]}")
-        return None
-        if i < 5 or i % 20 == 0:  # Log first 5 and every 20th
-            logger.debug(f"Written chunk {i}/{len(chunks)}")
-
-    # Build command to read all chunks, combine, decode, and execute
-    # Use Get-Content with wildcard for all chunk files
-    wrapper = f"""
-        $ErrorActionPreference = "Stop"
-        try {{
-            $chunkFiles = Get-ChildItem "C:\\Windows\\Temp\\{file_prefix}_*.txt" | Sort-Object Name
-            $chunks = $chunkFiles | ForEach-Object {{ Get-Content $_.FullName }}
-            $encoded = $chunks -join ''
-            $bytes = [System.Convert]::FromBase64String($encoded)
-            $script = [System.Text.Encoding]::UTF8.GetString($bytes)
-            # Cleanup
-            Remove-Item "C:\\Windows\\Temp\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue
-            Invoke-Expression -Command $script
-        }} catch {{
-            Remove-Item "C:\\Windows\\Temp\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue
-            Write-Error $_.Exception.Message
-            exit 1
-        }}
-    """
-
-    result = session.run_ps(wrapper)
-    if result.status_code != 0:
-        err = result.std_err.decode("utf-8", errors="ignore")
-        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
-        ctx_msg = f" ({context})" if context else ""
-        logger.error(
-            f"PS temp file error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
-        )
-        session.run_ps(
-            f'Remove-Item "C:\\Windows\\Temp\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue'
-        )
-        return None
-
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
-    if not output or output in ("null", "[]"):
-        return []
-    try:
-        return json.loads(output)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        return None
-
-    # Build command to read all chunks, combine, decode, and execute
-    chunk_files = " ".join(
-        [f'"$env:TEMP\\{file_prefix}_{i}.txt"' for i in range(len(chunks))]
-    )
-
-    wrapper = f"""
-        $ErrorActionPreference = "Stop"
-        try {{
-            $chunks = Get-Content {chunk_files}
-            $encoded = $chunks -join ''
-            $bytes = [System.Convert]::FromBase64String($encoded)
-            $script = [System.Text.Encoding]::UTF8.GetString($bytes)
-            # Cleanup
-            Remove-Item "$env:TEMP\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue
-            Invoke-Expression -Command $script
-        }} catch {{
-            Remove-Item "$env:TEMP\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue
-            Write-Error $_.Exception.Message
-            exit 1
-        }}
-    """
-
-    result = session.run_ps(wrapper)
-    if result.status_code != 0:
-        err = result.std_err.decode("utf-8", errors="ignore")
-        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
-        ctx_msg = f" ({context})" if context else ""
-        logger.error(
-            f"PS temp file error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
-        )
-        session.run_ps(
-            f'Remove-Item "$env:TEMP\\{file_prefix}_*.txt" -ErrorAction SilentlyContinue'
-        )
-        return None
-
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
-    if not output or output in ("null", "[]"):
-        return []
-    try:
-        return json.loads(output)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        return None
-
-    # Now execute the decoder script
-    wrapper = f"""
-        $ErrorActionPreference = "Stop"
-        try {{
-            $config = Get-Content "{temp_path}.json" -Raw | ConvertFrom-Json
-            $bytes = [System.Convert]::FromBase64String($config.encoded_script)
-            $script = [System.Text.Encoding]::UTF8.GetString($bytes)
-            Remove-Item "{temp_path}.json" -ErrorAction SilentlyContinue
-            Invoke-Expression -Command $script
-        }} catch {{
-            Remove-Item "{temp_path}.json" -ErrorAction SilentlyContinue
-            Write-Error $_.Exception.Message
-            exit 1
-        }}
-    """
-
-    result = session.run_ps(wrapper)
-    if result.status_code != 0:
-        err = result.std_err.decode("utf-8", errors="ignore")
-        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
-        ctx_msg = f" ({context})" if context else ""
-        logger.error(
-            f"PS temp file error{ctx_msg}: code={{result.status_code}}, stderr={{err}}, stdout={{out}}"
-        )
-        session.run_ps(f'Remove-Item "{temp_path}.json" -ErrorAction SilentlyContinue')
-        return None
-
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
-    if not output or output in ("null", "[]"):
-        return []
-    try:
-        return json.loads(output)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {{e}}")
-        logger.error(f"Output preview: {output[:500]}")
-        return None
-
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
-    if not output or output in ("null", "[]"):
-        return []
-    try:
-        return json.loads(output)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        logger.error(f"Output preview: {output[:500]}")
-        return None
-
-    # Build the wrapper script to reassemble and execute
-    chunk_vars = " ".join([f"$env:PS_SCRIPT_CHUNK_{i}" for i in range(len(chunks))])
-
-    wrapper = f"""
-        $ErrorActionPreference = "Stop"
-        try {{
-            $encoded = {chunk_vars}
-            $bytes = [System.Convert]::FromBase64String($encoded)
-            $script = [System.Text.Encoding]::UTF8.GetString($bytes)
-            Invoke-Expression -Command $script
-        }} catch {{
-            Write-Error $_.Exception.Message
-            exit 1
-        }} finally {{
-            # Cleanup environment variables
-            {chr(10).join([f'[System.Environment]::SetEnvironmentVariable("PS_SCRIPT_CHUNK_{i}", $null)' for i in range(len(chunks))])}
-        }}
-    """
-
-    result = session.run_ps(wrapper)
-    if result.status_code != 0:
-        err = result.std_err.decode("utf-8", errors="ignore")
-        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
-        ctx_msg = f" ({context})" if context else ""
-        logger.error(
-            f"PS env var error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
-        )
-        return None
-
-    output = result.std_out.decode("utf-8", errors="ignore").strip()
-    if not output or output in ("null", "[]"):
-        return []
-    try:
-        return json.loads(output)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error (env var path): {e}")
+        logger.error(f"Output length: {len(output)}, preview: {output[:500]}")
         return None
 
 

@@ -18,6 +18,7 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
         effective_cluster = (
             cluster_name if cluster_name is not None else vm.get("ClusterName")
         )
+        effective_host = vm.get("ComputerName") or host_name
         c.execute(
             """
             INSERT OR REPLACE INTO vm_info (
@@ -30,7 +31,7 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
             (
                 vm.get("VMId"),
                 vm.get("Name"),
-                host_name,
+                effective_host,
                 effective_cluster,
                 vm.get("State"),
                 vm.get("UptimeSeconds", 0),

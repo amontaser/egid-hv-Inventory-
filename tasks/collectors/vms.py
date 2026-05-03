@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict, Optional
 import winrm
 
-from .winrm import run_ps
+from .winrm import run_ps, run_ps_long
 
 logger = logging.getLogger(__name__)
 
@@ -17,42 +17,10 @@ $ErrorActionPreference = "SilentlyContinue"
 $clusterName = $null
 try { $c = Get-Cluster -ErrorAction SilentlyContinue; if ($c) { $clusterName = $c.Name } } catch {}
 
-# Use Get-ClusterGroup to get ALL VMs (more reliable than Get-VM)
-Get-ClusterGroup | Where-Object { $_.GroupType -eq 'VirtualMachine' } | ForEach-Object {
-    $cg = $_
-    $vm = $null
-    try {
-        $vm = Get-VM -Id $cg.Id -ErrorAction SilentlyContinue
-    } catch { }
-    
-    # If Get-VM fails, create minimal object from cluster group
-    if (-not $vm) {
-        $vm = [PSCustomObject]@{
-            Id = $cg.Id
-            Name = $cg.Name
-            State = $cg.State
-            ComputerName = if ($cg.OwnerNode) { $cg.OwnerNode.Name } else { $null }
-            ProcessorCount = 0
-            MemoryAssigned = 0
-            MemoryDemand = 0
-            MemoryStartup = 0
-            MemoryMinimum = 0
-            MemoryMaximum = 0
-            DynamicMemoryEnabled = $false
-            Generation = 0
-            Version = $null
-            IntegrationServicesVersion = $null
-            VirtualHardDisks = @()
-            ConfigurationLocation = $null
-            NetworkAdapters = @()
-            CreationTime = $null
-            Uptime = $null
-        }
-    }
-    
+Get-VM | ForEach-Object {
+    $vm = $_
     $uptime = 0
     if ($vm.State -eq 'Running' -and $vm.Uptime) { $uptime = [int]$vm.Uptime.TotalSeconds }
-    
     [PSCustomObject]@{
         VMId = $vm.Id
         Name = $vm.Name
@@ -75,7 +43,7 @@ Get-ClusterGroup | Where-Object { $_.GroupType -eq 'VirtualMachine' } | ForEach-
         CreatedTime = if ($vm.CreationTime) { $vm.CreationTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
         UptimeSeconds = $uptime
     }
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json -Depth 3 -Compress
 """
 
 PS_GET_VM_DISKS = """
@@ -167,7 +135,13 @@ Get-VM | ForEach-Object {
 
 
 def collect_vms(session: winrm.Session) -> List[Dict]:
-    return run_ps(session, PS_GET_VMS) or []
+    result = run_ps_long(session, PS_GET_VMS, context="collect_vms", force_encoded=True)
+    if result:
+        hosts = set(v.get("ComputerName", "?") for v in result)
+        logger.info(
+            f"collect_vms got {len(result)} VMs from PowerShell, hosts: {hosts}"
+        )
+    return result or []
 
 
 def collect_disks(session: winrm.Session) -> List[Dict]:

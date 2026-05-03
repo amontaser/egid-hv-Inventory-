@@ -95,7 +95,8 @@ def host_list():
             SELECT 
                 COALESCE(hh.host_name, v.host_name) as display_name,
                 COALESCE(hh.id, 0) as host_id,
-                v.host_name as connection_ip,
+                COALESCE(hh.connection_ip, v.host_name) as connection_ip,
+                v.host_name as host_identifier,
                 v.cluster_name,
                 c.location as cluster_location,
                 hh.total_memory_gb,
@@ -110,7 +111,7 @@ def host_list():
                 {cluster_filter}
                 GROUP BY host_name, cluster_name
             ) v
-            LEFT JOIN hyperv_hosts hh ON v.host_name = hh.connection_ip
+            LEFT JOIN hyperv_hosts hh ON v.host_name = hh.host_name
             LEFT JOIN clusters c ON v.cluster_name = c.cluster_name
             ORDER BY v.cluster_name, COALESCE(hh.host_name, v.host_name)
         """,

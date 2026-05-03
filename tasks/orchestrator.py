@@ -245,7 +245,6 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
             logger.warning(
                 f"[Host] Failed to collect detailed info from {host_ip}, using minimal info"
             )
-            # Get VM count for this host from already-collected VMs
             try:
                 conn = get_db_connection()
                 vm_count_result = conn.execute(
@@ -310,7 +309,7 @@ def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
     logger.info(f"[CSV] Scanning cluster {cluster_name}")
 
     if not nodes:
-        return {"status": "error", "cluster": cluster_name, "message": "no nodes"}
+        return {"status": "error", "cluster": cluster_name, "error": "no nodes"}
 
     cache_seconds = int(os.getenv("CSV_CACHE_SECONDS", "3600"))
     if not _should_rescan_csv(cluster_id, cache_seconds):
@@ -336,7 +335,7 @@ def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
     error_msg = f"All nodes failed for cluster {cluster_name}"
     logger.error(error_msg)
     _update_csv_scan_metadata(cluster_id, "error", error=error_msg)
-    return {"status": "error", "cluster": cluster_name, "message": error_msg}
+    return {"status": "error", "cluster": cluster_name, "error": error_msg}
 
 
 @shared_task(name="tasks.sync.aggregate_sync_results_with_csv")
@@ -350,9 +349,13 @@ def aggregate_and_monitor(results, vm_snapshot=None, csv_snapshot=None):
         if isinstance(r, dict) and r.get("status") == "success"
     )
     errors = [
-        r.get("error")
-        for r in results
-        if isinstance(r, dict) and r.get("status") == "error"
+        str(err)
+        for err in (
+            r.get("error")
+            for r in results
+            if isinstance(r, dict) and r.get("status") == "error"
+        )
+        if err
     ]
 
     # Change detection
