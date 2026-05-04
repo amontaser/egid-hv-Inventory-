@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Optional
 
+from sqlalchemy import text
+
 from app.db import get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -12,8 +14,7 @@ logger = logging.getLogger(__name__)
 def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None):
     if not vms:
         return
-    conn = get_db_connection()
-    c = conn.cursor()
+    session = get_db_connection()
     for vm in vms:
         effective_cluster = (
             cluster_name
@@ -21,145 +22,161 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
             else vm.get("ClusterName", "Unknown")
         )
         effective_host = vm.get("ComputerName") or host_name
-        c.execute(
-            """
-            INSERT OR REPLACE INTO vm_info (
+        session.execute(
+            text("""
+            INSERT INTO vm_info (
                 vm_id, cluster_name, machine_name, host_name, state,
                 uptime_seconds, cpu_count, memory_assigned_gb, memory_demand_gb,
                 memory_startup_gb, memory_minimum_gb, memory_maximum_gb,
                 dynamic_memory_enabled, generation, version, created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """,
-            (
-                vm.get("VMId"),
-                effective_cluster,
-                vm.get("Name"),
-                effective_host,
-                vm.get("State"),
-                vm.get("UptimeSeconds", 0),
-                vm.get("CPUCount", 0),
-                vm.get("MemoryAssigned", 0),
-                vm.get("MemoryDemand", 0),
-                vm.get("MemoryStartup", 0),
-                vm.get("MemoryMinimum", 0),
-                vm.get("MemoryMaximum", 0),
-                1 if vm.get("DynamicMemory") else 0,
-                vm.get("Generation", 0),
-                vm.get("Version"),
-                vm.get("CreatedTime"),
-            ),
+            ) VALUES (
+                :vm_id, :cluster_name, :machine_name, :host_name, :state,
+                :uptime_seconds, :cpu_count, :memory_assigned_gb, :memory_demand_gb,
+                :memory_startup_gb, :memory_minimum_gb, :memory_maximum_gb,
+                :dynamic_memory_enabled, :generation, :version, :created_at
+            )
+            ON CONFLICT (vm_id, cluster_name) DO UPDATE SET
+                machine_name           = EXCLUDED.machine_name,
+                host_name              = EXCLUDED.host_name,
+                state                  = EXCLUDED.state,
+                uptime_seconds         = EXCLUDED.uptime_seconds,
+                cpu_count              = EXCLUDED.cpu_count,
+                memory_assigned_gb     = EXCLUDED.memory_assigned_gb,
+                memory_demand_gb       = EXCLUDED.memory_demand_gb,
+                memory_startup_gb      = EXCLUDED.memory_startup_gb,
+                memory_minimum_gb      = EXCLUDED.memory_minimum_gb,
+                memory_maximum_gb      = EXCLUDED.memory_maximum_gb,
+                dynamic_memory_enabled = EXCLUDED.dynamic_memory_enabled,
+                generation             = EXCLUDED.generation,
+                version                = EXCLUDED.version,
+                created_at             = EXCLUDED.created_at
+        """),
+            {
+                "vm_id": vm.get("VMId"),
+                "cluster_name": effective_cluster,
+                "machine_name": vm.get("Name"),
+                "host_name": effective_host,
+                "state": vm.get("State"),
+                "uptime_seconds": vm.get("UptimeSeconds", 0),
+                "cpu_count": vm.get("CPUCount", 0),
+                "memory_assigned_gb": vm.get("MemoryAssigned", 0),
+                "memory_demand_gb": vm.get("MemoryDemand", 0),
+                "memory_startup_gb": vm.get("MemoryStartup", 0),
+                "memory_minimum_gb": vm.get("MemoryMinimum", 0),
+                "memory_maximum_gb": vm.get("MemoryMaximum", 0),
+                "dynamic_memory_enabled": 1 if vm.get("DynamicMemory") else 0,
+                "generation": vm.get("Generation", 0),
+                "version": vm.get("Version"),
+                "created_at": vm.get("CreatedTime"),
+            },
         )
-    conn.commit()
-    conn.close()
+    session.commit()
     logger.info(f"Saved {len(vms)} VMs for {host_name}")
 
 
 def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
     if not disks:
         return
-    conn = get_db_connection()
-    c = conn.cursor()
+    session = get_db_connection()
     for d in disks:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO vm_disks
+        session.execute(
+            text("""
+            INSERT INTO vm_disks
             (vm_id, cluster_name, disk_name, disk_path, disk_format, size_gb, controller_type, controller_number, controller_location)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """,
-            (
-                d.get("VMId"),
-                cluster_name,
-                d.get("DiskName"),
-                d.get("DiskPath"),
-                d.get("DiskFormat"),
-                d.get("Size", 0),
-                d.get("ControllerType"),
-                d.get("ControllerNumber"),
-                d.get("ControllerLocation"),
-            ),
+            VALUES (:vm_id, :cluster_name, :disk_name, :disk_path, :disk_format, :size_gb, :controller_type, :controller_number, :controller_location)
+            ON CONFLICT DO NOTHING
+        """),
+            {
+                "vm_id": d.get("VMId"),
+                "cluster_name": cluster_name,
+                "disk_name": d.get("DiskName"),
+                "disk_path": d.get("DiskPath"),
+                "disk_format": d.get("DiskFormat"),
+                "size_gb": d.get("Size", 0),
+                "controller_type": d.get("ControllerType"),
+                "controller_number": d.get("ControllerNumber"),
+                "controller_location": d.get("ControllerLocation"),
+            },
         )
-    conn.commit()
-    conn.close()
+    session.commit()
     logger.info(f"Saved {len(disks)} VM disks")
 
 
 def save_networks(networks: List[Dict], cluster_name: str = "Unknown"):
     if not networks:
         return
-    conn = get_db_connection()
-    c = conn.cursor()
+    session = get_db_connection()
     for n in networks:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO vm_network_adapters
+        session.execute(
+            text("""
+            INSERT INTO vm_network_adapters
             (vm_id, cluster_name, adapter_name, switch_name, mac_address, ip_addresses, is_connected, vlan_id, bandwidth_setting)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """,
-            (
-                n.get("VMId"),
-                cluster_name,
-                n.get("AdapterName"),
-                n.get("SwitchName"),
-                n.get("MacAddress"),
-                n.get("IPAddresses"),
-                1 if n.get("IsConnected") else 0,
-                n.get("VlanId", 0),
-                n.get("BandwidthMode"),
-            ),
+            VALUES (:vm_id, :cluster_name, :adapter_name, :switch_name, :mac_address, :ip_addresses, :is_connected, :vlan_id, :bandwidth_setting)
+            ON CONFLICT DO NOTHING
+        """),
+            {
+                "vm_id": n.get("VMId"),
+                "cluster_name": cluster_name,
+                "adapter_name": n.get("AdapterName"),
+                "switch_name": n.get("SwitchName"),
+                "mac_address": n.get("MacAddress"),
+                "ip_addresses": n.get("IPAddresses"),
+                "is_connected": 1 if n.get("IsConnected") else 0,
+                "vlan_id": n.get("VlanId", 0),
+                "bandwidth_setting": n.get("BandwidthMode"),
+            },
         )
-    conn.commit()
-    conn.close()
+    session.commit()
 
 
 def save_snapshots(snapshots: List[Dict], cluster_name: str = "Unknown"):
     if not snapshots:
         return
-    conn = get_db_connection()
-    c = conn.cursor()
+    session = get_db_connection()
     for s in snapshots:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO vm_snapshots
+        session.execute(
+            text("""
+            INSERT INTO vm_snapshots
             (vm_id, cluster_name, snapshot_name, snapshot_type, creation_time, parent_snapshot_id)
-            VALUES (?,?,?,?,?,?)
-        """,
-            (
-                s.get("VMId"),
-                cluster_name,
-                s.get("SnapshotName"),
-                s.get("SnapshotType"),
-                s.get("CreationTime"),
-                s.get("ParentSnapshotName"),
-            ),
+            VALUES (:vm_id, :cluster_name, :snapshot_name, :snapshot_type, :creation_time, :parent_snapshot_id)
+            ON CONFLICT DO NOTHING
+        """),
+            {
+                "vm_id": s.get("VMId"),
+                "cluster_name": cluster_name,
+                "snapshot_name": s.get("SnapshotName"),
+                "snapshot_type": s.get("SnapshotType"),
+                "creation_time": s.get("CreationTime"),
+                "parent_snapshot_id": s.get("ParentSnapshotName"),
+            },
         )
-    conn.commit()
-    conn.close()
+    session.commit()
 
 
 def save_replication(reps: List[Dict], cluster_name: str = "Unknown"):
     if not reps:
         return
-    conn = get_db_connection()
-    c = conn.cursor()
+    session = get_db_connection()
     for r in reps:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO vm_replication
+        session.execute(
+            text("""
+            INSERT INTO vm_replication
             (vm_id, cluster_name, replication_state, replication_health, replication_mode,
              primary_server, replica_server, frequency_seconds, last_replication_time)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """,
-            (
-                r.get("VMId"),
-                cluster_name,
-                r.get("ReplicationState"),
-                r.get("ReplicationHealth"),
-                r.get("ReplicationMode"),
-                r.get("PrimaryServer"),
-                r.get("ReplicaServer"),
-                r.get("FrequencySeconds"),
-                r.get("LastReplicationTime"),
-            ),
+            VALUES (:vm_id, :cluster_name, :replication_state, :replication_health, :replication_mode,
+             :primary_server, :replica_server, :frequency_seconds, :last_replication_time)
+            ON CONFLICT DO NOTHING
+        """),
+            {
+                "vm_id": r.get("VMId"),
+                "cluster_name": cluster_name,
+                "replication_state": r.get("ReplicationState"),
+                "replication_health": r.get("ReplicationHealth"),
+                "replication_mode": r.get("ReplicationMode"),
+                "primary_server": r.get("PrimaryServer"),
+                "replica_server": r.get("ReplicaServer"),
+                "frequency_seconds": r.get("FrequencySeconds"),
+                "last_replication_time": r.get("LastReplicationTime"),
+            },
         )
-    conn.commit()
-    conn.close()
+    session.commit()
