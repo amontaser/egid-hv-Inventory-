@@ -16,13 +16,15 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
     c = conn.cursor()
     for vm in vms:
         effective_cluster = (
-            cluster_name if cluster_name is not None else vm.get("ClusterName")
+            cluster_name
+            if cluster_name is not None
+            else vm.get("ClusterName", "Unknown")
         )
         effective_host = vm.get("ComputerName") or host_name
         c.execute(
             """
             INSERT OR REPLACE INTO vm_info (
-                vm_id, machine_name, host_name, cluster_name, state,
+                vm_id, cluster_name, machine_name, host_name, state,
                 uptime_seconds, cpu_count, memory_assigned_gb, memory_demand_gb,
                 memory_startup_gb, memory_minimum_gb, memory_maximum_gb,
                 dynamic_memory_enabled, generation, version, created_at
@@ -30,9 +32,9 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
         """,
             (
                 vm.get("VMId"),
+                effective_cluster,
                 vm.get("Name"),
                 effective_host,
-                effective_cluster,
                 vm.get("State"),
                 vm.get("UptimeSeconds", 0),
                 vm.get("CPUCount", 0),
@@ -52,7 +54,7 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
     logger.info(f"Saved {len(vms)} VMs for {host_name}")
 
 
-def save_disks(disks: List[Dict]):
+def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
     if not disks:
         return
     conn = get_db_connection()
@@ -61,11 +63,12 @@ def save_disks(disks: List[Dict]):
         c.execute(
             """
             INSERT OR REPLACE INTO vm_disks
-            (vm_id, disk_name, disk_path, disk_format, size_gb, controller_type, controller_number, controller_location)
-            VALUES (?,?,?,?,?,?,?,?)
+            (vm_id, cluster_name, disk_name, disk_path, disk_format, size_gb, controller_type, controller_number, controller_location)
+            VALUES (?,?,?,?,?,?,?,?,?)
         """,
             (
                 d.get("VMId"),
+                cluster_name,
                 d.get("DiskName"),
                 d.get("DiskPath"),
                 d.get("DiskFormat"),
@@ -80,7 +83,7 @@ def save_disks(disks: List[Dict]):
     logger.info(f"Saved {len(disks)} VM disks")
 
 
-def save_networks(networks: List[Dict]):
+def save_networks(networks: List[Dict], cluster_name: str = "Unknown"):
     if not networks:
         return
     conn = get_db_connection()
@@ -89,11 +92,12 @@ def save_networks(networks: List[Dict]):
         c.execute(
             """
             INSERT OR REPLACE INTO vm_network_adapters
-            (vm_id, adapter_name, switch_name, mac_address, ip_addresses, is_connected, vlan_id, bandwidth_setting)
-            VALUES (?,?,?,?,?,?,?,?)
+            (vm_id, cluster_name, adapter_name, switch_name, mac_address, ip_addresses, is_connected, vlan_id, bandwidth_setting)
+            VALUES (?,?,?,?,?,?,?,?,?)
         """,
             (
                 n.get("VMId"),
+                cluster_name,
                 n.get("AdapterName"),
                 n.get("SwitchName"),
                 n.get("MacAddress"),
@@ -107,7 +111,7 @@ def save_networks(networks: List[Dict]):
     conn.close()
 
 
-def save_snapshots(snapshots: List[Dict]):
+def save_snapshots(snapshots: List[Dict], cluster_name: str = "Unknown"):
     if not snapshots:
         return
     conn = get_db_connection()
@@ -116,11 +120,12 @@ def save_snapshots(snapshots: List[Dict]):
         c.execute(
             """
             INSERT OR REPLACE INTO vm_snapshots
-            (vm_id, snapshot_name, snapshot_type, creation_time, parent_snapshot_id)
-            VALUES (?,?,?,?,?)
+            (vm_id, cluster_name, snapshot_name, snapshot_type, creation_time, parent_snapshot_id)
+            VALUES (?,?,?,?,?,?)
         """,
             (
                 s.get("VMId"),
+                cluster_name,
                 s.get("SnapshotName"),
                 s.get("SnapshotType"),
                 s.get("CreationTime"),
@@ -131,7 +136,7 @@ def save_snapshots(snapshots: List[Dict]):
     conn.close()
 
 
-def save_replication(reps: List[Dict]):
+def save_replication(reps: List[Dict], cluster_name: str = "Unknown"):
     if not reps:
         return
     conn = get_db_connection()
@@ -140,12 +145,13 @@ def save_replication(reps: List[Dict]):
         c.execute(
             """
             INSERT OR REPLACE INTO vm_replication
-            (vm_id, replication_state, replication_health, replication_mode,
+            (vm_id, cluster_name, replication_state, replication_health, replication_mode,
              primary_server, replica_server, frequency_seconds, last_replication_time)
-            VALUES (?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?)
         """,
             (
                 r.get("VMId"),
+                cluster_name,
                 r.get("ReplicationState"),
                 r.get("ReplicationHealth"),
                 r.get("ReplicationMode"),

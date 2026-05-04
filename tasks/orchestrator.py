@@ -244,16 +244,16 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
         save_vms(vms, host_ip, cluster_name=cluster_name)
 
         logger.info(f"[Host] Collecting disks from {host_ip}")
-        save_disks(collect_disks(session))
+        save_disks(collect_disks(session), cluster_name=cluster_name)
 
         logger.info(f"[Host] Collecting networks from {host_ip}")
-        save_networks(collect_networks(session))
+        save_networks(collect_networks(session), cluster_name=cluster_name)
 
         logger.info(f"[Host] Collecting snapshots from {host_ip}")
-        save_snapshots(collect_snapshots(session))
+        save_snapshots(collect_snapshots(session), cluster_name=cluster_name)
 
         logger.info(f"[Host] Collecting replication from {host_ip}")
-        save_replication(collect_replication(session))
+        save_replication(collect_replication(session), cluster_name=cluster_name)
 
         logger.info(f"[Host] Collecting host info from {host_ip}")
         host_info = collect_host_info(session)

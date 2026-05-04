@@ -164,17 +164,17 @@ def index():
             f"""
             SELECT
                 v.*,
-                (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id) as disk_count,
-                (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id) as total_disk_gb,
-                (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id) as snapshot_count,
-                (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
-                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
+                (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
+                (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
+                (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
+                (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
+                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
                 h.host_name as host_node_name,
                 c.id as client_id,
                 c.name as client_name
             FROM vm_info v
             LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
-            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
             LEFT JOIN clients c ON vc.client_id = c.id AND c.state = 1
             {cluster_filter_v}
             ORDER BY v.machine_name
@@ -213,46 +213,58 @@ def index():
 @login_required
 def vm_details(vm_id):
     """Detailed view for a single VM."""
+    cluster_name = request.args.get("cluster")
+
     with get_db() as db:
-        vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
+        if cluster_name:
+            vm = db.execute(
+                "SELECT * FROM vm_info WHERE vm_id = ? AND cluster_name = ?",
+                (vm_id, cluster_name),
+            ).fetchone()
+        else:
+            vm = db.execute(
+                "SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)
+            ).fetchone()
         if not vm:
             abort(404)
 
+        cn = vm["cluster_name"]
         disks = db.execute(
-            "SELECT * FROM vm_disks WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_disks WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         networks = db.execute(
-            "SELECT * FROM vm_network_adapters WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_network_adapters WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         snapshots = db.execute(
-            "SELECT * FROM vm_snapshots WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_snapshots WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         replication = db.execute(
-            "SELECT * FROM vm_replication WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_replication WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchone()
 
-        # Get assigned client
         client = db.execute(
             """
             SELECT c.* FROM clients c
             JOIN vm_clients vc ON c.id = vc.client_id
-            WHERE vc.vm_id = ?
+            WHERE vc.vm_id = ? AND vc.cluster_name = ?
         """,
-            (vm_id,),
+            (vm_id, cn),
         ).fetchone()
 
-        # Get VM notes
         notes = db.execute(
             """
             SELECT id, note_text, created_at, updated_at 
             FROM vm_notes 
-            WHERE vm_id = ? 
+            WHERE vm_id = ? AND cluster_name = ?
             ORDER BY created_at DESC
         """,
-            (vm_id,),
+            (vm_id, cn),
         ).fetchall()
 
-        # Get history
         history = db.execute(
             """
             SELECT * FROM vm_history 
@@ -263,7 +275,6 @@ def vm_details(vm_id):
             (vm_id,),
         ).fetchall()
 
-        # Get all active clients for assignment dropdown
         all_clients = db.execute(
             "SELECT * FROM clients WHERE state = 1 ORDER BY name"
         ).fetchall()

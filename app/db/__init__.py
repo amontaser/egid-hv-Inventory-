@@ -48,8 +48,8 @@ def _create_tables(db):
         CREATE TABLE IF NOT EXISTS vm_info (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine_name TEXT NOT NULL,
-            vm_id TEXT UNIQUE,
-            cluster_name TEXT,
+            vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             host_name TEXT,
             state TEXT,
             uptime_seconds INTEGER,
@@ -64,12 +64,14 @@ def _create_tables(db):
             version TEXT,
             notes TEXT,
             created_at TEXT,
-            updated_at TEXT
+            updated_at TEXT,
+            UNIQUE(vm_id, cluster_name)
         );
 
         CREATE TABLE IF NOT EXISTS vm_disks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             disk_name TEXT,
             disk_path TEXT,
             disk_format TEXT,
@@ -78,12 +80,13 @@ def _create_tables(db):
             controller_type TEXT,
             controller_number INTEGER,
             controller_location INTEGER,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id)
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name)
         );
 
         CREATE TABLE IF NOT EXISTS vm_network_adapters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             adapter_name TEXT,
             switch_name TEXT,
             vlan_id INTEGER,
@@ -91,23 +94,25 @@ def _create_tables(db):
             ip_addresses TEXT,
             is_connected INTEGER,
             bandwidth_setting TEXT,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id)
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name)
         );
 
         CREATE TABLE IF NOT EXISTS vm_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             snapshot_name TEXT,
             snapshot_id TEXT,
             snapshot_type TEXT,
             creation_time TEXT,
             parent_snapshot_id TEXT,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id)
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name)
         );
 
         CREATE TABLE IF NOT EXISTS vm_replication (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             replication_state TEXT,
             replication_health TEXT,
             replication_mode TEXT,
@@ -115,7 +120,7 @@ def _create_tables(db):
             replica_server TEXT,
             frequency_seconds INTEGER,
             last_replication_time TEXT,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id)
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name)
         );
 
         CREATE TABLE IF NOT EXISTS hyperv_hosts (
@@ -219,14 +224,16 @@ def _create_tables(db):
         CREATE TABLE IF NOT EXISTS vm_clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             client_id INTEGER NOT NULL,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id),
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name),
             FOREIGN KEY (client_id) REFERENCES clients(id)
         );
 
         CREATE TABLE IF NOT EXISTS vm_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT,
             machine_name TEXT NOT NULL,
             change_type TEXT NOT NULL,
             field_name TEXT,
@@ -272,10 +279,11 @@ def _create_tables(db):
         CREATE TABLE IF NOT EXISTS vm_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vm_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
             note_text TEXT NOT NULL,
             created_at TEXT,
             updated_at TEXT,
-            FOREIGN KEY (vm_id) REFERENCES vm_info(vm_id) ON DELETE CASCADE
+            FOREIGN KEY (vm_id, cluster_name) REFERENCES vm_info(vm_id, cluster_name) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS client_notes (
@@ -311,9 +319,10 @@ def _create_tables(db):
         CREATE INDEX IF NOT EXISTS idx_vm_info_machine_name ON vm_info(machine_name);
         CREATE INDEX IF NOT EXISTS idx_vm_info_host ON vm_info(host_name);
         CREATE INDEX IF NOT EXISTS idx_vm_info_state ON vm_info(state);
-        CREATE INDEX IF NOT EXISTS idx_vm_disks_vm_id ON vm_disks(vm_id);
-        CREATE INDEX IF NOT EXISTS idx_vm_network_vm_id ON vm_network_adapters(vm_id);
-        CREATE INDEX IF NOT EXISTS idx_vm_snapshots_vm_id ON vm_snapshots(vm_id);
+        CREATE INDEX IF NOT EXISTS idx_vm_info_cluster ON vm_info(cluster_name);
+        CREATE INDEX IF NOT EXISTS idx_vm_disks_vm_id ON vm_disks(vm_id, cluster_name);
+        CREATE INDEX IF NOT EXISTS idx_vm_network_vm_id ON vm_network_adapters(vm_id, cluster_name);
+        CREATE INDEX IF NOT EXISTS idx_vm_snapshots_vm_id ON vm_snapshots(vm_id, cluster_name);
         CREATE INDEX IF NOT EXISTS idx_vm_history_vm_id ON vm_history(vm_id);
         CREATE INDEX IF NOT EXISTS idx_vm_history_date ON vm_history(detected_at);
         CREATE INDEX IF NOT EXISTS idx_vm_history_type ON vm_history(change_type);

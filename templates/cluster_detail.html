@@ -154,7 +154,7 @@
                 <tbody>
                     {% for vm in vms %}
                     <tr>
-                        <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                        <td><a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a></td>
                         <td>
                             {% if vm.state == 'Running' %}
                             <span class="badge bg-success">Running</span>

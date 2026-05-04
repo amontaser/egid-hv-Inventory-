@@ -44,7 +44,7 @@ def client_list():
                 (SELECT COUNT(*) FROM vm_clients WHERE client_id = c.id) as vm_count,
                 (SELECT GROUP_CONCAT(DISTINCT na.vlan_id)
                  FROM vm_network_adapters na
-                 JOIN vm_clients vc ON na.vm_id = vc.vm_id
+                 JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
                  WHERE vc.client_id = c.id AND na.vlan_id IS NOT NULL AND na.vlan_id != 0
                  GROUP BY na.vlan_id
                  ORDER BY na.vlan_id) as vlans
@@ -114,7 +114,7 @@ def client_details(client_id):
         vms = db.execute(
             """
             SELECT v.* FROM vm_info v
-            JOIN vm_clients vc ON v.vm_id = vc.vm_id
+            JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
             WHERE vc.client_id = ?
         """,
             (client_id,),
@@ -297,18 +297,32 @@ def add_client_contact(client_id):
 def assign_vm_client(vm_id):
     """Assign a VM to a client."""
     client_id = request.form.get("client_id")
+    cluster_name = request.form.get("cluster_name")
+
     with get_db() as db:
-        # Remove existing assignment
-        db.execute("DELETE FROM vm_clients WHERE vm_id = ?", (vm_id,))
+        if not cluster_name:
+            vm = db.execute(
+                "SELECT cluster_name FROM vm_info WHERE vm_id = ?", (vm_id,)
+            ).fetchone()
+            if vm:
+                cluster_name = vm["cluster_name"]
+
+        db.execute(
+            "DELETE FROM vm_clients WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cluster_name),
+        )
 
         if client_id:
             db.execute(
-                "INSERT INTO vm_clients (vm_id, client_id) VALUES (?, ?)",
-                (vm_id, client_id),
+                "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (?, ?, ?)",
+                (vm_id, cluster_name, client_id),
             )
 
         db.commit()
-        return redirect(f"/vm/{vm_id}")
+        redirect_url = f"/vm/{vm_id}"
+        if cluster_name:
+            redirect_url += f"?cluster={cluster_name}"
+        return redirect(redirect_url)
 
 
 @bp.route("/client/<int:client_id>/notes/add", methods=["POST"])

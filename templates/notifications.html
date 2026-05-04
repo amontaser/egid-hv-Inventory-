@@ -52,7 +52,7 @@
                                 </div>
                                 <strong class="d-block mb-1">{{ notification.message }}</strong>
                                 <small class="text-muted">
-                                    VM: <a href="/vm/{{ notification.vm_id }}" class="text-decoration-none">{{ notification.machine_name }}</a>
+                                    VM: <a href="/vm/{{ notification.vm_id }}{% if notification.cluster_name %}?cluster={{ notification.cluster_name }}{% endif %}" class="text-decoration-none">{{ notification.machine_name }}</a>
                                 </small>
                             </div>
                             <div class="text-end ms-3">

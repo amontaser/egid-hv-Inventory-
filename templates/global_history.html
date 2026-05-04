@@ -71,7 +71,7 @@
                         <tr>
                             <td><small class="text-muted">{{ change.detected_at }}</small></td>
                             <td>
-                                <a href="/vm/{{ change.vm_id }}" class="text-decoration-none">
+                                <a href="/vm/{{ change.vm_id }}{% if change.cluster_name %}?cluster={{ change.cluster_name }}{% endif %}" class="text-decoration-none">
                                     <i class="bi bi-pc-display"></i> {{ change.machine_name }}
                                 </a>
                             </td>

@@ -12,20 +12,21 @@ logger = logging.getLogger(__name__)
 def snapshot_vm_states() -> Dict[str, Dict]:
     """Capture current VM state from DB before sync overwrites it.
 
-    Returns dict of vm_id -> {state, cpu_count, memory_gb, ip, disk_count, name, cluster}
+    Returns dict keyed by "vm_id||cluster_name" -> {vm_id, state, cpu_count, memory_gb, ip, disk_count, name, cluster}
     """
     conn = get_db_connection()
     rows = conn.execute("""
         SELECT vi.vm_id, vi.machine_name, vi.state, vi.cpu_count,
                vi.memory_assigned_gb, vi.cluster_name,
                (SELECT ip_addresses FROM vm_network_adapters
-                WHERE vm_id = vi.vm_id AND ip_addresses != '' LIMIT 1) as ip,
-               (SELECT COUNT(*) FROM vm_disks WHERE vm_id = vi.vm_id) as disk_count
+                WHERE vm_id = vi.vm_id AND cluster_name = vi.cluster_name AND ip_addresses != '' LIMIT 1) as ip,
+               (SELECT COUNT(*) FROM vm_disks WHERE vm_id = vi.vm_id AND cluster_name = vi.cluster_name) as disk_count
         FROM vm_info vi
     """).fetchall()
     conn.close()
     return {
-        r["vm_id"]: {
+        f"{r['vm_id']}||{r['cluster_name']}": {
+            "vm_id": r["vm_id"],
             "name": r["machine_name"],
             "state": r["state"],
             "cpu_count": r["cpu_count"],
@@ -71,14 +72,15 @@ def detect_vm_changes(
         SELECT vi.vm_id, vi.machine_name, vi.state, vi.cpu_count,
                vi.memory_assigned_gb, vi.cluster_name,
                (SELECT ip_addresses FROM vm_network_adapters
-                WHERE vm_id = vi.vm_id AND ip_addresses != '' LIMIT 1) as ip,
-               (SELECT COUNT(*) FROM vm_disks WHERE vm_id = vi.vm_id) as disk_count
+                WHERE vm_id = vi.vm_id AND cluster_name = vi.cluster_name AND ip_addresses != '' LIMIT 1) as ip,
+               (SELECT COUNT(*) FROM vm_disks WHERE vm_id = vi.vm_id AND cluster_name = vi.cluster_name) as disk_count
         FROM vm_info vi
     """).fetchall()
     conn.close()
 
     new_snapshot = {
-        r["vm_id"]: {
+        f"{r['vm_id']}||{r['cluster_name']}": {
+            "vm_id": r["vm_id"],
             "name": r["machine_name"],
             "state": r["state"],
             "cpu_count": r["cpu_count"],
@@ -93,12 +95,11 @@ def detect_vm_changes(
     events = []
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Detect new VMs
-    for vm_id, new in new_snapshot.items():
-        if vm_id not in old_snapshot:
+    for key, new in new_snapshot.items():
+        if key not in old_snapshot:
             events.append(
                 {
-                    "vm_id": vm_id,
+                    "vm_id": new["vm_id"],
                     "machine_name": new["name"],
                     "change_type": "created",
                     "field_name": None,
@@ -111,12 +112,11 @@ def detect_vm_changes(
                 }
             )
 
-    # Detect deleted VMs
-    for vm_id, old in old_snapshot.items():
-        if vm_id not in new_snapshot:
+    for key, old in old_snapshot.items():
+        if key not in new_snapshot:
             events.append(
                 {
-                    "vm_id": vm_id,
+                    "vm_id": old["vm_id"],
                     "machine_name": old["name"],
                     "change_type": "deleted",
                     "field_name": None,
@@ -129,11 +129,10 @@ def detect_vm_changes(
                 }
             )
 
-    # Detect changes on existing VMs
-    for vm_id, new in new_snapshot.items():
-        if vm_id not in old_snapshot:
+    for key, new in new_snapshot.items():
+        if key not in old_snapshot:
             continue
-        old = old_snapshot[vm_id]
+        old = old_snapshot[key]
 
         checks = [
             (
@@ -173,7 +172,7 @@ def detect_vm_changes(
             if old_val != new_val and not (old_val is None and new_val is None):
                 events.append(
                     {
-                        "vm_id": vm_id,
+                        "vm_id": new["vm_id"],
                         "machine_name": new["name"],
                         "change_type": change_type,
                         "field_name": field,
@@ -237,18 +236,18 @@ def persist_events(events: List[Dict]):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for ev in events:
-        # Write to vm_history (skip storage_low — not VM-specific)
         if ev["change_type"] != "storage_low" and ev.get("vm_id"):
             try:
                 c.execute(
                     """
                     INSERT OR IGNORE INTO vm_history
-                    (vm_id, machine_name, change_type, field_name, old_value, new_value,
+                    (vm_id, cluster_name, machine_name, change_type, field_name, old_value, new_value,
                      change_description, detected_at)
-                    VALUES (?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                     (
                         ev["vm_id"],
+                        ev.get("cluster_name"),
                         ev["machine_name"],
                         ev["change_type"],
                         ev.get("field_name"),

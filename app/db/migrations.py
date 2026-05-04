@@ -26,6 +26,7 @@ def run_migrations(db):
     _add_column(db, "hyperv_hosts", "vm_default_path", "TEXT")
     _add_column(db, "notifications", "cluster_name", "TEXT")
     _migrate_cluster_shared_volumes(db)
+    _migrate_vm_unique_composite_key(db)
     db.commit()
     logger.info("Migrations complete")
 
@@ -77,3 +78,85 @@ def _migrate_cluster_shared_volumes(db):
         db.execute("DROP TABLE _csv_backup")
     except Exception as e:
         logger.warning(f"cluster_shared_volumes migration: {e}")
+
+
+def _migrate_vm_unique_composite_key(db):
+    """Change vm_info UNIQUE from (vm_id) to (vm_id, cluster_name) and add cluster_name to sub-tables."""
+    try:
+        info_cols = {r[1] for r in db.execute("PRAGMA table_info(vm_info)").fetchall()}
+
+        if _has_composite_unique(db, "vm_info"):
+            _add_cluster_name_to_subtables(db)
+            return
+
+        logger.info("Migrating vm_info to UNIQUE(vm_id, cluster_name)")
+
+        db.execute("ALTER TABLE vm_info RENAME TO _vm_info_old")
+        db.execute("""
+            CREATE TABLE vm_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_name TEXT NOT NULL,
+                vm_id TEXT NOT NULL,
+                cluster_name TEXT NOT NULL DEFAULT 'Unknown',
+                host_name TEXT,
+                state TEXT,
+                uptime_seconds INTEGER,
+                cpu_count INTEGER,
+                memory_assigned_gb REAL,
+                memory_demand_gb REAL,
+                memory_startup_gb REAL,
+                memory_minimum_gb REAL,
+                memory_maximum_gb REAL,
+                dynamic_memory_enabled INTEGER,
+                generation INTEGER,
+                version TEXT,
+                notes TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                UNIQUE(vm_id, cluster_name)
+            )
+        """)
+        old_cols = ", ".join(c for c in info_cols if c != "id")
+        db.execute(
+            f"INSERT INTO vm_info (id, {old_cols}) SELECT id, {old_cols} FROM _vm_info_old"
+        )
+        db.execute("DROP TABLE _vm_info_old")
+
+        _add_cluster_name_to_subtables(db)
+        logger.info("vm_info migration complete")
+    except Exception as e:
+        logger.warning(f"vm_info composite key migration: {e}")
+
+
+def _has_composite_unique(db, table):
+    try:
+        cols = {r[1] for r in db.execute(f"PRAGMA table_info({table})").fetchall()}
+        if "cluster_name" not in cols:
+            return False
+        indexes = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=?", (table,)
+        ).fetchall()
+        for idx in indexes:
+            if idx[0] and "vm_id" in idx[0] and "cluster_name" in idx[0]:
+                return True
+        unique_cols = set()
+        for idx in indexes:
+            if idx[0] and "UNIQUE" in idx[0].upper():
+                if "vm_id" in idx[0] and "cluster_name" in idx[0]:
+                    return True
+        return False
+    except Exception:
+        return False
+
+
+def _add_cluster_name_to_subtables(db):
+    subtables = [
+        "vm_disks",
+        "vm_network_adapters",
+        "vm_snapshots",
+        "vm_replication",
+        "vm_clients",
+        "vm_notes",
+    ]
+    for table in subtables:
+        _add_column(db, table, "cluster_name", "TEXT")

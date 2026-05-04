@@ -47,15 +47,15 @@ def _insert_csv(db_path, name, cluster, pct_used):
 
 def test_detect_new_vm(db):
     _insert_vm(db, "vm1", "prod-web", "Running", 4, 8.0, "PROD")
-    old_snapshot = {}  # empty — vm1 is new
+    old_snapshot = {}
     events = detect_vm_changes(old_snapshot)
     assert any(e["change_type"] == "created" and e["vm_id"] == "vm1" for e in events)
 
 
 def test_detect_deleted_vm(db):
-    # vm1 is in old snapshot but not in DB (already cleared before sync)
     old_snapshot = {
-        "vm-gone": {
+        "vm-gone||PROD": {
+            "vm_id": "vm-gone",
             "name": "old-vm",
             "state": "Running",
             "cpu_count": 2,
@@ -74,7 +74,8 @@ def test_detect_deleted_vm(db):
 def test_detect_state_change(db):
     _insert_vm(db, "vm1", "prod-web", "Off", 4, 8.0, "PROD")
     old_snapshot = {
-        "vm1": {
+        "vm1||PROD": {
+            "vm_id": "vm1",
             "name": "prod-web",
             "state": "Running",
             "cpu_count": 4,
@@ -94,7 +95,8 @@ def test_detect_state_change(db):
 def test_detect_cpu_change(db):
     _insert_vm(db, "vm1", "prod-web", "Running", 8, 8.0, "PROD")
     old_snapshot = {
-        "vm1": {
+        "vm1||PROD": {
+            "vm_id": "vm1",
             "name": "prod-web",
             "state": "Running",
             "cpu_count": 4,

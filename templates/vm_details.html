@@ -361,6 +361,7 @@
                     <hr class="my-3">
 
                     <form action="/vm/{{ vm.vm_id }}/assign-client" method="POST">
+                        <input type="hidden" name="cluster_name" value="{{ vm.cluster_name }}">
                         <label class="form-label small text-muted">
                             <i class="bi bi-building"></i> Assign to Client
                         </label>

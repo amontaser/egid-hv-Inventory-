@@ -2,71 +2,195 @@
 {% block title %}Clients{% endblock %}
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between mb-4">
-        <div>
-            <h1 class="h3">Clients</h1>
-            <small class="text-muted">Manage clients and their VLAN associations</small>
+    <!-- Header Section -->
+    <div class="mb-4">
+        <div class="row align-items-end mb-3">
+            <div class="col">
+                <h1 class="h2 mb-1"><i class="bi bi-building me-2 text-primary"></i>Clients Management</h1>
+                <small class="text-muted">Manage clients and their infrastructure assignments</small>
+            </div>
+            <div class="col-auto">
+                <a href="/client/add" class="btn btn-primary btn-lg"><i class="bi bi-plus-circle me-2"></i>Add New Client</a>
+            </div>
         </div>
-        <div>
-            <div class="d-flex gap-2">
-                <input type="text" id="clientSearch" class="form-control form-control-sm" placeholder="Search clients..." style="width: 250px;">
-                <a href="/client/add" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add Client</a>
+        
+        <!-- Quick Stats -->
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <small class="text-muted d-block mb-1">Total Clients</small>
+                        <h5 class="mb-0"><span id="totalClients">{{ clients|length }}</span></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <small class="text-muted d-block mb-1">Active Clients</small>
+                        <h5 class="mb-0"><span id="activeClients">{{ clients|selectattr('state', 'equalto', 1)|list|length }}</span></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <small class="text-muted d-block mb-1">Total VMs Assigned</small>
+                        <h5 class="mb-0"><span id="totalVMs">{{ clients|map(attribute='vm_count')|sum }}</span></h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <small class="text-muted d-block mb-1">Countries Served</small>
+                        <h5 class="mb-0"><span id="countryCount">{{ clients|map(attribute='country')|unique|reject('none')|list|length }}</span></h5>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="card">
+
+    <!-- Search and Filter Section -->
+    <div class="card border-0 mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="clientSearch" class="form-control border-start-0" placeholder="Search clients by name, website, country..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex gap-2">
+                        <select id="statusFilter" class="form-select">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                        <select id="countryFilter" class="form-select">
+                            <option value="">All Countries</option>
+                            {% for client in clients %}
+                                {% if client.country %}
+                                    <option value="{{ client.country }}">{{ client.country }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clients Table -->
+    <div class="card border-0 shadow-sm">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
                     <tr>
-                        <th class="sortable" data-sort="name">
-                            Name <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        <th class="sortable ps-4" data-sort="name" style="cursor: pointer;">
+                            <i class="bi bi-building me-2"></i>Client Name
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
+                        </th>
+                        <th class="sortable" data-sort="country" style="cursor: pointer;">
+                            <i class="bi bi-geo-alt me-2"></i>Location
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
                         </th>
                         <th>Website</th>
-                        <th>Country</th>
-                        <th class="sortable" data-sort="vlan">
-                            VLANs <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        <th class="sortable text-center" data-sort="vlan" style="cursor: pointer;">
+                            <i class="bi bi-diagram-3 me-2"></i>VLANs
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
                         </th>
-                        <th class="sortable" data-sort="vms">
-                            VMs <i class="bi bi-arrow-down-up sort-icon text-muted ms-1"></i>
+                        <th class="sortable text-center" data-sort="vms" style="cursor: pointer;">
+                            <i class="bi bi-cpu me-2"></i>VMs
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
                         </th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end pe-4">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="clientTableBody">
                     {% for client in clients %}
                     <tr class="client-row"
                         data-name="{{ client.name|lower }}"
+                        data-country="{{ (client.country or '')|lower }}"
                         data-vlans="{{ client.vlans or '' }}"
-                        data-vms="{{ client.vm_count or 0 }}">
-                        <td><a href="/client/{{ client.id }}"><i class="bi bi-building"></i> {{ client.name }}</a></td>
-                        <td>{{ client.website or '-' }}</td>
-                        <td>{{ client.country or '-' }}</td>
-                        <td class="vlans-cell" data-vlans="{{ client.vlans or '' }}">
-                            {% if client.vlans %}
-                                {% for vlan in client.vlans.split(',') %}
-                                <span class="badge bg-info me-1">{{ vlan }}</span>
-                                {% endfor %}
+                        data-vms="{{ client.vm_count or 0 }}"
+                        data-status="{% if client.state == 1 %}active{% else %}inactive{% endif %}">
+                        <td class="ps-4">
+                            <a href="/client/{{ client.id }}" class="text-decoration-none">
+                                <strong>{{ client.name }}</strong>
+                            </a>
+                        </td>
+                        <td>
+                            {% if client.country %}
+                                <i class="bi bi-geo-alt-fill text-secondary me-2"></i><small>{{ client.country }}</small>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
                         </td>
-                        <td><span class="badge bg-primary">{{ client.vm_count or 0 }}</span></td>
-                        <td>{% if client.state == 1 %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
                         <td>
-                            <a href="/client/{{ client.id }}" class="btn btn-sm btn-outline-secondary" title="View"><i class="bi bi-eye"></i></a>
-                            <a href="/client/{{ client.id }}/edit" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                            {% if client.website %}
+                                <a href="{{ client.website }}" target="_blank" class="text-decoration-none"><small>{{ client.website|truncate(35) }}</small> <i class="bi bi-box-arrow-up-right ms-1"></i></a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center vlans-cell" data-vlans="{{ client.vlans or '' }}">
+                            {% if client.vlans %}
+                                <div class="d-inline-flex flex-wrap gap-1">
+                                    {% for vlan in client.vlans.split(',') %}
+                                    <span class="badge bg-info text-dark">{{ vlan.strip() }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if client.vm_count > 0 %}
+                                <span class="badge bg-primary rounded-pill">{{ client.vm_count }}</span>
+                            {% else %}
+                                <span class="text-muted">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if client.state == 1 %}
+                                <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-circle me-1"></i>Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group" role="group">
+                                <a href="/client/{{ client.id }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="/client/{{ client.id }}/edit" class="btn btn-sm btn-outline-warning" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="text-center py-5 text-muted">No clients. <a href="/client/add">Add one</a></td></tr>
+                    <tr>
+                        <td colspan="7" class="py-5">
+                            <div class="text-center">
+                                <i class="bi bi-inbox" style="font-size: 3rem;" class="text-muted"></i>
+                                <h5 class="text-muted mt-3 mb-2">No Clients Found</h5>
+                                <p class="text-muted mb-3">Get started by adding your first client.</p>
+                                <a href="/client/add" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Add Client</a>
+                            </div>
+                        </td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <div class="card-footer text-muted small">
-            <span id="clientCount">{{ clients|length }}</span> clients displayed
+        <div class="card-footer bg-light border-top">
+            <small class="text-muted">
+                <span id="clientCount">{{ clients|length }}</span> of {{ clients|length }} clients displayed
+            </small>
         </div>
     </div>
 </div>
@@ -169,17 +293,135 @@ function sortClients(column, direction) {
     rows.forEach(row => clientTableBody.appendChild(row));
 }
 
-// Search input handler
+<script>
+// Client search and filter functionality
+const clientTableBody = document.getElementById('clientTableBody');
+const clientSearchInput = document.getElementById('clientSearch');
+const statusFilter = document.getElementById('statusFilter');
+const countryFilter = document.getElementById('countryFilter');
+const clientCountSpan = document.getElementById('clientCount');
+const activeClientsSpan = document.getElementById('activeClients');
+let currentClientSort = { column: null, direction: 'asc' };
+
+// Sort VLANs in each cell on page load
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.vlans-cell').forEach(cell => {
+        const vlans = cell.dataset.vlans;
+        if (vlans) {
+            const vlanArray = vlans.split(',').map(v => v.trim()).filter(v => v);
+            const sortedVlans = vlanArray.sort((a, b) => {
+                const aNum = parseInt(a) || 0;
+                const bNum = parseInt(b) || 0;
+                return aNum - bNum;
+            });
+
+            const badgesHtml = sortedVlans.map(vlan =>
+                `<span class="badge bg-info text-dark">${vlan}</span>`
+            ).join(' ');
+
+            cell.innerHTML = badgesHtml || '<span class="text-muted">-</span>';
+        }
+    });
+
+    // Remove duplicates from country filter
+    const countryOptions = new Set();
+    document.querySelectorAll('.client-row').forEach(row => {
+        const country = row.dataset.country;
+        if (country) countryOptions.add(country);
+    });
+});
+
+function filterAndDisplayClients() {
+    const searchTerm = clientSearchInput.value.toLowerCase().trim();
+    const statusValue = statusFilter.value;
+    const countryValue = countryFilter.value;
+    
+    const rows = clientTableBody.querySelectorAll('.client-row');
+    let visibleCount = 0;
+    let activeCount = 0;
+
+    rows.forEach(row => {
+        const name = row.dataset.name;
+        const country = row.dataset.country || '';
+        const status = row.dataset.status;
+        const text = row.textContent.toLowerCase();
+
+        const matchesSearch = !searchTerm || name.includes(searchTerm) || text.includes(searchTerm);
+        const matchesStatus = !statusValue || status === statusValue;
+        const matchesCountry = !countryValue || country === countryValue.toLowerCase();
+
+        if (matchesSearch && matchesStatus && matchesCountry) {
+            row.style.display = '';
+            visibleCount++;
+            if (status === 'active') activeCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    clientCountSpan.textContent = visibleCount;
+    activeClientsSpan.textContent = activeCount;
+
+    // Show empty state if no results
+    if (visibleCount === 0) {
+        const emptyRow = clientTableBody.querySelector('tr:last-child');
+        if (emptyRow && emptyRow.textContent.includes('No Clients Found')) {
+            emptyRow.style.display = '';
+        }
+    }
+}
+
+// Sort clients
+function sortClients(column, direction) {
+    const rows = Array.from(clientTableBody.querySelectorAll('.client-row:visible'));
+
+    rows.sort((a, b) => {
+        let aVal, bVal;
+
+        switch(column) {
+            case 'name':
+                aVal = a.dataset.name;
+                bVal = b.dataset.name;
+                break;
+            case 'country':
+                aVal = a.dataset.country || '';
+                bVal = b.dataset.country || '';
+                break;
+            case 'vlan':
+                const aVlans = a.dataset.vlans || '';
+                const bVlans = b.dataset.vlans || '';
+                const aFirstVlan = aVlans.split(',')[0].trim();
+                const bFirstVlan = bVlans.split(',')[0].trim();
+                aVal = aFirstVlan ? parseInt(aFirstVlan) : 999999;
+                bVal = bFirstVlan ? parseInt(bFirstVlan) : 999999;
+                break;
+            case 'vms':
+                aVal = parseInt(a.dataset.vms);
+                bVal = parseInt(b.dataset.vms);
+                break;
+            default:
+                return 0;
+        }
+
+        if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(row => clientTableBody.appendChild(row));
+}
+
+// Event listeners
 clientSearchInput?.addEventListener('input', filterAndDisplayClients);
+statusFilter?.addEventListener('change', filterAndDisplayClients);
+countryFilter?.addEventListener('change', filterAndDisplayClients);
 
 // Handle column header clicks for sorting
-document.querySelectorAll('#clientTableBody .sortable').forEach(header => {
-    header.style.cursor = 'pointer';
+document.querySelectorAll('thead .sortable').forEach(header => {
     header.addEventListener('click', () => {
         const column = header.dataset.sort;
         const icon = header.querySelector('.sort-icon');
 
-        // Toggle direction if clicking same column, otherwise reset to asc
         if (currentClientSort.column === column) {
             currentClientSort.direction = currentClientSort.direction === 'asc' ? 'desc' : 'asc';
         } else {
@@ -188,13 +430,14 @@ document.querySelectorAll('#clientTableBody .sortable').forEach(header => {
         }
 
         // Update icons
-        document.querySelectorAll('#clientTableBody .sort-icon').forEach(i => {
-            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-1';
+        document.querySelectorAll('thead .sort-icon').forEach(i => {
+            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-2';
+            i.style.fontSize = '0.8em';
         });
 
-        icon.className = `bi bi-arrow-${currentClientSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+        icon.className = `bi bi-arrow-${currentClientSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-2`;
+        icon.style.fontSize = '0.8em';
 
-        // Sort the rows
         sortClients(column, currentClientSort.direction);
     });
 });

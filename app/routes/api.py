@@ -87,22 +87,37 @@ def list_vms():
 @login_required
 def get_vm(vm_id):
     """API: Get detailed VM information."""
+    cluster_name = request.args.get("cluster")
+
     with get_db() as db:
-        vm = db.execute("SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)).fetchone()
+        if cluster_name:
+            vm = db.execute(
+                "SELECT * FROM vm_info WHERE vm_id = ? AND cluster_name = ?",
+                (vm_id, cluster_name),
+            ).fetchone()
+        else:
+            vm = db.execute(
+                "SELECT * FROM vm_info WHERE vm_id = ?", (vm_id,)
+            ).fetchone()
         if not vm:
             return jsonify({"error": "VM not found"}), 404
 
+        cn = vm["cluster_name"]
         disks = db.execute(
-            "SELECT * FROM vm_disks WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_disks WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         networks = db.execute(
-            "SELECT * FROM vm_network_adapters WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_network_adapters WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         snapshots = db.execute(
-            "SELECT * FROM vm_snapshots WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_snapshots WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchall()
         replication = db.execute(
-            "SELECT * FROM vm_replication WHERE vm_id = ?", (vm_id,)
+            "SELECT * FROM vm_replication WHERE vm_id = ? AND cluster_name = ?",
+            (vm_id, cn),
         ).fetchone()
 
         return jsonify(

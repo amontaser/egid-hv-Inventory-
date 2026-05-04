@@ -100,7 +100,7 @@
                         <tbody>
                         {% for vm in vms %}
                         <tr>
-                            <td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td>
+                            <td><a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a></td>
                             <td><span class="badge bg-{{ 'success' if vm.state == 'Running' else 'secondary' }}">{{ vm.state }}</span></td>
                             <td>{{ vm.cpu_count }}</td>
                             <td>{{ vm.memory_assigned_gb }}GB</td>

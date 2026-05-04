@@ -1,296 +1,424 @@
 {% extends "base.html" %}
-{% block title %}{{ client.name }}{% endblock %}
+{% block title %}{{ client.name }} - Client Details{% endblock %}
 {% block content %}
 <div class="container-fluid py-4">
-    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/clients">Clients</a></li><li class="breadcrumb-item active">{{ client.name }}</li></ol></nav>
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">{{ client.name }}</h5>
-                    <div>
-                        <span class="badge bg-{{ 'success' if client.state == 1 else 'secondary' }} me-2">{{ 'Active' if client.state == 1 else 'Inactive' }}</span>
-                        <a href="/client/{{ client.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+    <!-- Breadcrumb Navigation -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/clients"><i class="bi bi-building me-1"></i>Clients</a></li>
+            <li class="breadcrumb-item active">{{ client.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header Card with Client Info -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h1 class="h2 mb-1">{{ client.name }}</h1>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="badge bg-{{ 'success' if client.state == 1 else 'secondary' }} p-2">
+                            <i class="bi bi-{{ 'check-circle' if client.state == 1 else 'circle' }} me-1"></i>
+                            {{ 'Active' if client.state == 1 else 'Inactive' }}
+                        </span>
+                        {% if client.country %}
+                        <span class="badge bg-info-subtle text-info p-2">
+                            <i class="bi bi-geo-alt me-1"></i>{{ client.country }}
+                        </span>
+                        {% endif %}
                     </div>
+                    {% if client.description %}
+                    <p class="text-muted mt-2 mb-0">{{ client.description }}</p>
+                    {% endif %}
                 </div>
-                <div class="card-body">
-                    <p><strong>Country:</strong> {{ client.country or '-' }}</p>
-                    <p><strong>Website:</strong> {% if client.website %}<a href="{{ client.website }}" target="_blank">{{ client.website }}</a>{% else %}-{% endif %}</p>
-                    {% if client.description %}<p><strong>Description:</strong> {{ client.description }}</p>{% endif %}
+                <div class="col-auto">
+                    <div class="btn-group" role="group">
+                        <a href="/client/{{ client.id }}/edit" class="btn btn-primary">
+                            <i class="bi bi-pencil me-2"></i>Edit Client
+                        </a>
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteConfirmModal">
+                            <i class="bi bi-trash me-2"></i>Delete
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Contacts ({{ contacts|length }})</h5>
-                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                        <i class="bi bi-plus-lg"></i> Add Contact
-                    </button>
-                </div>
-                <div class="card-body">
-                    {% if contacts %}
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead><tr><th>Name</th><th>Job Title</th><th>Email</th><th>Phone</th><th>Mobile</th><th>Primary</th><th>Actions</th></tr></thead>
-                            <tbody>
-                            {% for contact in contacts %}
-                            <tr>
-                                <td>
-                                    {% if contact.is_primary_contact %}
-                                    <i class="bi bi-star-fill text-warning me-1" title="Primary Contact"></i>
-                                    {% endif %}
-                                    {{ contact.name }}
-                                </td>
-                                <td>{{ contact.job_title or '-' }}</td>
-                                <td>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}-{% endif %}</td>
-                                <td>{{ contact.phone or '-' }}</td>
-                                <td>{{ contact.mobile_phone or '-' }}</td>
-                                <td>
-                                    <form action="/client/{{ client.id }}/contact/{{ contact.id }}/toggle-primary" method="POST" class="d-inline">
-                                        <input type="checkbox" {% if contact.is_primary_contact %}checked{% endif %} 
-                                               onchange="this.form.submit()" title="Toggle Primary Contact">
-                                    </form>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editContactModal{{ contact.id }}">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <form action="/client/{{ client.id }}/contact/{{ contact.id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete this contact?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
+
+            <!-- Quick Stats Row -->
+            <div class="row g-3 mt-3 pt-3 border-top">
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-cpu text-primary" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">Total VMs</small>
+                            <h5 class="mb-0">{{ vms|length }}</h5>
+                        </div>
                     </div>
-                    {% else %}
-                    <p class="text-muted text-center py-3">No contacts yet. <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#addContactModal">Add one</button></p>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-diagram-3 text-info" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">VLANs</small>
+                            <h5 class="mb-0">{% if client.vlans %}{{ client.vlans.split(',')|length }}{% else %}0{% endif %}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-person-fill text-warning" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">Contacts</small>
+                            <h5 class="mb-0">{{ contacts|length }}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-secondary bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-card-text text-secondary" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">Notes</small>
+                            <h5 class="mb-0">{{ notes|length }}</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client Details Row -->
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    {% if client.website %}
+                    <div>
+                        <small class="text-muted"><i class="bi bi-globe me-1"></i>Website</small>
+                        <p class="mb-0">
+                            <a href="{{ client.website }}" target="_blank" class="text-decoration-none">
+                                {{ client.website }} <i class="bi bi-box-arrow-up-right ms-1"></i>
+                            </a>
+                        </p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
-            <div class="card">
-                <div class="card-header"><h5 class="mb-0">Assigned VMs ({{ vms|length }})</h5></div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="vms-tab" data-bs-toggle="tab" data-bs-target="#vms-content" type="button" role="tab">
+                <i class="bi bi-cpu me-2"></i>Virtual Machines
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#contacts-content" type="button" role="tab">
+                <i class="bi bi-person-lines-fill me-2"></i>Contacts
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="managers-tab" data-bs-toggle="tab" data-bs-target="#managers-content" type="button" role="tab">
+                <i class="bi bi-person-badge me-2"></i>Account Managers
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes-content" type="button" role="tab">
+                <i class="bi bi-card-text me-2"></i>Notes
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- VMs Tab -->
+        <div class="tab-pane fade show active" id="vms-content" role="tabpanel">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-cpu me-2"></i>Assigned Virtual Machines ({{ vms|length }})</h5>
+                </div>
+                {% if vms %}
                 <div class="table-responsive">
-                    <table class="table mb-0">
-                        <thead><tr><th>VM</th><th>Host</th><th>State</th><th>vCPUs</th><th>Memory</th></tr></thead>
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="bi bi-laptop me-2"></i>VM Name</th>
+                                <th><i class="bi bi-server me-2"></i>Host</th>
+                                <th class="text-center">State</th>
+                                <th class="text-center"><i class="bi bi-speedometer me-1"></i>vCPUs</th>
+                                <th class="text-center"><i class="bi bi-memory me-1"></i>Memory</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
                         <tbody>
-                        {% for vm in vms %}
-                        <tr><td><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></td><td>{{ vm.host_name }}</td><td><span class="badge bg-{{ 'success' if vm.state == 'Running' else 'secondary' }}">{{ vm.state }}</span></td><td>{{ vm.cpu_count }}</td><td>{{ vm.memory_assigned_gb }}GB</td></tr>
-                        {% else %}
-                        <tr><td colspan="5" class="text-center text-muted">No VMs assigned</td></tr>
-                        {% endfor %}
+                            {% for vm in vms %}
+                            <tr>
+                                <td>
+                                    <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="text-decoration-none">
+                                        <strong>{{ vm.machine_name }}</strong>
+                                    </a>
+                                </td>
+                                <td>{{ vm.host_name }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{{ 'success' if vm.state == 'Running' else 'warning' }}-subtle text-{{ 'success' if vm.state == 'Running' else 'warning' }}">
+                                        <i class="bi bi-{{ 'play-circle' if vm.state == 'Running' else 'pause-circle' }} me-1"></i>{{ vm.state }}
+                                    </span>
+                                </td>
+                                <td class="text-center">{{ vm.cpu_count }}</td>
+                                <td class="text-center">{{ vm.memory_assigned_gb }}GB</td>
+                                <td class="text-end pe-4">
+                                    <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+                    <p class="text-muted mt-3">No virtual machines assigned to this client</p>
+                </div>
+                {% endif %}
             </div>
         </div>
-        <div class="col-lg-4">
-            <!-- Account Managers Card -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-person-badge"></i> Account Managers</h5>
 
+        <!-- Contacts Tab -->
+        <div class="tab-pane fade" id="contacts-content" role="tabpanel">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>Client Contacts ({{ contacts|length }})</h5>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-plus-circle me-1"></i>Add Contact
+                    </button>
                 </div>
+                {% if contacts %}
                 <div class="card-body">
-                    {% if account_managers %}
-                    <div class="list-group list-group-flush">
-                        {% for manager in account_managers %}
-                        <div class="list-group-item px-0">
-                            <div class="d-flex align-items-start">
-                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
-                                     style="width: 40px; height: 40px;">
-                                    <i class="bi bi-person-fill text-white"></i>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ manager.name }}</h6>
-                                    {% if manager.email %}
-                                    <small class="text-muted d-block"><i class="bi bi-envelope"></i> {{ manager.email }}</small>
-                                    {% endif %}
-                                    {% if manager.phone %}
-                                    <small class="text-muted d-block"><i class="bi bi-telephone"></i> {{ manager.phone }}</small>
+                    <div class="row g-3">
+                        {% for contact in contacts %}
+                        <div class="col-md-6">
+                            <div class="card border-0 bg-light h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <div>
+                                            <h6 class="mb-1">
+                                                {% if contact.is_primary_contact %}
+                                                <i class="bi bi-star-fill text-warning me-1" title="Primary Contact"></i>
+                                                {% endif %}
+                                                {{ contact.name }}
+                                            </h6>
+                                            {% if contact.job_title %}
+                                            <small class="text-muted d-block">{{ contact.job_title }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editContactModal{{ contact.id }}" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="deleteContact({{ contact.id }})" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="contact-details">
+                                        {% if contact.email %}
+                                        <p class="mb-2">
+                                            <i class="bi bi-envelope text-primary me-2"></i>
+                                            <a href="mailto:{{ contact.email }}" class="text-decoration-none">{{ contact.email }}</a>
+                                        </p>
+                                        {% endif %}
+                                        {% if contact.phone %}
+                                        <p class="mb-2">
+                                            <i class="bi bi-telephone text-primary me-2"></i>
+                                            <a href="tel:{{ contact.phone }}" class="text-decoration-none">{{ contact.phone }}</a>
+                                        </p>
+                                        {% endif %}
+                                        {% if contact.mobile_phone %}
+                                        <p class="mb-0">
+                                            <i class="bi bi-phone text-primary me-2"></i>
+                                            <a href="tel:{{ contact.mobile_phone }}" class="text-decoration-none">{{ contact.mobile_phone }}</a>
+                                        </p>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if not contact.is_primary_contact %}
+                                    <div class="mt-3">
+                                        <form action="/client/{{ client.id }}/contact/{{ contact.id }}/toggle-primary" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning w-100">
+                                                <i class="bi bi-star me-1"></i>Set as Primary
+                                            </button>
+                                        </form>
+                                    </div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                    {% else %}
-                    <p class="text-muted text-center mb-0 small">No account managers assigned</p>
-                    {% endif %}
                 </div>
+                {% else %}
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+                    <p class="text-muted mt-3">No contacts yet</p>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-plus-circle me-1"></i>Add First Contact
+                    </button>
+                </div>
+                {% endif %}
             </div>
-            
-            <!-- Notes Card with CRUD -->
-            <div class="card mb-4">
+        </div>
+
+        <!-- Account Managers Tab -->
+        <div class="tab-pane fade" id="managers-content" role="tabpanel">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Account Managers ({{ account_managers|length }})</h5>
+                </div>
+                {% if account_managers %}
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for manager in account_managers %}
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-3 rounded-3 border">
+                                <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="bi bi-person-fill text-primary" style="font-size: 1.5rem;"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ manager.name }}</h6>
+                                    {% if manager.email %}
+                                    <p class="mb-1">
+                                        <small class="text-muted"><i class="bi bi-envelope me-1"></i></small>
+                                        <small><a href="mailto:{{ manager.email }}" class="text-decoration-none">{{ manager.email }}</a></small>
+                                    </p>
+                                    {% endif %}
+                                    {% if manager.phone %}
+                                    <p class="mb-0">
+                                        <small class="text-muted"><i class="bi bi-telephone me-1"></i></small>
+                                        <small><a href="tel:{{ manager.phone }}" class="text-decoration-none">{{ manager.phone }}</a></small>
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+                    <p class="text-muted mt-3">No account managers assigned</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Notes Tab -->
+        <div class="tab-pane fade" id="notes-content" role="tabpanel">
+            <div class="card border-0 shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-card-text"></i> Notes</h5>
+                    <h5 class="mb-0"><i class="bi bi-card-text me-2"></i>Notes ({{ notes|length }})</h5>
                     <button class="btn btn-sm btn-primary" onclick="showAddNoteForm()">
-                        <i class="bi bi-plus-circle"></i> Add Note
+                        <i class="bi bi-plus-circle me-1"></i>Add Note
                     </button>
                 </div>
                 <div class="card-body">
+                    <!-- Add Note Form (hidden by default) -->
+                    <div id="addNoteForm" class="d-none mb-4 p-4 rounded-3 border-2 border-primary border-opacity-25" style="background-color: rgba(13, 110, 253, 0.05);">
+                        <h6 class="mb-3"><i class="bi bi-pencil me-2"></i>Add New Note</h6>
+                        <textarea id="newNoteText" class="form-control mb-3" rows="3" placeholder="Write your note here..." style="resize: vertical;"></textarea>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary btn-sm" onclick="addNote()">
+                                <i class="bi bi-check-circle me-1"></i>Save Note
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="hideAddNoteForm()">
+                                <i class="bi bi-x-circle me-1"></i>Cancel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Notes List -->
                     <div id="notesList">
                         {% if notes %}
                             {% for note in notes %}
-                            <div class="note-item mb-2 p-2 bg-light rounded" data-note-id="{{ note.id }}">
-                                <div class="d-flex justify-content-between">
-                                    <small class="text-muted">{{ note.created_at }}</small>
-                                    <div>
-                                        <button class="btn btn-sm btn-outline-secondary py-0" onclick="editNote({{ note.id }})">
+                            <div class="note-item p-3 mb-3 rounded-3 border" data-note-id="{{ note.id }}" style="border-left: 4px solid #0d6efd !important;">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <small class="text-muted fw-500">
+                                        <i class="bi bi-calendar-event me-1"></i>{{ note.created_at }}
+                                    </small>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-secondary py-0" onclick="editNote({{ note.id }})" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteNote({{ note.id }})">
+                                        <button class="btn btn-outline-danger py-0" onclick="deleteNote({{ note.id }})" title="Delete">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
                                 </div>
-                                <p class="mb-0 mt-1">{{ note.note_text }}</p>
+                                <p class="mb-0">{{ note.note_text }}</p>
                             </div>
                             {% endfor %}
                         {% else %}
-                            <p class="text-muted text-center mb-0 small">No notes yet</p>
+                            <div class="text-center py-5">
+                                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+                                <p class="text-muted mt-3">No notes yet</p>
+                            </div>
                         {% endif %}
                     </div>
-                    
-                    <!-- Add Note Form (hidden by default) -->
-                    <div id="addNoteForm" class="d-none mt-3 p-3 bg-light rounded">
-                        <textarea id="newNoteText" class="form-control mb-2" rows="3" placeholder="Enter note..."></textarea>
-                        <button class="btn btn-primary btn-sm" onclick="addNote()">Save</button>
-                        <button class="btn btn-secondary btn-sm" onclick="hideAddNoteForm()">Cancel</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card border-danger">
-                <div class="card-header bg-danger text-white"><h5 class="mb-0">Danger Zone</h5></div>
-                <div class="card-body">
-                    <p class="small text-muted">Delete this client and all VM assignments.</p>
-                    <form action="/client/{{ client.id }}/delete" method="POST" onsubmit="return confirm('Delete this client?');">
-                        <button type="submit" class="btn btn-outline-danger btn-sm w-100"><i class="bi bi-trash"></i> Delete</button>
-                    </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-function showAddNoteForm() {
-    document.getElementById('addNoteForm').classList.remove('d-none');
-}
-
-function hideAddNoteForm() {
-    document.getElementById('addNoteForm').classList.add('d-none');
-    document.getElementById('newNoteText').value = '';
-}
-
-function addNote() {
-    const text = document.getElementById('newNoteText').value;
-    fetch(`/client/{{ client.id }}/notes/add`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `note_text=${encodeURIComponent(text)}`
-    })
-    .then(r => r.json())
-    .then(() => {
-        hideAddNoteForm();
-        loadNotes();
-    });
-}
-
-function editNote(noteId) {
-    const noteEl = document.querySelector(`[data-note-id="${noteId}"] p`);
-    const newText = prompt('Edit note:', noteEl.textContent);
-    if (newText) {
-        fetch(`/client/{{ client.id }}/notes/${noteId}/edit`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: `note_text=${encodeURIComponent(newText)}`
-        })
-        .then(r => r.json())
-        .then(() => loadNotes());
-    }
-}
-
-function deleteNote(noteId) {
-    if (confirm('Delete this note?')) {
-        fetch(`/client/{{ client.id }}/notes/${noteId}/delete`, {
-            method: 'POST'
-        })
-        .then(r => r.json())
-        .then(() => loadNotes());
-    }
-}
-
-function loadNotes() {
-    fetch(`/client/{{ client.id }}/notes`)
-        .then(r => r.json())
-        .then(notes => {
-            const container = document.getElementById('notesList');
-            if (notes.length === 0) {
-                container.innerHTML = '<p class="text-muted text-center mb-0 small">No notes yet</p>';
-                return;
-            }
-            container.innerHTML = notes.map(note => `
-                <div class="note-item mb-2 p-2 bg-light rounded" data-note-id="${note.id}">
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">${note.created_at}</small>
-                        <div>
-                            <button class="btn btn-sm btn-outline-secondary py-0" onclick="editNote(${note.id})">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteNote(${note.id})">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="mb-0 mt-1">${note.note_text}</p>
-                </div>
-            `).join('');
-        });
-}
-</script>
-
 <!-- Add Contact Modal -->
 <div class="modal fade" id="addContactModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Contact</h5>
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add New Contact</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="/client/{{ client.id }}/contact/add" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Name *</label>
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="name" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Job Title</label>
-                        <input type="text" class="form-control" name="job_title">
+                        <input type="text" class="form-control" name="job_title" placeholder="e.g., IT Manager">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email">
+                        <input type="email" class="form-control" name="email" placeholder="email@example.com">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-control" name="phone">
+                        <label class="form-label">Office Phone</label>
+                        <input type="tel" class="form-control" name="phone" placeholder="+1 (555) 000-0000">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Mobile</label>
-                        <input type="tel" class="form-control" name="mobile_phone">
+                        <label class="form-label">Mobile Phone</label>
+                        <input type="tel" class="form-control" name="mobile_phone" placeholder="+1 (555) 000-0000">
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="addPrimaryCheck">
-                            <label class="form-check-label" for="addPrimaryCheck">Primary Contact (Spoken Person)</label>
-                        </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="is_primary_contact" id="addPrimaryCheck">
+                        <label class="form-check-label" for="addPrimaryCheck">
+                            <i class="bi bi-star-fill text-warning me-1"></i>Set as Primary Contact
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Contact</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Add Contact
+                    </button>
                 </div>
             </form>
         </div>
@@ -303,13 +431,13 @@ function loadNotes() {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit Contact</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Contact</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="/client/{{ client.id }}/contact/{{ contact.id }}/edit" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Name *</label>
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="name" value="{{ contact.name }}" required>
                     </div>
                     <div class="mb-3">
@@ -321,27 +449,178 @@ function loadNotes() {
                         <input type="email" class="form-control" name="email" value="{{ contact.email or '' }}">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone</label>
+                        <label class="form-label">Office Phone</label>
                         <input type="tel" class="form-control" name="phone" value="{{ contact.phone or '' }}">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Mobile</label>
+                        <label class="form-label">Mobile Phone</label>
                         <input type="tel" class="form-control" name="mobile_phone" value="{{ contact.mobile_phone or '' }}">
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="editPrimaryCheck{{ contact.id }}" {% if contact.is_primary_contact %}checked{% endif %}>
-                            <label class="form-check-label" for="editPrimaryCheck{{ contact.id }}">Primary Contact (Spoken Person)</label>
-                        </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="is_primary_contact" id="editPrimaryCheck{{ contact.id }}" {% if contact.is_primary_contact %}checked{% endif %}>
+                        <label class="form-check-label" for="editPrimaryCheck{{ contact.id }}">
+                            <i class="bi bi-star-fill text-warning me-1"></i>Primary Contact
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>Save Changes
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 {% endfor %}
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger-subtle">
+                <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete Client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Are you sure you want to delete <strong>{{ client.name }}</strong>? This action will also delete all VM assignments for this client and cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="/client/{{ client.id }}/delete" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Delete Client
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Note Management Functions
+function showAddNoteForm() {
+    document.getElementById('addNoteForm').classList.remove('d-none');
+    document.getElementById('newNoteText').focus();
+}
+
+function hideAddNoteForm() {
+    document.getElementById('addNoteForm').classList.add('d-none');
+    document.getElementById('newNoteText').value = '';
+}
+
+function addNote() {
+    const text = document.getElementById('newNoteText').value.trim();
+    if (!text) {
+        alert('Please enter a note');
+        return;
+    }
+    
+    fetch(`/client/{{ client.id }}/notes/add`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `note_text=${encodeURIComponent(text)}`
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            hideAddNoteForm();
+            loadNotes();
+        } else {
+            alert('Error adding note');
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Error adding note');
+    });
+}
+
+function editNote(noteId) {
+    const noteEl = document.querySelector(`[data-note-id="${noteId}"] p`);
+    const currentText = noteEl.textContent;
+    const newText = prompt('Edit note:', currentText);
+    
+    if (newText !== null && newText.trim()) {
+        fetch(`/client/{{ client.id }}/notes/${noteId}/edit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: `note_text=${encodeURIComponent(newText)}`
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadNotes();
+            } else {
+                alert('Error editing note');
+            }
+        });
+    }
+}
+
+function deleteNote(noteId) {
+    if (confirm('Delete this note?')) {
+        fetch(`/client/{{ client.id }}/notes/${noteId}/delete`, {
+            method: 'POST'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadNotes();
+            } else {
+                alert('Error deleting note');
+            }
+        });
+    }
+}
+
+function loadNotes() {
+    fetch(`/client/{{ client.id }}/notes`)
+        .then(r => r.json())
+        .then(notes => {
+            const container = document.getElementById('notesList');
+            if (notes.length === 0) {
+                container.innerHTML = '<div class="text-center py-5"><i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i><p class="text-muted mt-3">No notes yet</p></div>';
+                return;
+            }
+            container.innerHTML = notes.map(note => `
+                <div class="note-item p-3 mb-3 rounded-3 border" data-note-id="${note.id}" style="border-left: 4px solid #0d6efd !important;">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <small class="text-muted fw-500">
+                            <i class="bi bi-calendar-event me-1"></i>${note.created_at}
+                        </small>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-outline-secondary py-0" onclick="editNote(${note.id})" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger py-0" onclick="deleteNote(${note.id})" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="mb-0">${note.note_text}</p>
+                </div>
+            `).join('');
+        });
+}
+
+// Contact Management
+function deleteContact(contactId) {
+    if (confirm('Delete this contact?')) {
+        fetch(`/client/{{ client.id }}/contact/${contactId}/delete`, {
+            method: 'POST'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting contact');
+            }
+        });
+    }
+}
+</script>
+
 {% endblock %}

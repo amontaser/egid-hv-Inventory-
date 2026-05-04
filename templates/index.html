@@ -253,7 +253,7 @@
                        data-vlans="{{ vm.vlans or '' }}"
                        data-ips="{{ vm.ip_addresses or '' }}">
                         <td>
-                            <a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a>
+                            <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
                             {% if vm.client_name %}
                             <a href="/client/{{ vm.client_id }}" class="badge bg-primary ms-2" style="text-decoration: none;">
                                 <i class="bi bi-building"></i> {{ vm.client_name }}

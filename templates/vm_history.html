@@ -7,7 +7,7 @@
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="/vm/{{ vm.vm_id }}">{{ vm.machine_name }}</a></li>
+            <li class="breadcrumb-item"><a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a></li>
             <li class="breadcrumb-item active">History</li>
         </ol>
     </nav>
@@ -17,7 +17,7 @@
             <i class="bi bi-clock-history"></i> Change History
             <small class="text-muted fs-6">for {{ vm.machine_name }}</small>
         </h2>
-        <a href="/vm/{{ vm.vm_id }}" class="btn btn-outline-secondary">
+        <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back to VM Details
         </a>
     </div>
