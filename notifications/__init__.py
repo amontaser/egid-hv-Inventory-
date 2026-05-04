@@ -3,6 +3,8 @@
 import logging
 from typing import List, Dict
 
+from sqlalchemy import text
+
 from app.db import get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -39,9 +41,8 @@ def dispatch_notifications(events: List[Dict]):
 
 def _load_settings() -> Dict[str, str]:
     try:
-        conn = get_db_connection()
-        rows = conn.execute("SELECT key, value FROM settings").fetchall()
-        conn.close()
-        return {r["key"]: r["value"] for r in rows}
+        session = get_db_connection()
+        rows = session.execute(text("SELECT key, value FROM settings")).fetchall()
+        return {r._mapping["key"]: r._mapping["value"] for r in rows}
     except Exception:
         return {}

@@ -39,19 +39,26 @@ def _load_cluster_credentials(cluster_id: int):
     """Load and decrypt credentials for a cluster from DB."""
     from app.db import get_db_connection
 
-    conn = get_db_connection()
-    row = conn.execute(
-        "SELECT username, password, transport, require_https FROM clusters WHERE id = ?",
-        (cluster_id,),
+    from sqlalchemy import text
+
+    session = get_db_connection()
+    row = session.execute(
+        text(
+            "SELECT username, password, transport, require_https FROM clusters WHERE id = :cluster_id"
+        ),
+        {"cluster_id": cluster_id},
     ).fetchone()
-    conn.close()
 
     if not row:
         return None, None, "ntlm"
 
-    username = row["username"]
-    encrypted_pw = row["password"]
-    transport = "ssl" if row["require_https"] else (row["transport"] or "ntlm")
+    username = row._mapping["username"]
+    encrypted_pw = row._mapping["password"]
+    transport = (
+        "ssl"
+        if row._mapping["require_https"]
+        else (row._mapping["transport"] or "ntlm")
+    )
 
     password = _decrypt_password(encrypted_pw)
     return username, password, transport
