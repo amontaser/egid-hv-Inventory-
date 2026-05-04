@@ -1,56 +1,85 @@
-version: "3.8"
-
+version: "2.1"
 services:
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    container_name: hyperv-redis
+    environment:
+      - TZ=Africa/Cairo
     volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
+      - hyperv-redis-data:/data
+    restart: unless-stopped
+    networks:
+      - hyperv-nw
 
   web:
     build: .
-    restart: unless-stopped
+    container_name: hyperv-web
     environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Africa/Cairo
       - SERVICE=web
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
+      - ADMIN_PASSWORD=P@ssw0rd
       - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
       - REDIS_URL=redis://redis:6379/0
     volumes:
-      - app_data:/opt/hyperv_inventory/data
-    ports:
-      - "${PORT:-5000}:5000"
+      - hyperv-app-data:/opt/hyperv_inventory/data
+    #ports:
+      #- 5000:5000
     depends_on:
       - redis
+    restart: unless-stopped
+    networks:
+      - hyperv-nw
+      - reverseproxy-nw
 
   celery-worker:
     build: .
-    restart: unless-stopped
+    container_name: hyperv-celery-worker
     environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Africa/Cairo
       - SERVICE=celery-worker
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
       - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
       - REDIS_URL=redis://redis:6379/0
     volumes:
-      - app_data:/opt/hyperv_inventory/data
+      - hyperv-app-data:/opt/hyperv_inventory/data
     depends_on:
       - redis
+    restart: unless-stopped
+    networks:
+      - hyperv-nw
 
   celery-beat:
     build: .
-    restart: unless-stopped
+    container_name: hyperv-celery-beat
     environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Africa/Cairo
       - SERVICE=celery-beat
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
       - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
       - REDIS_URL=redis://redis:6379/0
     volumes:
-      - app_data:/opt/hyperv_inventory/data
+      - hyperv-app-data:/opt/hyperv_inventory/data
     depends_on:
       - redis
+    restart: unless-stopped
+    networks:
+      - hyperv-nw
 
 volumes:
-  redis_data:
-  app_data:
+  hyperv-redis-data:
+    driver: local
+  hyperv-app-data:
+    driver: local
+
+networks:
+  hyperv-nw:
+    driver: bridge
+  reverseproxy-nw:
+    external: true
