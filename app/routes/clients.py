@@ -13,6 +13,7 @@ from flask import (
 from functools import wraps
 from datetime import datetime
 from app.utils.db import get_db
+from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,11 +39,12 @@ def login_required(f):
 def client_list():
     """List all clients with their VLANs."""
     with get_db() as db:
-        clients = db.execute("""
+        clients = db.execute(
+            text("""
             SELECT
                 c.*,
                 (SELECT COUNT(*) FROM vm_clients WHERE client_id = c.id) as vm_count,
-                (SELECT GROUP_CONCAT(DISTINCT na.vlan_id)
+                (SELECT STRING_AGG(DISTINCT na.vlan_id::text, ',')
                  FROM vm_network_adapters na
                  JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
                  WHERE vc.client_id = c.id AND na.vlan_id IS NOT NULL AND na.vlan_id != 0
@@ -50,7 +52,8 @@ def client_list():
                  ORDER BY na.vlan_id) as vlans
             FROM clients c
             ORDER BY c.name
-        """).fetchall()
+        """)
+        ).fetchall()
         return render_template("clients.html", clients=clients)
 
 
@@ -60,38 +63,40 @@ def add_client():
     """Add a new client."""
     if request.method == "POST":
         with get_db() as db:
-            cursor = db.cursor()
-
-            # Insert client
-            cursor.execute(
-                "INSERT INTO clients (name, website, country, description, state) VALUES (?, ?, ?, ?, ?)",
-                (
-                    request.form["name"],
-                    request.form.get("website"),
-                    request.form.get("country"),
-                    request.form.get("description"),
-                    int(request.form.get("state", 1)),
+            client_id = db.execute(
+                text(
+                    "INSERT INTO clients (name, website, country, description, state) VALUES (:name, :website, :country, :description, :state) RETURNING id"
                 ),
-            )
-            client_id = cursor.lastrowid
+                {
+                    "name": request.form["name"],
+                    "website": request.form.get("website"),
+                    "country": request.form.get("country"),
+                    "description": request.form.get("description"),
+                    "state": int(request.form.get("state", 1)),
+                },
+            ).scalar()
 
-            # Handle account manager assignments
             manager_ids = request.form.getlist("account_managers")
             if manager_ids:
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 for manager_id in manager_ids:
-                    cursor.execute(
-                        "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (?, ?, ?)",
-                        (client_id, int(manager_id), now),
+                    db.execute(
+                        text(
+                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (:client_id, :manager_id, :assigned_at)"
+                        ),
+                        {
+                            "client_id": client_id,
+                            "manager_id": int(manager_id),
+                            "assigned_at": now,
+                        },
                     )
 
             db.commit()
             return redirect("/clients")
 
-    # GET: Fetch all account managers for the form
     with get_db() as db:
         managers = db.execute(
-            "SELECT * FROM account_managers WHERE state = 1 ORDER BY name"
+            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
         ).fetchall()
         return render_template("add_client.html", managers=managers)
 
@@ -102,50 +107,49 @@ def client_details(client_id):
     """View client details."""
     with get_db() as db:
         client = db.execute(
-            "SELECT * FROM clients WHERE id = ?", (client_id,)
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             abort(404)
 
         contacts = db.execute(
-            "SELECT * FROM client_contacts WHERE client_id = ?", (client_id,)
+            text("SELECT * FROM client_contacts WHERE client_id = :client_id"),
+            {"client_id": client_id},
         ).fetchall()
 
         vms = db.execute(
-            """
+            text("""
             SELECT v.* FROM vm_info v
             JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
-            WHERE vc.client_id = ?
-        """,
-            (client_id,),
+            WHERE vc.client_id = :client_id
+        """),
+            {"client_id": client_id},
         ).fetchall()
 
-        # Get assigned account managers
         account_managers = db.execute(
-            """
+            text("""
             SELECT am.* FROM account_managers am
             JOIN client_account_managers cam ON am.id = cam.manager_id
-            WHERE cam.client_id = ? AND am.state = 1
+            WHERE cam.client_id = :client_id AND am.state = 1
             ORDER BY am.name
-        """,
-            (client_id,),
+        """),
+            {"client_id": client_id},
         ).fetchall()
 
-        # Get client notes
         notes = db.execute(
-            """
-            SELECT id, note_text, created_at, updated_at 
-            FROM client_notes 
-            WHERE client_id = ? 
+            text("""
+            SELECT id, note_text, created_at, updated_at
+            FROM client_notes
+            WHERE client_id = :client_id
             ORDER BY created_at DESC
-        """,
-            (client_id,),
+        """),
+            {"client_id": client_id},
         ).fetchall()
 
-        # Get all available account managers
-        all_managers = db.execute("""
-            SELECT * FROM account_managers WHERE state = 1 ORDER BY name
-        """).fetchall()
+        all_managers = db.execute(
+            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
+        ).fetchall()
 
         return render_template(
             "client_details.html",
@@ -164,57 +168,64 @@ def edit_client(client_id):
     """Edit client details."""
     if request.method == "POST":
         with get_db() as db:
-            cursor = db.cursor()
-
-            # Update client details
-            cursor.execute(
-                "UPDATE clients SET name=?, website=?, country=?, description=?, state=? WHERE id=?",
-                (
-                    request.form["name"],
-                    request.form.get("website"),
-                    request.form.get("country"),
-                    request.form.get("description"),
-                    int(request.form.get("state", 1)),
-                    client_id,
+            db.execute(
+                text(
+                    "UPDATE clients SET name=:name, website=:website, country=:country, description=:description, state=:state WHERE id=:id"
                 ),
+                {
+                    "name": request.form["name"],
+                    "website": request.form.get("website"),
+                    "country": request.form.get("country"),
+                    "description": request.form.get("description"),
+                    "state": int(request.form.get("state", 1)),
+                    "id": client_id,
+                },
             )
 
-            # Update account manager assignments (delete old ones, add new ones)
-            cursor.execute(
-                "DELETE FROM client_account_managers WHERE client_id = ?", (client_id,)
+            db.execute(
+                text(
+                    "DELETE FROM client_account_managers WHERE client_id = :client_id"
+                ),
+                {"client_id": client_id},
             )
 
             manager_ids = request.form.getlist("account_managers")
             if manager_ids:
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 for manager_id in manager_ids:
-                    cursor.execute(
-                        "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (?, ?, ?)",
-                        (client_id, int(manager_id), now),
+                    db.execute(
+                        text(
+                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (:client_id, :manager_id, :assigned_at)"
+                        ),
+                        {
+                            "client_id": client_id,
+                            "manager_id": int(manager_id),
+                            "assigned_at": now,
+                        },
                     )
 
             db.commit()
             return redirect(f"/client/{client_id}")
 
-    # GET: Fetch client data and managers for the form
     with get_db() as db:
         client = db.execute(
-            "SELECT * FROM clients WHERE id = ?", (client_id,)
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             abort(404)
 
-        # Get all account managers
         managers = db.execute(
-            "SELECT * FROM account_managers WHERE state = 1 ORDER BY name"
+            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
         ).fetchall()
 
-        # Get currently assigned managers
         assigned_manager_ids = db.execute(
-            "SELECT manager_id FROM client_account_managers WHERE client_id = ?",
-            (client_id,),
+            text(
+                "SELECT manager_id FROM client_account_managers WHERE client_id = :client_id"
+            ),
+            {"client_id": client_id},
         ).fetchall()
-        assigned_manager_ids = [m["manager_id"] for m in assigned_manager_ids]
+        assigned_manager_ids = [m._mapping["manager_id"] for m in assigned_manager_ids]
 
         return render_template(
             "edit_client.html",
@@ -229,9 +240,17 @@ def edit_client(client_id):
 def delete_client(client_id):
     """Delete a client."""
     with get_db() as db:
-        db.execute("DELETE FROM vm_clients WHERE client_id = ?", (client_id,))
-        db.execute("DELETE FROM client_contacts WHERE client_id = ?", (client_id,))
-        db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+        db.execute(
+            text("DELETE FROM vm_clients WHERE client_id = :client_id"),
+            {"client_id": client_id},
+        )
+        db.execute(
+            text("DELETE FROM client_contacts WHERE client_id = :client_id"),
+            {"client_id": client_id},
+        )
+        db.execute(
+            text("DELETE FROM clients WHERE id = :client_id"), {"client_id": client_id}
+        )
         db.commit()
         return redirect("/clients")
 
@@ -240,15 +259,14 @@ def delete_client(client_id):
 @login_required
 def add_client_contact(client_id):
     """Add a contact for a client."""
-    # Verify client exists
     with get_db() as db:
         client = db.execute(
-            "SELECT * FROM clients WHERE id = ?", (client_id,)
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             abort(404)
 
-    # Get form data
     name = request.form.get("name")
     job_title = request.form.get("job_title")
     email = request.form.get("email")
@@ -256,35 +274,34 @@ def add_client_contact(client_id):
     mobile_phone = request.form.get("mobile_phone")
     is_primary_contact = 1 if request.form.get("is_primary_contact") else 0
 
-    # Validate required fields
     if not name:
         flash("Name is required", "error")
         return redirect(f"/client/{client_id}")
 
-    # If this is the primary contact, uncheck all other contacts for this client
     with get_db() as db:
         if is_primary_contact:
             db.execute(
-                "UPDATE client_contacts SET is_primary_contact = 0 WHERE client_id = ?",
-                (client_id,),
+                text(
+                    "UPDATE client_contacts SET is_primary_contact = 0 WHERE client_id = :client_id"
+                ),
+                {"client_id": client_id},
             )
 
-        # Insert the new contact
         db.execute(
-            """
+            text("""
             INSERT INTO client_contacts (
                 client_id, name, job_title, email, phone, mobile_phone, is_primary_contact
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                client_id,
-                name,
-                job_title,
-                email,
-                phone,
-                mobile_phone,
-                is_primary_contact,
-            ),
+            ) VALUES (:client_id, :name, :job_title, :email, :phone, :mobile_phone, :is_primary_contact)
+        """),
+            {
+                "client_id": client_id,
+                "name": name,
+                "job_title": job_title,
+                "email": email,
+                "phone": phone,
+                "mobile_phone": mobile_phone,
+                "is_primary_contact": is_primary_contact,
+            },
         )
 
         db.commit()
@@ -302,20 +319,25 @@ def assign_vm_client(vm_id):
     with get_db() as db:
         if not cluster_name:
             vm = db.execute(
-                "SELECT cluster_name FROM vm_info WHERE vm_id = ?", (vm_id,)
+                text("SELECT cluster_name FROM vm_info WHERE vm_id = :vm_id"),
+                {"vm_id": vm_id},
             ).fetchone()
             if vm:
-                cluster_name = vm["cluster_name"]
+                cluster_name = vm._mapping["cluster_name"]
 
         db.execute(
-            "DELETE FROM vm_clients WHERE vm_id = ? AND cluster_name = ?",
-            (vm_id, cluster_name),
+            text(
+                "DELETE FROM vm_clients WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
+            ),
+            {"vm_id": vm_id, "cluster_name": cluster_name},
         )
 
         if client_id:
             db.execute(
-                "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (?, ?, ?)",
-                (vm_id, cluster_name, client_id),
+                text(
+                    "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (:vm_id, :cluster_name, :client_id)"
+                ),
+                {"vm_id": vm_id, "cluster_name": cluster_name, "client_id": client_id},
             )
 
         db.commit()
@@ -331,22 +353,28 @@ def add_client_note(client_id):
     """Add a new note to a client."""
     note_text = request.form.get("note_text", "").strip()
     with get_db() as db:
-        cursor = db.cursor()
-
         client = db.execute(
-            "SELECT id FROM clients WHERE id = ?", (client_id,)
+            text("SELECT id FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             return jsonify({"success": False, "error": "Client not found"}), 404
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "INSERT INTO client_notes (client_id, note_text, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (client_id, note_text, now, now),
-        )
+        note_id = db.execute(
+            text(
+                "INSERT INTO client_notes (client_id, note_text, created_at, updated_at) VALUES (:client_id, :note_text, :created_at, :updated_at) RETURNING id"
+            ),
+            {
+                "client_id": client_id,
+                "note_text": note_text,
+                "created_at": now,
+                "updated_at": now,
+            },
+        ).scalar()
         db.commit()
 
-        return jsonify({"success": True, "note_id": cursor.lastrowid})
+        return jsonify({"success": True, "note_id": note_id})
 
 
 @bp.route("/client/<int:client_id>/notes/<int:note_id>/edit", methods=["POST"])
@@ -355,19 +383,21 @@ def edit_client_note(client_id, note_id):
     """Edit an existing client note."""
     note_text = request.form.get("note_text", "").strip()
     with get_db() as db:
-        cursor = db.cursor()
-
         note = db.execute(
-            "SELECT * FROM client_notes WHERE id = ? AND client_id = ?",
-            (note_id, client_id),
+            text(
+                "SELECT * FROM client_notes WHERE id = :note_id AND client_id = :client_id"
+            ),
+            {"note_id": note_id, "client_id": client_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "UPDATE client_notes SET note_text = ?, updated_at = ? WHERE id = ?",
-            (note_text, now, note_id),
+        db.execute(
+            text(
+                "UPDATE client_notes SET note_text = :note_text, updated_at = :updated_at WHERE id = :note_id"
+            ),
+            {"note_text": note_text, "updated_at": now, "note_id": note_id},
         )
         db.commit()
 
@@ -380,13 +410,17 @@ def delete_client_note(client_id, note_id):
     """Delete a client note."""
     with get_db() as db:
         note = db.execute(
-            "SELECT * FROM client_notes WHERE id = ? AND client_id = ?",
-            (note_id, client_id),
+            text(
+                "SELECT * FROM client_notes WHERE id = :note_id AND client_id = :client_id"
+            ),
+            {"note_id": note_id, "client_id": client_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
-        db.execute("DELETE FROM client_notes WHERE id = ?", (note_id,))
+        db.execute(
+            text("DELETE FROM client_notes WHERE id = :note_id"), {"note_id": note_id}
+        )
         db.commit()
 
         return jsonify({"success": True})
@@ -398,13 +432,20 @@ def get_client_notes(client_id):
     """Get all notes for a client."""
     with get_db() as db:
         notes = db.execute(
-            "SELECT id, note_text, created_at, updated_at FROM client_notes WHERE client_id = ? ORDER BY created_at DESC",
-            (client_id,),
+            text(
+                "SELECT id, note_text, created_at, updated_at FROM client_notes WHERE client_id = :client_id ORDER BY created_at DESC"
+            ),
+            {"client_id": client_id},
         ).fetchall()
 
         return jsonify(
             [
-                {"id": n[0], "note_text": n[1], "created_at": n[2], "updated_at": n[3]}
+                {
+                    "id": n._mapping["id"],
+                    "note_text": n._mapping["note_text"],
+                    "created_at": n._mapping["created_at"],
+                    "updated_at": n._mapping["updated_at"],
+                }
                 for n in notes
             ]
         )

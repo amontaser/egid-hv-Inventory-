@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, session, redirect, flash
 from functools import wraps
 from app.utils.db import get_db
+from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,28 +27,25 @@ def login_required(f):
 def list_notifications():
     """Display all notifications with optional filtering."""
     with get_db() as db:
-        # Get query parameters
         unread_only = request.args.get("unread", "0") == "1"
         severity_filter = request.args.get("severity")
 
-        # Build query
         query = "SELECT * FROM notifications WHERE 1=1"
-        params = []
+        params = {}
 
         if unread_only:
             query += " AND is_read = 0"
 
         if severity_filter:
-            query += " AND severity = ?"
-            params.append(severity_filter)
+            query += " AND severity = :severity"
+            params["severity"] = severity_filter
 
         query += " ORDER BY created_at DESC"
 
-        notifications = db.execute(query, params).fetchall()
+        notifications = db.execute(text(query), params).fetchall()
 
-        # Get unread count
         unread_count = db.execute(
-            "SELECT COUNT(*) FROM notifications WHERE is_read = 0"
+            text("SELECT COUNT(*) FROM notifications WHERE is_read = 0")
         ).fetchone()[0]
 
         return render_template(
@@ -62,7 +60,7 @@ def list_notifications():
 def mark_all_read():
     """Mark all notifications as read."""
     with get_db() as db:
-        db.execute("UPDATE notifications SET is_read = 1 WHERE is_read = 0")
+        db.execute(text("UPDATE notifications SET is_read = 1 WHERE is_read = 0"))
         db.commit()
         flash("All notifications marked as read", "success")
         return redirect("/notifications")
@@ -74,7 +72,8 @@ def mark_read(notification_id):
     """Mark a specific notification as read."""
     with get_db() as db:
         db.execute(
-            "UPDATE notifications SET is_read = 1 WHERE id = ?", (notification_id,)
+            text("UPDATE notifications SET is_read = 1 WHERE id = :notification_id"),
+            {"notification_id": notification_id},
         )
         db.commit()
         flash("Notification marked as read", "success")

@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, session, redirect, jsonify
 from functools import wraps
 from app.utils.db import get_db
+from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,31 +35,28 @@ def global_history():
     date_from = request.args.get("date_from", "")
 
     with get_db() as db:
-        # Build WHERE clause
         where_clauses = ["1=1"]
-        params = []
+        params = {}
 
         if search:
-            where_clauses.append("h.machine_name LIKE ?")
-            params.append(f"%{search}%")
+            where_clauses.append("h.machine_name LIKE :search")
+            params["search"] = f"%{search}%"
 
         if change_type:
-            where_clauses.append("h.change_type = ?")
-            params.append(change_type)
+            where_clauses.append("h.change_type = :change_type")
+            params["change_type"] = change_type
 
         if date_from:
-            where_clauses.append("DATE(h.detected_at) >= ?")
-            params.append(date_from)
+            where_clauses.append("DATE(h.detected_at) >= :date_from")
+            params["date_from"] = date_from
 
         where_sql = " AND ".join(where_clauses)
 
-        # Get total count for pagination
         count_query = f"SELECT COUNT(*) FROM vm_history h WHERE {where_sql}"
-        result = db.execute(count_query, params).fetchone()
+        result = db.execute(text(count_query), params).fetchone()
         total_count = result[0] if result else 0
         total_pages = max(1, (total_count + per_page - 1) // per_page)
 
-        # Get paginated results
         offset = (page - 1) * per_page
         query = f"""
             SELECT h.*,
@@ -66,13 +64,13 @@ def global_history():
             FROM vm_history h
             WHERE {where_sql}
             ORDER BY h.detected_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT :per_page OFFSET :offset
         """
-        params.extend([per_page, offset])
+        params["per_page"] = per_page
+        params["offset"] = offset
 
-        history = db.execute(query, params).fetchall()
+        history = db.execute(text(query), params).fetchall()
 
-    # Add styling info
     change_styles = {
         "created": {"color": "success", "icon": "➕ Created"},
         "deleted": {"color": "danger", "icon": "🗑️ Deleted"},
@@ -86,9 +84,9 @@ def global_history():
 
     history_with_style = []
     for h in history:
-        h_dict = dict(h)
+        h_dict = dict(h._mapping)
         style = change_styles.get(
-            h["change_type"], {"color": "secondary", "icon": "📝"}
+            h._mapping["change_type"], {"color": "secondary", "icon": "📝"}
         )
         h_dict.update(style)
         history_with_style.append(h_dict)
@@ -113,8 +111,8 @@ def global_history():
 def settings():
     """Application settings page."""
     with get_db() as db:
-        # Get all clusters
-        clusters = db.execute("""
+        clusters = db.execute(
+            text("""
             SELECT
                 c.*,
                 '' as domain,
@@ -130,15 +128,17 @@ def settings():
                 GROUP BY cluster_name
             ) stats ON c.cluster_name = stats.cluster_name
             ORDER BY c.cluster_name
-        """).fetchall()
+        """)
+        ).fetchall()
 
-        # Get all account managers
-        account_managers = db.execute("""
+        account_managers = db.execute(
+            text("""
             SELECT am.*,
                    (SELECT COUNT(*) FROM client_account_managers WHERE manager_id = am.id) as client_count
             FROM account_managers am
             ORDER BY am.name
-        """).fetchall()
+        """)
+        ).fetchall()
 
     return render_template(
         "settings.html",
@@ -172,17 +172,16 @@ def notification_settings():
             for field in fields:
                 value = request.form.get(field, "")
                 db.execute(
-                    """
-                    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                    text("""
+                    INSERT INTO settings (key, value, updated_at) VALUES (:key, :value, :updated_at)
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-                """,
-                    (field, value, now),
+                """),
+                    {"key": field, "value": value, "updated_at": now},
                 )
             db.commit()
             flash("Notification settings saved.", "success")
             return redirect("/settings/notifications")
 
-        # GET: load all settings
-        rows = db.execute("SELECT key, value FROM settings").fetchall()
-        settings = {r["key"]: r["value"] for r in rows}
+        rows = db.execute(text("SELECT key, value FROM settings")).fetchall()
+        settings = {r._mapping["key"]: r._mapping["value"] for r in rows}
         return render_template("notification_settings.html", settings=settings)
