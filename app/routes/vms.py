@@ -36,7 +36,11 @@ def get_all_clusters():
                 c.is_enabled,
                 COALESCE(stats.vm_count, 0) as vm_count,
                 COALESCE(stats.running_vms, 0) as running_vms,
-                COALESCE(stats.host_count, 0) as host_count
+                COALESCE(stats.host_count, 0) as host_count,
+                COALESCE(ns.total_nodes, 0) as total_nodes,
+                COALESCE(ns.up_nodes, 0) as up_nodes,
+                COALESCE(ns.paused_nodes, 0) as paused_nodes,
+                COALESCE(ns.down_nodes, 0) as down_nodes
             FROM clusters c
             LEFT JOIN (
                 SELECT 
@@ -47,6 +51,16 @@ def get_all_clusters():
                 FROM vm_info
                 GROUP BY cluster_name
             ) stats ON c.cluster_name = stats.cluster_name
+            LEFT JOIN (
+                SELECT 
+                    cluster_name,
+                    COUNT(*) as total_nodes,
+                    SUM(CASE WHEN node_state = 'Up' THEN 1 ELSE 0 END) as up_nodes,
+                    SUM(CASE WHEN node_state = 'Paused' THEN 1 ELSE 0 END) as paused_nodes,
+                    SUM(CASE WHEN node_state = 'Down' THEN 1 ELSE 0 END) as down_nodes
+                FROM cluster_nodes
+                GROUP BY cluster_name
+            ) ns ON c.cluster_name = ns.cluster_name
             ORDER BY c.cluster_name
             """
         ).fetchall()

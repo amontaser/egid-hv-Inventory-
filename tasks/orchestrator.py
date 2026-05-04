@@ -110,6 +110,7 @@ def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str
     if not nodes:
         raise RuntimeError(f"Get-ClusterNode returned no results from {domain}")
 
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     node_map = {}
     for node in nodes:
         if node.get("State") == "Down":
@@ -117,6 +118,23 @@ def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str
         name = node.get("Name", "")
         ip = node.get("IPAddress") or resolve_node_ip(name, dns_servers, domain_name)
         node_map[name] = ip
+
+    # Save all node states to cluster_nodes table
+    try:
+        conn = get_db_connection()
+        for node in nodes:
+            name = node.get("Name", "")
+            state = node.get("State", "Unknown")
+            ip = node.get("IPAddress") or ""
+            conn.execute(
+                """INSERT OR REPLACE INTO cluster_nodes (cluster_name, node_name, node_state, ip_address, last_updated)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (cluster_name, name, state, ip, now),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to save node states for {cluster_name}: {e}")
 
     if not node_map:
         raise RuntimeError(f"No Up nodes in cluster {cluster_name}")

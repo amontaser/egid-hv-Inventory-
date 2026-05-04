@@ -323,6 +323,16 @@ def _create_tables(db):
         CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
         CREATE INDEX IF NOT EXISTS idx_notifications_date ON notifications(created_at);
         CREATE INDEX IF NOT EXISTS idx_host_disks_host ON host_physical_disks(host_name);
+
+        CREATE TABLE IF NOT EXISTS cluster_nodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cluster_name TEXT NOT NULL,
+            node_name TEXT NOT NULL,
+            node_state TEXT,
+            ip_address TEXT,
+            last_updated TEXT,
+            UNIQUE(cluster_name, node_name)
+        );
     """)
 
 

@@ -135,19 +135,36 @@
                     <small class="text-muted d-block mb-2"><i class="bi bi-geo-alt"></i> {{ cluster.location }}</small>
                     {% endif %}
                     <div class="row text-center mt-3">
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="h5 mb-0">{{ cluster.vm_count or 0 }}</div>
                             <small class="text-muted">VMs</small>
                         </div>
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="h5 mb-0 text-success">{{ cluster.running_vms or 0 }}</div>
                             <small class="text-muted">Running</small>
                         </div>
-                        <div class="col-4">
+                        <div class="col-3">
                             <div class="h5 mb-0">{{ cluster.host_count or 0 }}</div>
                             <small class="text-muted">Hosts</small>
                         </div>
+                        <div class="col-3">
+                            <div class="h5 mb-0">{{ cluster.total_nodes or 0 }}</div>
+                            <small class="text-muted">Nodes</small>
+                        </div>
                     </div>
+                    {% if cluster.total_nodes %}
+                    <div class="d-flex gap-1 mt-2 flex-wrap">
+                        {% if cluster.up_nodes %}
+                        <span class="badge bg-success" title="Up">{{ cluster.up_nodes }} Up</span>
+                        {% endif %}
+                        {% if cluster.paused_nodes %}
+                        <span class="badge bg-warning text-dark" title="Paused">{{ cluster.paused_nodes }} Paused</span>
+                        {% endif %}
+                        {% if cluster.down_nodes %}
+                        <span class="badge bg-danger" title="Down">{{ cluster.down_nodes }} Down</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
