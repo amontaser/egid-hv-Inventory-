@@ -4,6 +4,7 @@ WORKDIR /opt/hyperv_inventory
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libpq-dev \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -23,7 +24,7 @@ RUN mkdir -p /opt/hyperv_inventory/logs /opt/hyperv_inventory/data
 EXPOSE 5000
 
 ENV PYTHONPATH=/opt/hyperv_inventory
-ENV DATABASE_PATH=/opt/hyperv_inventory/data/database.db
+ENV DATABASE_URL=postgresql://hyperv:hyperv_secret_2024@postgres:5432/hyperv_inventory
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
