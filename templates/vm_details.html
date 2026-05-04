@@ -437,7 +437,8 @@ function hideAddNoteForm() {
 
 function addNote() {
     const text = document.getElementById('newNoteText').value;
-    fetch(`/vm/{{ vm.vm_id }}/notes/add`, {
+    const clusterParam = '{{ vm.cluster_name }}' ? '?cluster={{ vm.cluster_name }}' : '';
+    fetch(`/vm/{{ vm.vm_id }}/notes/add${clusterParam}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `note_text=${encodeURIComponent(text)}`

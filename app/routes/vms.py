@@ -356,3 +356,94 @@ def vm_history(vm_id):
         history_with_style.append(h_dict)
 
     return render_template("vm_history.html", vm=vm, history=history_with_style)
+
+
+@bp.route("/vm/<vm_id>/notes/add", methods=["POST"])
+@login_required
+def add_vm_note(vm_id):
+    """Add a new note to a VM."""
+    note_text = request.form.get("note_text", "").strip()
+    cluster_name = request.args.get("cluster")
+    if not note_text:
+        return jsonify({"success": False, "error": "Note text is required"}), 400
+
+    with get_db() as db:
+        if cluster_name:
+            vm = db.execute(
+                "SELECT cluster_name FROM vm_info WHERE vm_id = ? AND cluster_name = ?",
+                (vm_id, cluster_name),
+            ).fetchone()
+        else:
+            vm = db.execute(
+                "SELECT cluster_name FROM vm_info WHERE vm_id = ?", (vm_id,)
+            ).fetchone()
+        if not vm:
+            return jsonify({"success": False, "error": "VM not found"}), 404
+
+        cn = vm["cluster_name"]
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = db.cursor()
+        cursor.execute(
+            "INSERT INTO vm_notes (vm_id, cluster_name, note_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (vm_id, cn, note_text, now, now),
+        )
+        db.commit()
+
+        return jsonify({"success": True, "note_id": cursor.lastrowid})
+
+
+@bp.route("/vm/<vm_id>/notes/<int:note_id>/edit", methods=["POST"])
+@login_required
+def edit_vm_note(vm_id, note_id):
+    """Edit an existing VM note."""
+    note_text = request.form.get("note_text", "").strip()
+    if not note_text:
+        return jsonify({"success": False, "error": "Note text is required"}), 400
+
+    with get_db() as db:
+        note = db.execute(
+            "SELECT * FROM vm_notes WHERE id = ? AND vm_id = ?",
+            (note_id, vm_id),
+        ).fetchone()
+        if not note:
+            return jsonify({"success": False, "error": "Note not found"}), 404
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "UPDATE vm_notes SET note_text = ?, updated_at = ? WHERE id = ?",
+            (note_text, now, note_id),
+        )
+        db.commit()
+
+        return jsonify({"success": True})
+
+
+@bp.route("/vm/<vm_id>/notes/<int:note_id>/delete", methods=["POST"])
+@login_required
+def delete_vm_note(vm_id, note_id):
+    """Delete a VM note."""
+    with get_db() as db:
+        note = db.execute(
+            "SELECT * FROM vm_notes WHERE id = ? AND vm_id = ?",
+            (note_id, vm_id),
+        ).fetchone()
+        if not note:
+            return jsonify({"success": False, "error": "Note not found"}), 404
+
+        db.execute("DELETE FROM vm_notes WHERE id = ?", (note_id,))
+        db.commit()
+
+        return jsonify({"success": True})
+
+
+@bp.route("/vm/<vm_id>/notes")
+@login_required
+def get_vm_notes(vm_id):
+    """Get all notes for a VM."""
+    with get_db() as db:
+        notes = db.execute(
+            "SELECT id, note_text, created_at, updated_at FROM vm_notes WHERE vm_id = ? ORDER BY created_at DESC",
+            (vm_id,),
+        ).fetchall()
+
+        return jsonify([dict(n) for n in notes])
