@@ -1,20 +1,21 @@
 """Flask application factory"""
 
 import os
-from flask import Flask
+from flask import Flask, redirect, request, jsonify
 from flask_bootstrap import Bootstrap5
+from flask_login import LoginManager
 from dotenv import load_dotenv
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 load_dotenv()
+
+login_manager = LoginManager()
 
 
 def create_app():
     """Create and configure Flask application."""
-    # Get the directory containing this file
     basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
     app = Flask(
@@ -23,22 +24,41 @@ def create_app():
         static_folder=os.path.join(basedir, "static"),
     )
 
-    # Configuration
     app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
     app.config.update(
-        SESSION_COOKIE_SECURE=False,  # Disabled for HTTP access (enable for HTTPS)
+        SESSION_COOKIE_SECURE=False,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        PERMANENT_SESSION_LIFETIME=3600,  # 60 minutes
+        PERMANENT_SESSION_LIFETIME=3600,
     )
 
-    # Add sorted function to Jinja2 globals for template use
     app.jinja_env.globals["sorted"] = sorted
 
-    # Initialize extensions
     Bootstrap5(app)
 
-    # Register blueprints
+    from app.db import configure_db, init_db
+    from app.models import db
+
+    configure_db(app)
+
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return db.session.get(User, int(user_id))
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        if (
+            request.accept_mimetypes.accept_json
+            and not request.accept_mimetypes.accept_html
+        ) or request.path.startswith("/api/"):
+            return jsonify({"error": "Authentication required"}), 401
+        return redirect("/login")
+
+    from app.models import User
+
     from app.routes import (
         api,
         vms,
@@ -61,10 +81,8 @@ def create_app():
     app.register_blueprint(clusters.bp)
     app.register_blueprint(notifications.bp)
 
-    # Initialize database
-    from app.utils.db import init_db
-
     with app.app_context():
+        db.create_all()
         init_db()
 
     return app
