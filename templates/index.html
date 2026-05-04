@@ -160,12 +160,12 @@
             <div class="row g-2 align-items-center">
                 {% if clusters %}
                  <div class="col-auto" style="min-width: 180px;">
-                     <select id="clusterFilter" class="form-select">
-                         <option value="">All Clusters</option>
-                         {% for cluster in clusters %}
-                         <option value="{{ cluster.id }}">{{ cluster.cluster_name }}</option>
-                         {% endfor %}
-                     </select>
+                      <select id="clusterFilter" class="form-select">
+                          <option value="">All Clusters</option>
+                          {% for cluster in clusters %}
+                          <option value="{{ cluster.cluster_name }}">{{ cluster.cluster_name }}</option>
+                          {% endfor %}
+                      </select>
                  </div>
                 {% endif %}
                 <div class="col-auto" style="min-width: 140px;">
@@ -378,7 +378,7 @@ function filterAndDisplayVMs() {
         const name = row.dataset.name || '';
         const state = row.dataset.state || '';
         const host = row.dataset.host || '';
-        const cluster = row.dataset.cluster || '';
+        const cluster = row.dataset.clusterName || '';
         const vlans = row.dataset.vlans || '';
         const ips = (row.dataset.ips || '').toLowerCase();
 
