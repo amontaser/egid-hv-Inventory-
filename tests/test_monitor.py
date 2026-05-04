@@ -1,58 +1,63 @@
-import sqlite3
 import pytest
-from unittest.mock import patch
-import app.db as db_module
+import os
+from sqlalchemy import text
+from app import create_app
+from app.models import db as _db
 from tasks.monitor import detect_vm_changes, detect_storage_changes, persist_events
-import tasks.monitor as monitor_module
 
 
 @pytest.fixture
-def db(tmp_path):
-    db_path = str(tmp_path / "test.db")
-    with (
-        patch.object(db_module, "DATABASE_PATH", db_path),
-        patch.object(monitor_module, "get_db_connection", db_module.get_db_connection),
-    ):
-        db_module.init_db()
-        yield db_path
+def app_ctx():
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+    app = create_app()
+    with app.app_context():
+        yield app
 
 
-def _insert_vm(db_path, vm_id, name, state, cpu, mem, cluster):
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO vm_info
-        (vm_id, machine_name, state, cpu_count, memory_assigned_gb, cluster_name, host_name)
-        VALUES (?,?,?,?,?,?,?)
-    """,
-        (vm_id, name, state, cpu, mem, cluster, "HOST-01"),
+def _insert_vm(vm_id, name, state, cpu, mem, cluster):
+    _db.session.execute(
+        text("""
+            INSERT OR REPLACE INTO vm_info
+            (vm_id, machine_name, state, cpu_count, memory_assigned_gb, cluster_name, host_name)
+            VALUES (:vm_id, :name, :state, :cpu, :mem, :cluster, 'HOST-01')
+        """),
+        {
+            "vm_id": vm_id,
+            "name": name,
+            "state": state,
+            "cpu": cpu,
+            "mem": mem,
+            "cluster": cluster,
+        },
     )
-    conn.commit()
-    conn.close()
+    _db.session.commit()
 
 
-def _insert_csv(db_path, name, cluster, pct_used):
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO cluster_shared_volumes
-        (name, cluster_name, percent_used, free_space_gb, total_size_gb)
-        VALUES (?,?,?,?,?)
-    """,
-        (name, cluster, pct_used, 100 * (1 - pct_used / 100), 1000),
+def _insert_csv(name, cluster, pct_used):
+    _db.session.execute(
+        text("""
+            INSERT OR REPLACE INTO cluster_shared_volumes
+            (name, cluster_name, percent_used, free_space_gb, total_size_gb)
+            VALUES (:name, :cluster, :pct_used, :free_gb, 1000)
+        """),
+        {
+            "name": name,
+            "cluster": cluster,
+            "pct_used": pct_used,
+            "free_gb": 100 * (1 - pct_used / 100),
+        },
     )
-    conn.commit()
-    conn.close()
+    _db.session.commit()
 
 
-def test_detect_new_vm(db):
-    _insert_vm(db, "vm1", "prod-web", "Running", 4, 8.0, "PROD")
+def test_detect_new_vm(app_ctx):
+    _insert_vm("vm1", "prod-web", "Running", 4, 8.0, "PROD")
     old_snapshot = {}
     events = detect_vm_changes(old_snapshot)
     assert any(e["change_type"] == "created" and e["vm_id"] == "vm1" for e in events)
 
 
-def test_detect_deleted_vm(db):
+def test_detect_deleted_vm(app_ctx):
     old_snapshot = {
         "vm-gone||PROD": {
             "vm_id": "vm-gone",
@@ -71,8 +76,8 @@ def test_detect_deleted_vm(db):
     )
 
 
-def test_detect_state_change(db):
-    _insert_vm(db, "vm1", "prod-web", "Off", 4, 8.0, "PROD")
+def test_detect_state_change(app_ctx):
+    _insert_vm("vm1", "prod-web", "Off", 4, 8.0, "PROD")
     old_snapshot = {
         "vm1||PROD": {
             "vm_id": "vm1",
@@ -92,8 +97,8 @@ def test_detect_state_change(db):
     assert state_events[0]["new_value"] == "Off"
 
 
-def test_detect_cpu_change(db):
-    _insert_vm(db, "vm1", "prod-web", "Running", 8, 8.0, "PROD")
+def test_detect_cpu_change(app_ctx):
+    _insert_vm("vm1", "prod-web", "Running", 8, 8.0, "PROD")
     old_snapshot = {
         "vm1||PROD": {
             "vm_id": "vm1",
@@ -110,21 +115,21 @@ def test_detect_cpu_change(db):
     assert any(e["change_type"] == "cpu" for e in events)
 
 
-def test_detect_storage_low(db):
-    _insert_csv(db, "Cluster Disk 1", "PROD", 85.0)  # 15% free, threshold 20%
+def test_detect_storage_low(app_ctx):
+    _insert_csv("Cluster Disk 1", "PROD", 85.0)
     events = detect_storage_changes({}, threshold_pct=20.0)
     assert len(events) == 1
     assert events[0]["change_type"] == "storage_low"
     assert "Cluster Disk 1" in events[0]["message"]
 
 
-def test_detect_storage_ok(db):
-    _insert_csv(db, "Cluster Disk 1", "PROD", 50.0)  # 50% free
+def test_detect_storage_ok(app_ctx):
+    _insert_csv("Cluster Disk 1", "PROD", 50.0)
     events = detect_storage_changes({}, threshold_pct=20.0)
     assert len(events) == 0
 
 
-def test_persist_events_writes_notification(db):
+def test_persist_events_writes_notification(app_ctx):
     events = [
         {
             "vm_id": "vm1",
@@ -140,9 +145,7 @@ def test_persist_events_writes_notification(db):
         }
     ]
     persist_events(events)
-    conn = sqlite3.connect(db)
-    rows = conn.execute("SELECT * FROM notifications").fetchall()
-    history = conn.execute("SELECT * FROM vm_history").fetchall()
-    conn.close()
+    rows = _db.session.execute(text("SELECT * FROM notifications")).fetchall()
+    history = _db.session.execute(text("SELECT * FROM vm_history")).fetchall()
     assert len(rows) == 1
     assert len(history) == 1

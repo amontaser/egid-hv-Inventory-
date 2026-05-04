@@ -1,28 +1,20 @@
-import sqlite3
 import pytest
-from unittest.mock import patch
-
-# Point DB at a temp file
-import app.db as db_module
+import os
+from app import create_app
+from app.models import db as _db
 
 
 @pytest.fixture
-def tmp_db(tmp_path):
-    db_path = str(tmp_path / "test.db")
-    with patch.object(db_module, "DATABASE_PATH", db_path):
-        db_module.init_db()
-        yield db_path
+def app_ctx():
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+    app = create_app()
+    with app.app_context():
+        yield app
 
 
-def test_init_db_creates_all_tables(tmp_db):
-    conn = sqlite3.connect(tmp_db)
-    tables = {
-        r[0]
-        for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
-    conn.close()
+def test_init_db_creates_all_tables(app_ctx):
+    inspector = _db.inspect(_db.engine)
+    tables = set(inspector.get_table_names())
     expected = {
         "vm_info",
         "vm_disks",
@@ -32,37 +24,49 @@ def test_init_db_creates_all_tables(tmp_db):
         "hyperv_hosts",
         "host_physical_disks",
         "sync_metadata",
+        "csv_scan_metadata",
         "cluster_shared_volumes",
         "notifications",
         "vm_history",
         "settings",
         "clusters",
+        "cluster_nodes",
+        "users",
+        "clients",
+        "client_contacts",
+        "vm_clients",
+        "account_managers",
+        "client_account_managers",
+        "vm_notes",
+        "client_notes",
     }
     assert expected.issubset(tables)
 
 
-def test_init_db_is_idempotent(tmp_db):
-    with patch.object(db_module, "DATABASE_PATH", tmp_db):
-        db_module.init_db()  # second call should not raise
-        db_module.init_db()
+def test_init_db_is_idempotent(app_ctx):
+    from app.db import init_db
+
+    init_db()
+    init_db()
 
 
-def test_settings_defaults_seeded(tmp_db):
-    conn = sqlite3.connect(tmp_db)
-    conn.row_factory = sqlite3.Row
-    keys = {r["key"] for r in conn.execute("SELECT key FROM settings").fetchall()}
-    conn.close()
+def test_settings_defaults_seeded(app_ctx):
+    from app.models import Setting
+
+    keys = {s.key for s in _db.session.query(Setting).all()}
     assert "storage_threshold_pct" in keys
     assert "enable_email_alerts" in keys
 
 
-def test_get_db_context_manager_commits(tmp_db):
-    with patch.object(db_module, "DATABASE_PATH", tmp_db):
-        with db_module.get_db() as conn:
-            conn.execute("INSERT INTO settings (key, value) VALUES ('test_key', 'val')")
-        conn2 = sqlite3.connect(tmp_db)
-        row = conn2.execute(
-            "SELECT value FROM settings WHERE key='test_key'"
-        ).fetchone()
-        conn2.close()
-        assert row[0] == "val"
+def test_get_db_context_manager_commits(app_ctx):
+    from sqlalchemy import text
+    from app.db import get_db
+
+    with get_db() as session:
+        session.execute(
+            text("INSERT INTO settings (key, value) VALUES ('test_key', 'val')")
+        )
+    row = _db.session.execute(
+        text("SELECT value FROM settings WHERE key='test_key'")
+    ).scalar()
+    assert row == "val"

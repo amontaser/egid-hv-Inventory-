@@ -1,31 +1,23 @@
-import sqlite3
 import pytest
-from unittest.mock import patch
-import app.db as db_module
+import os
+from app import create_app
+from app.models import db as _db
 from tasks.persistence.vms import save_vms
 from tasks.persistence.hosts import save_host, save_physical_disks
 from tasks.persistence.storage import save_csv_volumes
 
 
 @pytest.fixture
-def db(tmp_path):
-    db_path = str(tmp_path / "test.db")
-    with patch.object(db_module, "DATABASE_PATH", db_path):
-        db_module.init_db()
-        # Also patch persistence modules
-        import tasks.persistence.vms as pv
-        import tasks.persistence.hosts as ph
-        import tasks.persistence.storage as ps
-
-        with (
-            patch.object(pv, "get_db_connection", db_module.get_db_connection),
-            patch.object(ph, "get_db_connection", db_module.get_db_connection),
-            patch.object(ps, "get_db_connection", db_module.get_db_connection),
-        ):
-            yield db_path
+def app_ctx():
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+    app = create_app()
+    with app.app_context():
+        yield app
 
 
-def test_save_vms_inserts_rows(db):
+def test_save_vms_inserts_rows(app_ctx):
+    from sqlalchemy import text
+
     vms = [
         {
             "VMId": "vm1",
@@ -36,22 +28,26 @@ def test_save_vms_inserts_rows(db):
         }
     ]
     save_vms(vms, "HOST-01", cluster_name="PROD")
-    conn = sqlite3.connect(db)
-    row = conn.execute("SELECT * FROM vm_info WHERE vm_id='vm1'").fetchone()
-    conn.close()
+    row = _db.session.execute(
+        text("SELECT * FROM vm_info WHERE vm_id='vm1'")
+    ).fetchone()
     assert row is not None
 
 
-def test_save_vms_uses_explicit_cluster_name(db):
+def test_save_vms_uses_explicit_cluster_name(app_ctx):
+    from sqlalchemy import text
+
     vms = [{"VMId": "vm2", "Name": "test", "State": "Off", "ClusterName": "WRONG"}]
     save_vms(vms, "HOST-02", cluster_name="CORRECT")
-    conn = sqlite3.connect(db)
-    row = conn.execute("SELECT cluster_name FROM vm_info WHERE vm_id='vm2'").fetchone()
-    conn.close()
+    row = _db.session.execute(
+        text("SELECT cluster_name FROM vm_info WHERE vm_id='vm2'")
+    ).fetchone()
     assert row[0] == "CORRECT"
 
 
-def test_save_host_upserts(db):
+def test_save_host_upserts(app_ctx):
+    from sqlalchemy import text
+
     info = {
         "HostName": "NODE1",
         "TotalMemoryGB": 128.0,
@@ -61,15 +57,15 @@ def test_save_host_upserts(db):
         "OSVersion": "Windows Server 2022",
     }
     save_host(info, cluster_name="PROD", connection_ip="10.0.0.1")
-    conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT connection_ip FROM hyperv_hosts WHERE host_name='NODE1'"
+    row = _db.session.execute(
+        text("SELECT connection_ip FROM hyperv_hosts WHERE host_name='NODE1'")
     ).fetchone()
-    conn.close()
     assert row[0] == "10.0.0.1"
 
 
-def test_save_physical_disks(db):
+def test_save_physical_disks(app_ctx):
+    from sqlalchemy import text
+
     disks = [
         {
             "FriendlyName": "SEAGATE ST1000",
@@ -83,15 +79,15 @@ def test_save_physical_disks(db):
         }
     ]
     save_physical_disks(disks, "NODE1")
-    conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT * FROM host_physical_disks WHERE host_name='NODE1'"
+    row = _db.session.execute(
+        text("SELECT * FROM host_physical_disks WHERE host_name='NODE1'")
     ).fetchone()
-    conn.close()
     assert row is not None
 
 
-def test_save_csv_volumes(db):
+def test_save_csv_volumes(app_ctx):
+    from sqlalchemy import text
+
     vols = [
         {
             "Name": "Cluster Disk 1",
@@ -101,9 +97,9 @@ def test_save_csv_volumes(db):
         }
     ]
     save_csv_volumes(vols, "PROD")
-    conn = sqlite3.connect(db)
-    row = conn.execute(
-        "SELECT cluster_name FROM cluster_shared_volumes WHERE name='Cluster Disk 1'"
+    row = _db.session.execute(
+        text(
+            "SELECT cluster_name FROM cluster_shared_volumes WHERE name='Cluster Disk 1'"
+        )
     ).fetchone()
-    conn.close()
     assert row[0] == "PROD"
