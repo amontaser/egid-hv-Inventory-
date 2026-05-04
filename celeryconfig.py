@@ -1,13 +1,16 @@
 # Celery Beat Schedule Configuration
 
+import os
 from celery import Celery
 from celery.schedules import crontab
+
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 celery = Celery("tasks")
 
 celery.conf.update(
-    broker_url="redis://localhost:6379/0",
-    result_backend="redis://localhost:6379/0",
+    broker_url=redis_url,
+    result_backend=redis_url,
     include=["tasks.orchestrator"],
     task_routes={
         "tasks.sync.fetch_hyperv_data": {"queue": "hyperv"},

@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      - SERVICE=web
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - app_data:/opt/hyperv_inventory/data
+    ports:
+      - "${PORT:-5000}:5000"
+    depends_on:
+      - redis
+
+  celery-worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      - SERVICE=celery-worker
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - app_data:/opt/hyperv_inventory/data
+    depends_on:
+      - redis
+
+  celery-beat:
+    build: .
+    restart: unless-stopped
+    environment:
+      - SERVICE=celery-beat
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_PATH=/opt/hyperv_inventory/data/database.db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - app_data:/opt/hyperv_inventory/data
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
+  app_data:

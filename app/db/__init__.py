@@ -1,5 +1,6 @@
 """Database layer — connection factory, schema init, migrations."""
 
+import os
 import sqlite3
 import logging
 from contextlib import contextmanager
@@ -9,7 +10,7 @@ from .migrations import run_migrations
 
 logger = logging.getLogger(__name__)
 
-DATABASE_PATH = "/opt/hyperv_inventory/database.db"
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/opt/hyperv_inventory/database.db")
 
 
 def get_db_connection():
