@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 COPY tasks/ tasks/
+COPY notifications/ notifications/
 COPY templates/ templates/
 COPY static/ static/
 COPY wsgi.py .
@@ -24,7 +25,6 @@ RUN mkdir -p /opt/hyperv_inventory/logs /opt/hyperv_inventory/data
 EXPOSE 5000
 
 ENV PYTHONPATH=/opt/hyperv_inventory
-ENV DATABASE_URL=postgresql://hyperv:hyperv_secret_2024@postgres:5432/hyperv_inventory
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

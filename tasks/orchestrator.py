@@ -36,7 +36,7 @@ from tasks.monitor import (
     persist_events,
     get_storage_threshold,
 )
-from notifications import dispatch_notifications
+from notifications import dispatch_notifications  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

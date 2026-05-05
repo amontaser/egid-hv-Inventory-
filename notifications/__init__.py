@@ -5,18 +5,12 @@ from typing import List, Dict
 
 from sqlalchemy import text
 
-from app.db import get_db_connection
+from app.utils.db import get_db
 
 logger = logging.getLogger(__name__)
 
 
 def dispatch_notifications(events: List[Dict]):
-    """Deliver change events via all configured channels.
-
-    In-app: always (written by monitor.persist_events — call that first).
-    Email: if enable_email_alerts=1 and SMTP configured.
-    Webhook: if enable_webhook_alerts=1 and WEBHOOK_URL configured.
-    """
     if not events:
         return
 
@@ -41,8 +35,8 @@ def dispatch_notifications(events: List[Dict]):
 
 def _load_settings() -> Dict[str, str]:
     try:
-        session = get_db_connection()
-        rows = session.execute(text("SELECT key, value FROM settings")).fetchall()
-        return {r._mapping["key"]: r._mapping["value"] for r in rows}
+        with get_db() as db:
+            rows = db.execute(text("SELECT key, value FROM settings")).fetchall()
+            return {dict(r._mapping)["key"]: dict(r._mapping)["value"] for r in rows}
     except Exception:
         return {}
