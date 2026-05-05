@@ -31,24 +31,24 @@ def global_history():
 
     with get_db() as db:
         where_clauses = ["1=1"]
-        params = []
+        params = {}
 
         if search:
-            where_clauses.append("h.machine_name LIKE ?")
-            params.append(f"%{search}%")
+            where_clauses.append("h.machine_name LIKE :search")
+            params["search"] = f"%{search}%"
 
         if change_type:
-            where_clauses.append("h.change_type = ?")
-            params.append(change_type)
+            where_clauses.append("h.change_type = :change_type")
+            params["change_type"] = change_type
 
         if date_from:
-            where_clauses.append("DATE(h.detected_at) >= ?")
-            params.append(date_from)
+            where_clauses.append("DATE(h.detected_at) >= :date_from")
+            params["date_from"] = date_from
 
         where_sql = " AND ".join(where_clauses)
 
         count_query = f"SELECT COUNT(*) FROM vm_history h WHERE {where_sql}"
-        result = db.execute(text(count_query), tuple(params)).fetchone()
+        result = db.execute(text(count_query), params).fetchone()
         total_count = result[0] if result else 0
         total_pages = max(1, (total_count + per_page - 1) // per_page)
 
@@ -59,12 +59,12 @@ def global_history():
             FROM vm_history h
             WHERE {where_sql}
             ORDER BY h.detected_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT :per_page OFFSET :offset
         """
-        params.append(per_page)
-        params.append(offset)
+        params["per_page"] = per_page
+        params["offset"] = offset
 
-        history_raw = db.execute(text(query), tuple(params)).fetchall()
+        history_raw = db.execute(text(query), params).fetchall()
 
     change_styles = {
         "created": {"color": "success", "icon": "➕ Created"},
@@ -170,10 +170,10 @@ def notification_settings():
                 value = request.form.get(field, "")
                 db.execute(
                     text("""
-                    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                    INSERT INTO settings (key, value, updated_at) VALUES (:key, :value, :now)
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
                 """),
-                    (field, value, now),
+                    {"key": field, "value": value, "now": now},
                 )
             db.commit()
             flash("Notification settings saved.", "success")

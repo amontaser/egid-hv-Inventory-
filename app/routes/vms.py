@@ -78,8 +78,8 @@ def get_cluster_name(cluster_id):
         return None
     with get_db() as db:
         row = db.execute(
-            text("SELECT cluster_name FROM clusters WHERE id = ?"),
-            (cluster_id,),
+            text("SELECT cluster_name FROM clusters WHERE id = :cluster_id"),
+            {"cluster_id": cluster_id},
         ).fetchone()
         d = _row_to_dict(row)
         return d["cluster_name"] if d else None
@@ -118,11 +118,11 @@ def index():
 
     cluster_filter = ""
     cluster_filter_v = ""
-    params = ()
+    params = {}
     if cluster_name:
-        cluster_filter = "WHERE cluster_name = ?"
-        cluster_filter_v = "WHERE v.cluster_name = ?"
-        params = (cluster_name,)
+        cluster_filter = "WHERE cluster_name = :cluster_name"
+        cluster_filter_v = "WHERE v.cluster_name = :cluster_name"
+        params = {"cluster_name": cluster_name}
 
     all_clusters = get_all_clusters()
 
@@ -201,12 +201,14 @@ def vm_details(vm_id):
     with get_db() as db:
         if cluster_name:
             vm = db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cluster_name),
+                text(
+                    "SELECT * FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
+                ),
+                {"vm_id": vm_id, "cluster_name": cluster_name},
             ).fetchone()
         else:
             vm = db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = ?"), (vm_id,)
+                text("SELECT * FROM vm_info WHERE vm_id = :vm_id"), {"vm_id": vm_id}
             ).fetchone()
         if not vm:
             abort(404)
@@ -216,29 +218,35 @@ def vm_details(vm_id):
         disks = [
             _row_to_dict(r)
             for r in db.execute(
-                text("SELECT * FROM vm_disks WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cn),
+                text(
+                    "SELECT * FROM vm_disks WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         networks = [
             _row_to_dict(r)
             for r in db.execute(
                 text(
-                    "SELECT * FROM vm_network_adapters WHERE vm_id = ? AND cluster_name = ?"
+                    "SELECT * FROM vm_network_adapters WHERE vm_id = :vm_id AND cluster_name = :cn"
                 ),
-                (vm_id, cn),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         snapshots = [
             _row_to_dict(r)
             for r in db.execute(
-                text("SELECT * FROM vm_snapshots WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cn),
+                text(
+                    "SELECT * FROM vm_snapshots WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         rep_row = db.execute(
-            text("SELECT * FROM vm_replication WHERE vm_id = ? AND cluster_name = ?"),
-            (vm_id, cn),
+            text(
+                "SELECT * FROM vm_replication WHERE vm_id = :vm_id AND cluster_name = :cn"
+            ),
+            {"vm_id": vm_id, "cn": cn},
         ).fetchone()
         replication = _row_to_dict(rep_row)
 
@@ -247,9 +255,9 @@ def vm_details(vm_id):
                 text("""
                 SELECT c.* FROM clients c
                 JOIN vm_clients vc ON c.id = vc.client_id
-                WHERE vc.vm_id = ? AND vc.cluster_name = ?
+                WHERE vc.vm_id = :vm_id AND vc.cluster_name = :cn
             """),
-                (vm_id, cn),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchone()
         )
 
@@ -259,10 +267,10 @@ def vm_details(vm_id):
                 text("""
                 SELECT id, note_text, created_at, updated_at 
                 FROM vm_notes 
-                WHERE vm_id = ? AND cluster_name = ?
+                WHERE vm_id = :vm_id AND cluster_name = :cn
                 ORDER BY created_at DESC
             """),
-                (vm_id, cn),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
 
@@ -271,11 +279,11 @@ def vm_details(vm_id):
             for r in db.execute(
                 text("""
                 SELECT * FROM vm_history 
-                WHERE vm_id = ?
+                WHERE vm_id = :vm_id
                 ORDER BY detected_at DESC
                 LIMIT 20
             """),
-                (vm_id,),
+                {"vm_id": vm_id},
             ).fetchall()
         ]
 
@@ -326,7 +334,7 @@ def vm_history(vm_id):
     with get_db() as db:
         vm = _row_to_dict(
             db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = ?"), (vm_id,)
+                text("SELECT * FROM vm_info WHERE vm_id = :vm_id"), {"vm_id": vm_id}
             ).fetchone()
         )
         if not vm:
@@ -337,11 +345,11 @@ def vm_history(vm_id):
             for r in db.execute(
                 text("""
                 SELECT * FROM vm_history 
-                WHERE vm_id = ?
+                WHERE vm_id = :vm_id
                 ORDER BY detected_at DESC
                 LIMIT 100
             """),
-                (vm_id,),
+                {"vm_id": vm_id},
             ).fetchall()
         ]
 
@@ -379,14 +387,14 @@ def add_vm_note(vm_id):
         if cluster_name:
             row = db.execute(
                 text(
-                    "SELECT cluster_name FROM vm_info WHERE vm_id = ? AND cluster_name = ?"
+                    "SELECT cluster_name FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
                 ),
-                (vm_id, cluster_name),
+                {"vm_id": vm_id, "cluster_name": cluster_name},
             ).fetchone()
         else:
             row = db.execute(
-                text("SELECT cluster_name FROM vm_info WHERE vm_id = ?"),
-                (vm_id,),
+                text("SELECT cluster_name FROM vm_info WHERE vm_id = :vm_id"),
+                {"vm_id": vm_id},
             ).fetchone()
         if not row:
             return jsonify({"success": False, "error": "VM not found"}), 404
@@ -395,9 +403,9 @@ def add_vm_note(vm_id):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result = db.execute(
             text(
-                "INSERT INTO vm_notes (vm_id, cluster_name, note_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO vm_notes (vm_id, cluster_name, note_text, created_at, updated_at) VALUES (:vm_id, :cn, :note_text, :now, :now)"
             ),
-            (vm_id, cn, note_text, now, now),
+            {"vm_id": vm_id, "cn": cn, "note_text": note_text, "now": now},
         )
         db.commit()
 
@@ -413,16 +421,18 @@ def edit_vm_note(vm_id, note_id):
 
     with get_db() as db:
         note = db.execute(
-            text("SELECT * FROM vm_notes WHERE id = ? AND vm_id = ?"),
-            (note_id, vm_id),
+            text("SELECT * FROM vm_notes WHERE id = :note_id AND vm_id = :vm_id"),
+            {"note_id": note_id, "vm_id": vm_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         db.execute(
-            text("UPDATE vm_notes SET note_text = ?, updated_at = ? WHERE id = ?"),
-            (note_text, now, note_id),
+            text(
+                "UPDATE vm_notes SET note_text = :note_text, updated_at = :now WHERE id = :note_id"
+            ),
+            {"note_text": note_text, "now": now, "note_id": note_id},
         )
         db.commit()
 
@@ -434,13 +444,15 @@ def edit_vm_note(vm_id, note_id):
 def delete_vm_note(vm_id, note_id):
     with get_db() as db:
         note = db.execute(
-            text("SELECT * FROM vm_notes WHERE id = ? AND vm_id = ?"),
-            (note_id, vm_id),
+            text("SELECT * FROM vm_notes WHERE id = :note_id AND vm_id = :vm_id"),
+            {"note_id": note_id, "vm_id": vm_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
-        db.execute(text("DELETE FROM vm_notes WHERE id = ?"), (note_id,))
+        db.execute(
+            text("DELETE FROM vm_notes WHERE id = :note_id"), {"note_id": note_id}
+        )
         db.commit()
 
         return jsonify({"success": True})
@@ -452,9 +464,9 @@ def get_vm_notes(vm_id):
     with get_db() as db:
         notes = db.execute(
             text(
-                "SELECT id, note_text, created_at, updated_at FROM vm_notes WHERE vm_id = ? ORDER BY created_at DESC"
+                "SELECT id, note_text, created_at, updated_at FROM vm_notes WHERE vm_id = :vm_id ORDER BY created_at DESC"
             ),
-            (vm_id,),
+            {"vm_id": vm_id},
         ).fetchall()
 
         return jsonify([_row_to_dict(n) for n in notes])

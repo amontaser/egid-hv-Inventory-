@@ -60,23 +60,23 @@ def list_vms():
         search = request.args.get("search")
 
         query = "SELECT * FROM vm_info WHERE 1=1"
-        params = []
+        params = {}
 
         if host:
-            query += " AND host_name = ?"
-            params.append(host)
+            query += " AND host_name = :host"
+            params["host"] = host
 
         if state:
-            query += " AND state = ?"
-            params.append(state)
+            query += " AND state = :state"
+            params["state"] = state
 
         if search:
-            query += " AND machine_name LIKE ?"
-            params.append(f"%{search}%")
+            query += " AND machine_name LIKE :search"
+            params["search"] = f"%{search}%"
 
         query += " ORDER BY machine_name"
 
-        vms = db.execute(text(query), tuple(params)).fetchall()
+        vms = db.execute(text(query), params).fetchall()
 
         return jsonify({"count": len(vms), "vms": [_row_to_dict(vm) for vm in vms]})
 
@@ -90,12 +90,14 @@ def get_vm(vm_id):
     with get_db() as db:
         if cluster_name:
             vm = db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cluster_name),
+                text(
+                    "SELECT * FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
+                ),
+                {"vm_id": vm_id, "cluster_name": cluster_name},
             ).fetchone()
         else:
             vm = db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = ?"), (vm_id,)
+                text("SELECT * FROM vm_info WHERE vm_id = :vm_id"), {"vm_id": vm_id}
             ).fetchone()
         if not vm:
             return jsonify({"error": "VM not found"}), 404
@@ -105,29 +107,35 @@ def get_vm(vm_id):
         disks = [
             _row_to_dict(r)
             for r in db.execute(
-                text("SELECT * FROM vm_disks WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cn),
+                text(
+                    "SELECT * FROM vm_disks WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         networks = [
             _row_to_dict(r)
             for r in db.execute(
                 text(
-                    "SELECT * FROM vm_network_adapters WHERE vm_id = ? AND cluster_name = ?"
+                    "SELECT * FROM vm_network_adapters WHERE vm_id = :vm_id AND cluster_name = :cn"
                 ),
-                (vm_id, cn),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         snapshots = [
             _row_to_dict(r)
             for r in db.execute(
-                text("SELECT * FROM vm_snapshots WHERE vm_id = ? AND cluster_name = ?"),
-                (vm_id, cn),
+                text(
+                    "SELECT * FROM vm_snapshots WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
             ).fetchall()
         ]
         rep_row = db.execute(
-            text("SELECT * FROM vm_replication WHERE vm_id = ? AND cluster_name = ?"),
-            (vm_id, cn),
+            text(
+                "SELECT * FROM vm_replication WHERE vm_id = :vm_id AND cluster_name = :cn"
+            ),
+            {"vm_id": vm_id, "cn": cn},
         ).fetchone()
         replication = _row_to_dict(rep_row)
 

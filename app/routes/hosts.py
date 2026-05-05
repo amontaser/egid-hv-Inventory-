@@ -75,17 +75,19 @@ def host_list():
 
         if cluster_id:
             cluster_row = db.execute(
-                text("SELECT cluster_name, location FROM clusters WHERE id = ?"),
-                (cluster_id,),
+                text(
+                    "SELECT cluster_name, location FROM clusters WHERE id = :cluster_id"
+                ),
+                {"cluster_id": cluster_id},
             ).fetchone()
             cluster_d = _row_to_dict(cluster_row) if cluster_row else None
             selected_cluster_name = cluster_d["cluster_name"] if cluster_d else None
-            cluster_filter = "WHERE cluster_name = ?"
-            params = (selected_cluster_name,)
+            cluster_filter = "WHERE cluster_name = :cluster_name"
+            params = {"cluster_name": selected_cluster_name}
         else:
             selected_cluster_name = None
             cluster_filter = ""
-            params = ()
+            params = {}
 
         hosts_raw = db.execute(
             text(f"""
@@ -157,15 +159,17 @@ def host_details(host_id):
     """Detailed view for a single host."""
     with get_db() as db:
         row = db.execute(
-            text("SELECT * FROM hyperv_hosts WHERE id = ?"), (host_id,)
+            text("SELECT * FROM hyperv_hosts WHERE id = :host_id"), {"host_id": host_id}
         ).fetchone()
         if not row:
             abort(404)
         host = _row_to_dict(row)
 
         vms_raw = db.execute(
-            text("SELECT * FROM vm_info WHERE host_name = ? ORDER BY machine_name"),
-            (host["host_name"],),
+            text(
+                "SELECT * FROM vm_info WHERE host_name = :host_name ORDER BY machine_name"
+            ),
+            {"host_name": host["host_name"]},
         ).fetchall()
         vms = [_row_to_dict(v) for v in vms_raw]
 

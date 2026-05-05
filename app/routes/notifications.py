@@ -28,18 +28,18 @@ def list_notifications():
         severity_filter = request.args.get("severity")
 
         query = "SELECT * FROM notifications WHERE 1=1"
-        params = []
+        params = {}
 
         if unread_only:
             query += " AND is_read = 0"
 
         if severity_filter:
-            query += " AND severity = ?"
-            params.append(severity_filter)
+            query += " AND severity = :severity"
+            params["severity"] = severity_filter
 
         query += " ORDER BY created_at DESC"
 
-        notifications_raw = db.execute(text(query), tuple(params)).fetchall()
+        notifications_raw = db.execute(text(query), params).fetchall()
         notifications = [_row_to_dict(n) for n in notifications_raw]
 
         unread_count = db.execute(
@@ -70,8 +70,8 @@ def mark_read(notification_id):
     """Mark a specific notification as read."""
     with get_db() as db:
         db.execute(
-            text("UPDATE notifications SET is_read = 1 WHERE id = ?"),
-            (notification_id,),
+            text("UPDATE notifications SET is_read = 1 WHERE id = :notification_id"),
+            {"notification_id": notification_id},
         )
         db.commit()
         flash("Notification marked as read", "success")

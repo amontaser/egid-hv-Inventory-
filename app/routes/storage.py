@@ -79,8 +79,8 @@ def get_cluster_name(cluster_id):
         return None
     with get_db() as db:
         row = db.execute(
-            text("SELECT cluster_name FROM clusters WHERE id = ?"),
-            (cluster_id,),
+            text("SELECT cluster_name FROM clusters WHERE id = :cluster_id"),
+            {"cluster_id": cluster_id},
         ).fetchone()
         d = _row_to_dict(row)
         return d["cluster_name"] if d else None
@@ -110,19 +110,19 @@ def storage_view():
                     COALESCE(SUM(vhd_max_size_gb), 0) as total_vhd_max_gb,
                     COALESCE(SUM(vhd_actual_size_gb), 0) as total_vhd_actual_gb
                 FROM cluster_shared_volumes
-                WHERE cluster_name = ?
+                WHERE cluster_name = :cluster_name
             """),
-                (cluster_name,),
+                {"cluster_name": cluster_name},
             ).fetchone()
 
             storage_raw = db.execute(
                 text("""
                 SELECT *
                 FROM cluster_shared_volumes
-                WHERE cluster_name = ?
+                WHERE cluster_name = :cluster_name
                 ORDER BY name
             """),
-                (cluster_name,),
+                {"cluster_name": cluster_name},
             ).fetchall()
         else:
             totals = db.execute(

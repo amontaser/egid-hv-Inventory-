@@ -61,15 +61,15 @@ def add_client():
         with get_db() as db:
             result = db.execute(
                 text(
-                    "INSERT INTO clients (name, website, country, description, state) VALUES (?, ?, ?, ?, ?)"
+                    "INSERT INTO clients (name, website, country, description, state) VALUES (:name, :website, :country, :description, :state)"
                 ),
-                (
-                    request.form["name"],
-                    request.form.get("website"),
-                    request.form.get("country"),
-                    request.form.get("description"),
-                    int(request.form.get("state", 1)),
-                ),
+                {
+                    "name": request.form["name"],
+                    "website": request.form.get("website"),
+                    "country": request.form.get("country"),
+                    "description": request.form.get("description"),
+                    "state": int(request.form.get("state", 1)),
+                },
             )
             client_id = result.lastrowid
 
@@ -79,9 +79,13 @@ def add_client():
                 for manager_id in manager_ids:
                     db.execute(
                         text(
-                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (?, ?, ?)"
+                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (:client_id, :manager_id, :now)"
                         ),
-                        (client_id, int(manager_id), now),
+                        {
+                            "client_id": client_id,
+                            "manager_id": int(manager_id),
+                            "now": now,
+                        },
                     )
 
             db.commit()
@@ -101,16 +105,16 @@ def client_details(client_id):
     """View client details."""
     with get_db() as db:
         row = db.execute(
-            text("SELECT * FROM clients WHERE id = ?"),
-            (client_id,),
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not row:
             abort(404)
         client = _row_to_dict(row)
 
         contacts_raw = db.execute(
-            text("SELECT * FROM client_contacts WHERE client_id = ?"),
-            (client_id,),
+            text("SELECT * FROM client_contacts WHERE client_id = :client_id"),
+            {"client_id": client_id},
         ).fetchall()
         contacts = [_row_to_dict(c) for c in contacts_raw]
 
@@ -118,9 +122,9 @@ def client_details(client_id):
             text("""
             SELECT v.* FROM vm_info v
             JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
-            WHERE vc.client_id = ?
+            WHERE vc.client_id = :client_id
         """),
-            (client_id,),
+            {"client_id": client_id},
         ).fetchall()
         vms = [_row_to_dict(v) for v in vms_raw]
 
@@ -128,10 +132,10 @@ def client_details(client_id):
             text("""
             SELECT am.* FROM account_managers am
             JOIN client_account_managers cam ON am.id = cam.manager_id
-            WHERE cam.client_id = ? AND am.state = 1
+            WHERE cam.client_id = :client_id AND am.state = 1
             ORDER BY am.name
         """),
-            (client_id,),
+            {"client_id": client_id},
         ).fetchall()
         account_managers = [_row_to_dict(am) for am in account_managers_raw]
 
@@ -139,10 +143,10 @@ def client_details(client_id):
             text("""
             SELECT id, note_text, created_at, updated_at
             FROM client_notes
-            WHERE client_id = ?
+            WHERE client_id = :client_id
             ORDER BY created_at DESC
         """),
-            (client_id,),
+            {"client_id": client_id},
         ).fetchall()
         notes = [_row_to_dict(n) for n in notes_raw]
 
@@ -170,21 +174,23 @@ def edit_client(client_id):
         with get_db() as db:
             db.execute(
                 text(
-                    "UPDATE clients SET name=?, website=?, country=?, description=?, state=? WHERE id=?"
+                    "UPDATE clients SET name=:name, website=:website, country=:country, description=:description, state=:state WHERE id=:client_id"
                 ),
-                (
-                    request.form["name"],
-                    request.form.get("website"),
-                    request.form.get("country"),
-                    request.form.get("description"),
-                    int(request.form.get("state", 1)),
-                    client_id,
-                ),
+                {
+                    "name": request.form["name"],
+                    "website": request.form.get("website"),
+                    "country": request.form.get("country"),
+                    "description": request.form.get("description"),
+                    "state": int(request.form.get("state", 1)),
+                    "client_id": client_id,
+                },
             )
 
             db.execute(
-                text("DELETE FROM client_account_managers WHERE client_id = ?"),
-                (client_id,),
+                text(
+                    "DELETE FROM client_account_managers WHERE client_id = :client_id"
+                ),
+                {"client_id": client_id},
             )
 
             manager_ids = request.form.getlist("account_managers")
@@ -193,9 +199,13 @@ def edit_client(client_id):
                 for manager_id in manager_ids:
                     db.execute(
                         text(
-                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (?, ?, ?)"
+                            "INSERT INTO client_account_managers (client_id, manager_id, assigned_at) VALUES (:client_id, :manager_id, :now)"
                         ),
-                        (client_id, int(manager_id), now),
+                        {
+                            "client_id": client_id,
+                            "manager_id": int(manager_id),
+                            "now": now,
+                        },
                     )
 
             db.commit()
@@ -203,8 +213,8 @@ def edit_client(client_id):
 
     with get_db() as db:
         row = db.execute(
-            text("SELECT * FROM clients WHERE id = ?"),
-            (client_id,),
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not row:
             abort(404)
@@ -216,8 +226,10 @@ def edit_client(client_id):
         managers = [_row_to_dict(m) for m in managers_raw]
 
         assigned_rows = db.execute(
-            text("SELECT manager_id FROM client_account_managers WHERE client_id = ?"),
-            (client_id,),
+            text(
+                "SELECT manager_id FROM client_account_managers WHERE client_id = :client_id"
+            ),
+            {"client_id": client_id},
         ).fetchall()
         assigned_manager_ids = [r[0] for r in assigned_rows]
 
@@ -235,14 +247,16 @@ def delete_client(client_id):
     """Delete a client."""
     with get_db() as db:
         db.execute(
-            text("DELETE FROM vm_clients WHERE client_id = ?"),
-            (client_id,),
+            text("DELETE FROM vm_clients WHERE client_id = :client_id"),
+            {"client_id": client_id},
         )
         db.execute(
-            text("DELETE FROM client_contacts WHERE client_id = ?"),
-            (client_id,),
+            text("DELETE FROM client_contacts WHERE client_id = :client_id"),
+            {"client_id": client_id},
         )
-        db.execute(text("DELETE FROM clients WHERE id = ?"), (client_id,))
+        db.execute(
+            text("DELETE FROM clients WHERE id = :client_id"), {"client_id": client_id}
+        )
         db.commit()
         return redirect("/clients")
 
@@ -253,8 +267,8 @@ def add_client_contact(client_id):
     """Add a contact for a client."""
     with get_db() as db:
         client = db.execute(
-            text("SELECT * FROM clients WHERE id = ?"),
-            (client_id,),
+            text("SELECT * FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             abort(404)
@@ -274,26 +288,26 @@ def add_client_contact(client_id):
         if is_primary_contact:
             db.execute(
                 text(
-                    "UPDATE client_contacts SET is_primary_contact = 0 WHERE client_id = ?"
+                    "UPDATE client_contacts SET is_primary_contact = 0 WHERE client_id = :client_id"
                 ),
-                (client_id,),
+                {"client_id": client_id},
             )
 
         db.execute(
             text("""
             INSERT INTO client_contacts (
                 client_id, name, job_title, email, phone, mobile_phone, is_primary_contact
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (:client_id, :name, :job_title, :email, :phone, :mobile_phone, :is_primary_contact)
         """),
-            (
-                client_id,
-                name,
-                job_title,
-                email,
-                phone,
-                mobile_phone,
-                is_primary_contact,
-            ),
+            {
+                "client_id": client_id,
+                "name": name,
+                "job_title": job_title,
+                "email": email,
+                "phone": phone,
+                "mobile_phone": mobile_phone,
+                "is_primary_contact": is_primary_contact,
+            },
         )
 
         db.commit()
@@ -311,23 +325,25 @@ def assign_vm_client(vm_id):
     with get_db() as db:
         if not cluster_name:
             vm_row = db.execute(
-                text("SELECT cluster_name FROM vm_info WHERE vm_id = ?"),
-                (vm_id,),
+                text("SELECT cluster_name FROM vm_info WHERE vm_id = :vm_id"),
+                {"vm_id": vm_id},
             ).fetchone()
             if vm_row:
                 cluster_name = _row_to_dict(vm_row)["cluster_name"]
 
         db.execute(
-            text("DELETE FROM vm_clients WHERE vm_id = ? AND cluster_name = ?"),
-            (vm_id, cluster_name),
+            text(
+                "DELETE FROM vm_clients WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
+            ),
+            {"vm_id": vm_id, "cluster_name": cluster_name},
         )
 
         if client_id:
             db.execute(
                 text(
-                    "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (?, ?, ?)"
+                    "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (:vm_id, :cluster_name, :client_id)"
                 ),
-                (vm_id, cluster_name, client_id),
+                {"vm_id": vm_id, "cluster_name": cluster_name, "client_id": client_id},
             )
 
         db.commit()
@@ -344,8 +360,8 @@ def add_client_note(client_id):
     note_text = request.form.get("note_text", "").strip()
     with get_db() as db:
         client = db.execute(
-            text("SELECT id FROM clients WHERE id = ?"),
-            (client_id,),
+            text("SELECT id FROM clients WHERE id = :client_id"),
+            {"client_id": client_id},
         ).fetchone()
         if not client:
             return jsonify({"success": False, "error": "Client not found"}), 404
@@ -353,9 +369,9 @@ def add_client_note(client_id):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result = db.execute(
             text(
-                "INSERT INTO client_notes (client_id, note_text, created_at, updated_at) VALUES (?, ?, ?, ?)"
+                "INSERT INTO client_notes (client_id, note_text, created_at, updated_at) VALUES (:client_id, :note_text, :now, :now)"
             ),
-            (client_id, note_text, now, now),
+            {"client_id": client_id, "note_text": note_text, "now": now},
         )
         note_id = result.lastrowid
         db.commit()
@@ -370,16 +386,20 @@ def edit_client_note(client_id, note_id):
     note_text = request.form.get("note_text", "").strip()
     with get_db() as db:
         note = db.execute(
-            text("SELECT * FROM client_notes WHERE id = ? AND client_id = ?"),
-            (note_id, client_id),
+            text(
+                "SELECT * FROM client_notes WHERE id = :note_id AND client_id = :client_id"
+            ),
+            {"note_id": note_id, "client_id": client_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         db.execute(
-            text("UPDATE client_notes SET note_text = ?, updated_at = ? WHERE id = ?"),
-            (note_text, now, note_id),
+            text(
+                "UPDATE client_notes SET note_text = :note_text, updated_at = :now WHERE id = :note_id"
+            ),
+            {"note_text": note_text, "now": now, "note_id": note_id},
         )
         db.commit()
 
@@ -392,13 +412,17 @@ def delete_client_note(client_id, note_id):
     """Delete a client note."""
     with get_db() as db:
         note = db.execute(
-            text("SELECT * FROM client_notes WHERE id = ? AND client_id = ?"),
-            (note_id, client_id),
+            text(
+                "SELECT * FROM client_notes WHERE id = :note_id AND client_id = :client_id"
+            ),
+            {"note_id": note_id, "client_id": client_id},
         ).fetchone()
         if not note:
             return jsonify({"success": False, "error": "Note not found"}), 404
 
-        db.execute(text("DELETE FROM client_notes WHERE id = ?"), (note_id,))
+        db.execute(
+            text("DELETE FROM client_notes WHERE id = :note_id"), {"note_id": note_id}
+        )
         db.commit()
 
         return jsonify({"success": True})
@@ -411,9 +435,9 @@ def get_client_notes(client_id):
     with get_db() as db:
         notes = db.execute(
             text(
-                "SELECT id, note_text, created_at, updated_at FROM client_notes WHERE client_id = ? ORDER BY created_at DESC"
+                "SELECT id, note_text, created_at, updated_at FROM client_notes WHERE client_id = :client_id ORDER BY created_at DESC"
             ),
-            (client_id,),
+            {"client_id": client_id},
         ).fetchall()
 
         return jsonify([_row_to_dict(n) for n in notes])
