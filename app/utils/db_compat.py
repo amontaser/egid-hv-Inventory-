@@ -2,16 +2,21 @@
 
 import os
 
-_USE_POSTGRES = "postgresql" in os.getenv("DATABASE_URL", "sqlite")
+
+def _detect_postgres():
+    url = os.getenv("DATABASE_URL", "")
+    if "postgresql" in url:
+        return True
+    db_path = os.getenv("DATABASE_PATH", "")
+    if db_path and not db_path.startswith("/") and "postgres" in db_path:
+        return True
+    return False
 
 
-def bool_true():
-    """Return SQL for 'is true' check. Works in both SQLite 3.23+ and PostgreSQL."""
-    return "IS TRUE"
+_USE_POSTGRES = _detect_postgres()
 
 
 def str_agg(col, sep=",", distinct=False):
-    """Return the right string aggregation SQL for current database."""
     d = "DISTINCT " if distinct else ""
     if _USE_POSTGRES:
         cast = col if "::text" in col else f"{col}::text"
@@ -20,14 +25,12 @@ def str_agg(col, sep=",", distinct=False):
 
 
 def bool_val(val=True):
-    """Return a boolean literal value for the current database."""
     if _USE_POSTGRES:
         return "TRUE" if val else "FALSE"
     return 1 if val else 0
 
 
 def bool_eq(col, val=True):
-    """Return boolean comparison compatible with both databases."""
     if _USE_POSTGRES:
         return f"{col} IS {'TRUE' if val else 'FALSE'}"
     return f"{col} = {1 if val else 0}"
