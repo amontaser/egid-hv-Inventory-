@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request, redirect
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
+from app.utils.db_compat import bool_eq
 import logging
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,8 @@ def unread_count():
     """Get unread notification count (for AJAX polling)."""
     with get_db() as db:
         count = db.execute(
-            text("SELECT COUNT(*) FROM notifications WHERE is_read = 0")
+            text(
+                f"SELECT COUNT(*) FROM notifications WHERE {bool_eq('is_read', val=False)}"
+            )
         ).fetchone()[0]
         return jsonify({"count": count})

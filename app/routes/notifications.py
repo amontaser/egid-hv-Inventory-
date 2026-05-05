@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, redirect, flash
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
+from app.utils.db_compat import bool_eq, bool_val
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ def list_notifications():
         params = {}
 
         if unread_only:
-            query += " AND is_read = 0"
+            query += f" AND {bool_eq('is_read', val=False)}"
 
         if severity_filter:
             query += " AND severity = :severity"
@@ -43,7 +44,9 @@ def list_notifications():
         notifications = [_row_to_dict(n) for n in notifications_raw]
 
         unread_count = db.execute(
-            text("SELECT COUNT(*) FROM notifications WHERE is_read = 0")
+            text(
+                f"SELECT COUNT(*) FROM notifications WHERE {bool_eq('is_read', val=False)}"
+            )
         ).fetchone()[0]
 
         return render_template(
@@ -58,7 +61,11 @@ def list_notifications():
 def mark_all_read():
     """Mark all notifications as read."""
     with get_db() as db:
-        db.execute(text("UPDATE notifications SET is_read = 1 WHERE is_read = 0"))
+        db.execute(
+            text(
+                f"UPDATE notifications SET is_read = {bool_val()} WHERE {bool_eq('is_read', val=False)}"
+            )
+        )
         db.commit()
         flash("All notifications marked as read", "success")
         return redirect("/notifications")

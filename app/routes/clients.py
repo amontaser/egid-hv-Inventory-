@@ -13,6 +13,7 @@ from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
+from app.utils.db_compat import str_agg, bool_eq
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,11 @@ def client_list():
     """List all clients with their VLANs."""
     with get_db() as db:
         clients_raw = db.execute(
-            text("""
+            text(f"""
             SELECT
                 c.*,
                 (SELECT COUNT(*) FROM vm_clients WHERE client_id = c.id) as vm_count,
-                (SELECT GROUP_CONCAT(vlan_id, ',') FROM (
+                (SELECT {str_agg("vlan_id")} FROM (
                     SELECT DISTINCT na.vlan_id
                     FROM vm_network_adapters na
                     JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
@@ -93,7 +94,9 @@ def add_client():
 
     with get_db() as db:
         managers_raw = db.execute(
-            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
+            text(
+                f"SELECT * FROM account_managers WHERE {bool_eq('state')} ORDER BY name"
+            )
         ).fetchall()
         managers = [_row_to_dict(m) for m in managers_raw]
         return render_template("add_client.html", managers=managers)
@@ -129,10 +132,10 @@ def client_details(client_id):
         vms = [_row_to_dict(v) for v in vms_raw]
 
         account_managers_raw = db.execute(
-            text("""
+            text(f"""
             SELECT am.* FROM account_managers am
             JOIN client_account_managers cam ON am.id = cam.manager_id
-            WHERE cam.client_id = :client_id AND am.state = 1
+            WHERE cam.client_id = :client_id AND {bool_eq("am.state")}
             ORDER BY am.name
         """),
             {"client_id": client_id},
@@ -151,7 +154,9 @@ def client_details(client_id):
         notes = [_row_to_dict(n) for n in notes_raw]
 
         all_managers_raw = db.execute(
-            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
+            text(
+                f"SELECT * FROM account_managers WHERE {bool_eq('state')} ORDER BY name"
+            )
         ).fetchall()
         all_managers = [_row_to_dict(m) for m in all_managers_raw]
 
@@ -221,7 +226,9 @@ def edit_client(client_id):
         client = _row_to_dict(row)
 
         managers_raw = db.execute(
-            text("SELECT * FROM account_managers WHERE state = 1 ORDER BY name")
+            text(
+                f"SELECT * FROM account_managers WHERE {bool_eq('state')} ORDER BY name"
+            )
         ).fetchall()
         managers = [_row_to_dict(m) for m in managers_raw]
 

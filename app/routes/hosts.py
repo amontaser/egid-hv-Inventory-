@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, session, abort, redirect
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
+from app.utils.db_compat import bool_eq
 import logging
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ def host_list():
 
     with get_db() as db:
         clusters_raw = db.execute(
-            text("SELECT * FROM clusters WHERE is_enabled = 1 ORDER BY cluster_name")
+            text(
+                f"SELECT * FROM clusters WHERE {bool_eq('is_enabled')} ORDER BY cluster_name"
+            )
         ).fetchall()
 
         if cluster_id:
