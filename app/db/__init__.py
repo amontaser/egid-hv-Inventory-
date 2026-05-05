@@ -115,7 +115,7 @@ def _seed_defaults():
     try:
         from werkzeug.security import generate_password_hash
 
-        if session.query(User).count() == 0:
+        if session.query(User).filter_by(username="admin").first() is None:
             password = os.getenv("ADMIN_PASSWORD", "admin123")
             admin = User(
                 username="admin",
@@ -126,4 +126,4 @@ def _seed_defaults():
             logger.info("Seeded default admin user")
     except Exception as e:
         session.rollback()
-        logger.warning(f"Could not seed admin user: {e}")
+        logger.debug(f"Admin user already exists: {e}")
