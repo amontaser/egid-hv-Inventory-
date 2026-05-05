@@ -9,7 +9,7 @@ from flask import (
     jsonify,
     make_response,
 )
-from functools import wraps
+from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
@@ -21,46 +21,44 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("storage", __name__)
 
 
-def login_required(f):
-    """Decorator to require authentication."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("logged_in"):
-            if request.is_json:
-                return jsonify({"error": "Authentication required"}), 401
-            return redirect("/login")
-        return f(*args, **kwargs)
-
-    return decorated_function
+def _row_to_dict(row):
+    if row is None:
+        return None
+    try:
+        return dict(row._mapping)
+    except Exception:
+        return dict(row)
 
 
 def get_all_clusters():
     """Get all clusters with statistics."""
     with get_db() as db:
-        return db.execute(
-            text("""
-            SELECT
-                c.id,
-                c.cluster_name,
-                c.location,
-                c.is_enabled,
-                COALESCE(stats.vm_count, 0) as vm_count,
-                COALESCE(stats.running_vms, 0) as running_vms,
-                COALESCE(stats.host_count, 0) as host_count
-            FROM clusters c
-            LEFT JOIN (
+        return [
+            _row_to_dict(r)
+            for r in db.execute(
+                text("""
                 SELECT
-                    cluster_name,
-                    COUNT(*) as vm_count,
-                    SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
-                    COUNT(DISTINCT host_name) as host_count
-                FROM vm_info
-                GROUP BY cluster_name
-            ) stats ON c.cluster_name = stats.cluster_name
-            ORDER BY c.cluster_name
-            """)
-        ).fetchall()
+                    c.id,
+                    c.cluster_name,
+                    c.location,
+                    c.is_enabled,
+                    COALESCE(stats.vm_count, 0) as vm_count,
+                    COALESCE(stats.running_vms, 0) as running_vms,
+                    COALESCE(stats.host_count, 0) as host_count
+                FROM clusters c
+                LEFT JOIN (
+                    SELECT
+                        cluster_name,
+                        COUNT(*) as vm_count,
+                        SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
+                        COUNT(DISTINCT host_name) as host_count
+                    FROM vm_info
+                    GROUP BY cluster_name
+                ) stats ON c.cluster_name = stats.cluster_name
+                ORDER BY c.cluster_name
+                """)
+            ).fetchall()
+        ]
 
 
 def get_selected_cluster():
@@ -80,11 +78,12 @@ def get_cluster_name(cluster_id):
     if not cluster_id:
         return None
     with get_db() as db:
-        cluster = db.execute(
-            text("SELECT cluster_name FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+        row = db.execute(
+            text("SELECT cluster_name FROM clusters WHERE id = ?"),
+            (cluster_id,),
         ).fetchone()
-        return cluster._mapping["cluster_name"] if cluster else None
+        d = _row_to_dict(row)
+        return d["cluster_name"] if d else None
 
 
 @bp.route("/storage")
@@ -98,6 +97,7 @@ def storage_view():
         csv_scan = db.execute(
             text("SELECT * FROM csv_scan_metadata WHERE id = 1")
         ).fetchone()
+        csv_scan = _row_to_dict(csv_scan)
 
         if cluster_name:
             totals = db.execute(
@@ -110,19 +110,19 @@ def storage_view():
                     COALESCE(SUM(vhd_max_size_gb), 0) as total_vhd_max_gb,
                     COALESCE(SUM(vhd_actual_size_gb), 0) as total_vhd_actual_gb
                 FROM cluster_shared_volumes
-                WHERE cluster_name = :cluster_name
+                WHERE cluster_name = ?
             """),
-                {"cluster_name": cluster_name},
+                (cluster_name,),
             ).fetchone()
 
-            storage = db.execute(
+            storage_raw = db.execute(
                 text("""
                 SELECT *
                 FROM cluster_shared_volumes
-                WHERE cluster_name = :cluster_name
+                WHERE cluster_name = ?
                 ORDER BY name
             """),
-                {"cluster_name": cluster_name},
+                (cluster_name,),
             ).fetchall()
         else:
             totals = db.execute(
@@ -138,7 +138,7 @@ def storage_view():
             """)
             ).fetchone()
 
-            storage = db.execute(
+            storage_raw = db.execute(
                 text("""
                 SELECT *
                 FROM cluster_shared_volumes
@@ -146,7 +146,7 @@ def storage_view():
             """)
             ).fetchall()
 
-    totals_dict = dict(totals._mapping)
+    totals_dict = _row_to_dict(totals)
     if totals_dict["total_capacity_gb"] > 0:
         totals_dict["overall_percent_used"] = round(
             (totals_dict["total_used_gb"] / totals_dict["total_capacity_gb"]) * 100, 1
@@ -159,6 +159,7 @@ def storage_view():
         totals_dict["overall_percent_used"] = 0
         totals_dict["overall_oversubscription"] = 0
 
+    storage = [_row_to_dict(s) for s in storage_raw]
     all_clusters = get_all_clusters()
 
     return render_template(
@@ -217,7 +218,7 @@ def trigger_update():
 def export_csv():
     """Export VM data to CSV."""
     with get_db() as db:
-        vms = db.execute(
+        vms_raw = db.execute(
             text("""
             SELECT
                 v.machine_name,
@@ -234,7 +235,7 @@ def export_csv():
                 v.notes,
                 (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
                 (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
-                (SELECT STRING_AGG(ip_addresses, ',') FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
+                (SELECT GROUP_CONCAT(ip_addresses, ',') FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at
@@ -269,27 +270,28 @@ def export_csv():
         ]
     )
 
-    for vm in vms:
+    for vm_row in vms_raw:
+        vm = _row_to_dict(vm_row)
         writer.writerow(
             [
-                vm._mapping["machine_name"],
-                vm._mapping["vm_id"],
-                vm._mapping["host_name"],
-                vm._mapping["cluster_name"],
-                vm._mapping["state"],
-                vm._mapping["cpu_count"],
-                vm._mapping["memory_assigned_gb"],
-                vm._mapping["memory_demand_gb"],
-                "Yes" if vm._mapping["dynamic_memory_enabled"] else "No",
-                vm._mapping["generation"],
-                vm._mapping["version"],
-                vm._mapping["notes"],
-                vm._mapping["total_disk_gb"],
-                vm._mapping["disk_count"],
-                vm._mapping["ip_addresses"],
-                vm._mapping["snapshot_count"],
-                vm._mapping["created_at"],
-                vm._mapping["updated_at"],
+                vm["machine_name"],
+                vm["vm_id"],
+                vm["host_name"],
+                vm["cluster_name"],
+                vm["state"],
+                vm["cpu_count"],
+                vm["memory_assigned_gb"],
+                vm["memory_demand_gb"],
+                "Yes" if vm["dynamic_memory_enabled"] else "No",
+                vm["generation"],
+                vm["version"],
+                vm["notes"],
+                vm["total_disk_gb"],
+                vm["disk_count"],
+                vm["ip_addresses"],
+                vm["snapshot_count"],
+                vm["created_at"],
+                vm["updated_at"],
             ]
         )
 

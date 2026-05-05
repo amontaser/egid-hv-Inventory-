@@ -1,7 +1,7 @@
 """History and settings routes"""
 
-from flask import Blueprint, render_template, request, session, redirect, jsonify
-from functools import wraps
+from flask import Blueprint, render_template, request, redirect, jsonify
+from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
 import logging
@@ -10,18 +10,13 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("settings", __name__)
 
 
-def login_required(f):
-    """Decorator to require authentication."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("logged_in"):
-            if request.is_json:
-                return jsonify({"error": "Authentication required"}), 401
-            return redirect("/login")
-        return f(*args, **kwargs)
-
-    return decorated_function
+def _row_to_dict(row):
+    if row is None:
+        return None
+    try:
+        return dict(row._mapping)
+    except Exception:
+        return dict(row)
 
 
 @bp.route("/history")
@@ -36,24 +31,24 @@ def global_history():
 
     with get_db() as db:
         where_clauses = ["1=1"]
-        params = {}
+        params = []
 
         if search:
-            where_clauses.append("h.machine_name LIKE :search")
-            params["search"] = f"%{search}%"
+            where_clauses.append("h.machine_name LIKE ?")
+            params.append(f"%{search}%")
 
         if change_type:
-            where_clauses.append("h.change_type = :change_type")
-            params["change_type"] = change_type
+            where_clauses.append("h.change_type = ?")
+            params.append(change_type)
 
         if date_from:
-            where_clauses.append("DATE(h.detected_at) >= :date_from")
-            params["date_from"] = date_from
+            where_clauses.append("DATE(h.detected_at) >= ?")
+            params.append(date_from)
 
         where_sql = " AND ".join(where_clauses)
 
         count_query = f"SELECT COUNT(*) FROM vm_history h WHERE {where_sql}"
-        result = db.execute(text(count_query), params).fetchone()
+        result = db.execute(text(count_query), tuple(params)).fetchone()
         total_count = result[0] if result else 0
         total_pages = max(1, (total_count + per_page - 1) // per_page)
 
@@ -64,12 +59,12 @@ def global_history():
             FROM vm_history h
             WHERE {where_sql}
             ORDER BY h.detected_at DESC
-            LIMIT :per_page OFFSET :offset
+            LIMIT ? OFFSET ?
         """
-        params["per_page"] = per_page
-        params["offset"] = offset
+        params.append(per_page)
+        params.append(offset)
 
-        history = db.execute(text(query), params).fetchall()
+        history_raw = db.execute(text(query), tuple(params)).fetchall()
 
     change_styles = {
         "created": {"color": "success", "icon": "➕ Created"},
@@ -83,10 +78,10 @@ def global_history():
     }
 
     history_with_style = []
-    for h in history:
-        h_dict = dict(h._mapping)
+    for h_row in history_raw:
+        h_dict = _row_to_dict(h_row)
         style = change_styles.get(
-            h._mapping["change_type"], {"color": "secondary", "icon": "📝"}
+            h_dict.get("change_type"), {"color": "secondary", "icon": "📝"}
         )
         h_dict.update(style)
         history_with_style.append(h_dict)
@@ -111,7 +106,7 @@ def global_history():
 def settings():
     """Application settings page."""
     with get_db() as db:
-        clusters = db.execute(
+        clusters_raw = db.execute(
             text("""
             SELECT
                 c.*,
@@ -130,8 +125,9 @@ def settings():
             ORDER BY c.cluster_name
         """)
         ).fetchall()
+        clusters = [_row_to_dict(c) for c in clusters_raw]
 
-        account_managers = db.execute(
+        account_managers_raw = db.execute(
             text("""
             SELECT am.*,
                    (SELECT COUNT(*) FROM client_account_managers WHERE manager_id = am.id) as client_count
@@ -139,6 +135,7 @@ def settings():
             ORDER BY am.name
         """)
         ).fetchall()
+        account_managers = [_row_to_dict(am) for am in account_managers_raw]
 
     return render_template(
         "settings.html",
@@ -173,15 +170,15 @@ def notification_settings():
                 value = request.form.get(field, "")
                 db.execute(
                     text("""
-                    INSERT INTO settings (key, value, updated_at) VALUES (:key, :value, :updated_at)
+                    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
                 """),
-                    {"key": field, "value": value, "updated_at": now},
+                    (field, value, now),
                 )
             db.commit()
             flash("Notification settings saved.", "success")
             return redirect("/settings/notifications")
 
         rows = db.execute(text("SELECT key, value FROM settings")).fetchall()
-        settings = {r._mapping["key"]: r._mapping["value"] for r in rows}
+        settings = {_row_to_dict(r)["key"]: _row_to_dict(r)["value"] for r in rows}
         return render_template("notification_settings.html", settings=settings)

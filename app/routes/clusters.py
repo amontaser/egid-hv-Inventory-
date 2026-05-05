@@ -6,13 +6,12 @@ from flask import (
     Blueprint,
     render_template,
     request,
-    session,
     abort,
     redirect,
     flash,
     jsonify,
 )
-from functools import wraps
+from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
 
@@ -20,16 +19,13 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("clusters", __name__)
 
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("logged_in"):
-            if request.is_json:
-                return jsonify({"error": "Authentication required"}), 401
-            return redirect("/login")
-        return f(*args, **kwargs)
-
-    return decorated_function
+def _row_to_dict(row):
+    if row is None:
+        return None
+    try:
+        return dict(row._mapping)
+    except Exception:
+        return dict(row)
 
 
 def _encrypt_password(password: str) -> str:
@@ -56,7 +52,7 @@ def _encrypt_password(password: str) -> str:
 def cluster_list():
     """List all clusters."""
     with get_db() as db:
-        clusters = db.execute(
+        clusters_raw = db.execute(
             text("""
             SELECT
                 c.*,
@@ -72,6 +68,7 @@ def cluster_list():
             ORDER BY c.cluster_name
         """)
         ).fetchall()
+        clusters = [_row_to_dict(c) for c in clusters_raw]
 
     return render_template("clusters.html", clusters=clusters)
 
@@ -110,22 +107,22 @@ def add_cluster():
                         cluster_name, domain, cluster_name_for_ps, domain_name,
                         dns_servers, location, username, password, transport,
                         require_https, is_enabled
-                    ) VALUES (:cluster_name, :domain, :cluster_name_for_ps, :domain_name,
-                              :dns_servers, :location, :username, :password, :transport,
-                              :require_https, :is_enabled)"""),
-                    {
-                        "cluster_name": cluster_name,
-                        "domain": domain,
-                        "cluster_name_for_ps": cluster_name_for_ps,
-                        "domain_name": domain_name,
-                        "dns_servers": dns_servers,
-                        "location": location,
-                        "username": username,
-                        "password": encrypted_password,
-                        "transport": transport,
-                        "require_https": require_https,
-                        "is_enabled": is_enabled,
-                    },
+                    ) VALUES (?, ?, ?, ?,
+                              ?, ?, ?, ?, ?,
+                              ?, ?)"""),
+                    (
+                        cluster_name,
+                        domain,
+                        cluster_name_for_ps,
+                        domain_name,
+                        dns_servers,
+                        location,
+                        username,
+                        encrypted_password,
+                        transport,
+                        require_https,
+                        is_enabled,
+                    ),
                 )
                 flash("Cluster added successfully", "success")
                 return redirect("/settings#clusters")
@@ -141,30 +138,32 @@ def add_cluster():
 def cluster_details(cluster_id):
     """View cluster details."""
     with get_db() as db:
-        cluster = db.execute(
-            text("SELECT * FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+        row = db.execute(
+            text("SELECT * FROM clusters WHERE id = ?"),
+            (cluster_id,),
         ).fetchone()
-        if not cluster:
+        if not row:
             abort(404)
+        cluster = _row_to_dict(row)
+        cn = cluster["cluster_name"]
 
-        vms = db.execute(
-            text(
-                "SELECT * FROM vm_info WHERE cluster_name = :cluster_name ORDER BY machine_name"
-            ),
-            {"cluster_name": cluster._mapping["cluster_name"]},
+        vms_raw = db.execute(
+            text("SELECT * FROM vm_info WHERE cluster_name = ? ORDER BY machine_name"),
+            (cn,),
         ).fetchall()
+        vms = [_row_to_dict(v) for v in vms_raw]
 
-        hosts = db.execute(
+        hosts_raw = db.execute(
             text(
-                "SELECT * FROM hyperv_hosts WHERE cluster_name = :cluster_name ORDER BY host_name"
+                "SELECT * FROM hyperv_hosts WHERE cluster_name = ? ORDER BY host_name"
             ),
-            {"cluster_name": cluster._mapping["cluster_name"]},
+            (cn,),
         ).fetchall()
+        hosts = [_row_to_dict(h) for h in hosts_raw]
 
         stats = {
             "vm_count": len(vms),
-            "running_vms": sum(1 for vm in vms if vm._mapping["state"] == "Running"),
+            "running_vms": sum(1 for vm in vms if vm["state"] == "Running"),
             "host_count": len(hosts),
         }
 
@@ -178,12 +177,13 @@ def cluster_details(cluster_id):
 def edit_cluster(cluster_id):
     """Edit cluster configuration."""
     with get_db() as db:
-        cluster = db.execute(
-            text("SELECT * FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+        row = db.execute(
+            text("SELECT * FROM clusters WHERE id = ?"),
+            (cluster_id,),
         ).fetchone()
-        if not cluster:
+        if not row:
             abort(404)
+        cluster = _row_to_dict(row)
 
     if request.method == "POST":
         cluster_name = request.form.get("cluster_name", "").strip()
@@ -205,45 +205,45 @@ def edit_cluster(cluster_id):
                 if new_password:
                     db.execute(
                         text("""UPDATE clusters SET
-                            cluster_name=:cluster_name, domain=:domain, cluster_name_for_ps=:cluster_name_for_ps, domain_name=:domain_name,
-                            dns_servers=:dns_servers, location=:location, username=:username, password=:password,
-                            transport=:transport, require_https=:require_https, is_enabled=:is_enabled
-                           WHERE id=:id"""),
-                        {
-                            "cluster_name": cluster_name,
-                            "domain": domain,
-                            "cluster_name_for_ps": cluster_name_for_ps,
-                            "domain_name": domain_name,
-                            "dns_servers": dns_servers,
-                            "location": location,
-                            "username": username,
-                            "password": _encrypt_password(new_password),
-                            "transport": transport,
-                            "require_https": require_https,
-                            "is_enabled": is_enabled,
-                            "id": cluster_id,
-                        },
+                            cluster_name=?, domain=?, cluster_name_for_ps=?, domain_name=?,
+                            dns_servers=?, location=?, username=?, password=?,
+                            transport=?, require_https=?, is_enabled=?
+                           WHERE id=?"""),
+                        (
+                            cluster_name,
+                            domain,
+                            cluster_name_for_ps,
+                            domain_name,
+                            dns_servers,
+                            location,
+                            username,
+                            _encrypt_password(new_password),
+                            transport,
+                            require_https,
+                            is_enabled,
+                            cluster_id,
+                        ),
                     )
                 else:
                     db.execute(
                         text("""UPDATE clusters SET
-                            cluster_name=:cluster_name, domain=:domain, cluster_name_for_ps=:cluster_name_for_ps, domain_name=:domain_name,
-                            dns_servers=:dns_servers, location=:location, username=:username,
-                            transport=:transport, require_https=:require_https, is_enabled=:is_enabled
-                           WHERE id=:id"""),
-                        {
-                            "cluster_name": cluster_name,
-                            "domain": domain,
-                            "cluster_name_for_ps": cluster_name_for_ps,
-                            "domain_name": domain_name,
-                            "dns_servers": dns_servers,
-                            "location": location,
-                            "username": username,
-                            "transport": transport,
-                            "require_https": require_https,
-                            "is_enabled": is_enabled,
-                            "id": cluster_id,
-                        },
+                            cluster_name=?, domain=?, cluster_name_for_ps=?, domain_name=?,
+                            dns_servers=?, location=?, username=?,
+                            transport=?, require_https=?, is_enabled=?
+                           WHERE id=?"""),
+                        (
+                            cluster_name,
+                            domain,
+                            cluster_name_for_ps,
+                            domain_name,
+                            dns_servers,
+                            location,
+                            username,
+                            transport,
+                            require_https,
+                            is_enabled,
+                            cluster_id,
+                        ),
                     )
                 flash("Cluster updated successfully", "success")
                 return redirect(f"/cluster/{cluster_id}")
@@ -251,9 +251,7 @@ def edit_cluster(cluster_id):
                 flash(f"Error updating cluster: {str(e)}", "error")
                 logger.error(f"Error updating cluster: {e}")
 
-    return render_template(
-        "cluster_form.html", cluster=dict(cluster._mapping), mode="edit"
-    )
+    return render_template("cluster_form.html", cluster=cluster, mode="edit")
 
 
 @bp.route("/cluster/<int:cluster_id>/delete", methods=["POST"])
@@ -261,16 +259,17 @@ def edit_cluster(cluster_id):
 def delete_cluster(cluster_id):
     """Delete a cluster."""
     with get_db() as db:
-        cluster = db.execute(
-            text("SELECT * FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+        row = db.execute(
+            text("SELECT * FROM clusters WHERE id = ?"),
+            (cluster_id,),
         ).fetchone()
-        if not cluster:
+        if not row:
             abort(404)
+        cluster = _row_to_dict(row)
 
         vm_count = db.execute(
-            text("SELECT COUNT(*) FROM vm_info WHERE cluster_name = :cluster_name"),
-            {"cluster_name": cluster._mapping["cluster_name"]},
+            text("SELECT COUNT(*) FROM vm_info WHERE cluster_name = ?"),
+            (cluster["cluster_name"],),
         ).fetchone()[0]
 
         if vm_count > 0:
@@ -281,8 +280,8 @@ def delete_cluster(cluster_id):
             return redirect("/settings#clusters")
 
         db.execute(
-            text("DELETE FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+            text("DELETE FROM clusters WHERE id = ?"),
+            (cluster_id,),
         )
         flash("Cluster deleted successfully", "success")
 
@@ -300,17 +299,18 @@ def delete_cluster_alt(cluster_id):
 def test_cluster_connection(cluster_id):
     """Test WinRM connection to a Hyper-V cluster."""
     with get_db() as db:
-        cluster = db.execute(
-            text("SELECT * FROM clusters WHERE id = :cluster_id"),
-            {"cluster_id": cluster_id},
+        row = db.execute(
+            text("SELECT * FROM clusters WHERE id = ?"),
+            (cluster_id,),
         ).fetchone()
-        if not cluster:
+        if not row:
             return jsonify({"success": False, "message": "Cluster not found"}), 404
+        cluster = _row_to_dict(row)
 
     try:
         from tasks.hyperv import create_winrm_session, run_powershell
 
-        domain = cluster._mapping["domain"] or cluster._mapping["cluster_name"]
+        domain = cluster["domain"] or cluster["cluster_name"]
         session = create_winrm_session(domain, cluster_id=cluster_id)
         result = run_powershell(
             session,

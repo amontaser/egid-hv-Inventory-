@@ -1,7 +1,7 @@
 """API route blueprints"""
 
-from flask import Blueprint, jsonify, request, session, redirect
-from functools import wraps
+from flask import Blueprint, jsonify, request, redirect
+from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
 import logging
@@ -10,46 +10,44 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("api", __name__)
 
 
-def login_required(f):
-    """Decorator to require authentication."""
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get("logged_in"):
-            if request.is_json:
-                return jsonify({"error": "Authentication required"}), 401
-            return redirect("/login")
-        return f(*args, **kwargs)
-
-    return decorated_function
+def _row_to_dict(row):
+    if row is None:
+        return None
+    try:
+        return dict(row._mapping)
+    except Exception:
+        return dict(row)
 
 
 def get_all_clusters():
     """Get all clusters with statistics."""
     with get_db() as db:
-        return db.execute(
-            text("""
-            SELECT 
-                c.id,
-                c.cluster_name,
-                c.location,
-                c.is_enabled,
-                COALESCE(stats.vm_count, 0) as vm_count,
-                COALESCE(stats.running_vms, 0) as running_vms,
-                COALESCE(stats.host_count, 0) as host_count
-            FROM clusters c
-            LEFT JOIN (
+        return [
+            _row_to_dict(r)
+            for r in db.execute(
+                text("""
                 SELECT 
-                    cluster_name,
-                    COUNT(*) as vm_count,
-                    SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
-                    COUNT(DISTINCT host_name) as host_count
-                FROM vm_info
-                GROUP BY cluster_name
-            ) stats ON c.cluster_name = stats.cluster_name
-            ORDER BY c.cluster_name
-            """)
-        ).fetchall()
+                    c.id,
+                    c.cluster_name,
+                    c.location,
+                    c.is_enabled,
+                    COALESCE(stats.vm_count, 0) as vm_count,
+                    COALESCE(stats.running_vms, 0) as running_vms,
+                    COALESCE(stats.host_count, 0) as host_count
+                FROM clusters c
+                LEFT JOIN (
+                    SELECT 
+                        cluster_name,
+                        COUNT(*) as vm_count,
+                        SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
+                        COUNT(DISTINCT host_name) as host_count
+                    FROM vm_info
+                    GROUP BY cluster_name
+                ) stats ON c.cluster_name = stats.cluster_name
+                ORDER BY c.cluster_name
+                """)
+            ).fetchall()
+        ]
 
 
 @bp.route("/vms")
@@ -62,25 +60,25 @@ def list_vms():
         search = request.args.get("search")
 
         query = "SELECT * FROM vm_info WHERE 1=1"
-        params = {}
+        params = []
 
         if host:
-            query += " AND host_name = :host"
-            params["host"] = host
+            query += " AND host_name = ?"
+            params.append(host)
 
         if state:
-            query += " AND state = :state"
-            params["state"] = state
+            query += " AND state = ?"
+            params.append(state)
 
         if search:
-            query += " AND machine_name LIKE :search"
-            params["search"] = f"%{search}%"
+            query += " AND machine_name LIKE ?"
+            params.append(f"%{search}%")
 
         query += " ORDER BY machine_name"
 
-        vms = db.execute(text(query), params).fetchall()
+        vms = db.execute(text(query), tuple(params)).fetchall()
 
-        return jsonify({"count": len(vms), "vms": [dict(vm._mapping) for vm in vms]})
+        return jsonify({"count": len(vms), "vms": [_row_to_dict(vm) for vm in vms]})
 
 
 @bp.route("/vm/<vm_id>")
@@ -92,49 +90,54 @@ def get_vm(vm_id):
     with get_db() as db:
         if cluster_name:
             vm = db.execute(
-                text(
-                    "SELECT * FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
-                ),
-                {"vm_id": vm_id, "cluster_name": cluster_name},
+                text("SELECT * FROM vm_info WHERE vm_id = ? AND cluster_name = ?"),
+                (vm_id, cluster_name),
             ).fetchone()
         else:
             vm = db.execute(
-                text("SELECT * FROM vm_info WHERE vm_id = :vm_id"), {"vm_id": vm_id}
+                text("SELECT * FROM vm_info WHERE vm_id = ?"), (vm_id,)
             ).fetchone()
         if not vm:
             return jsonify({"error": "VM not found"}), 404
 
-        cn = vm._mapping["cluster_name"]
-        disks = db.execute(
-            text("SELECT * FROM vm_disks WHERE vm_id = :vm_id AND cluster_name = :cn"),
-            {"vm_id": vm_id, "cn": cn},
-        ).fetchall()
-        networks = db.execute(
-            text(
-                "SELECT * FROM vm_network_adapters WHERE vm_id = :vm_id AND cluster_name = :cn"
-            ),
-            {"vm_id": vm_id, "cn": cn},
-        ).fetchall()
-        snapshots = db.execute(
-            text(
-                "SELECT * FROM vm_snapshots WHERE vm_id = :vm_id AND cluster_name = :cn"
-            ),
-            {"vm_id": vm_id, "cn": cn},
-        ).fetchall()
-        replication = db.execute(
-            text(
-                "SELECT * FROM vm_replication WHERE vm_id = :vm_id AND cluster_name = :cn"
-            ),
-            {"vm_id": vm_id, "cn": cn},
+        vm_d = _row_to_dict(vm)
+        cn = vm_d["cluster_name"]
+        disks = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text("SELECT * FROM vm_disks WHERE vm_id = ? AND cluster_name = ?"),
+                (vm_id, cn),
+            ).fetchall()
+        ]
+        networks = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text(
+                    "SELECT * FROM vm_network_adapters WHERE vm_id = ? AND cluster_name = ?"
+                ),
+                (vm_id, cn),
+            ).fetchall()
+        ]
+        snapshots = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text("SELECT * FROM vm_snapshots WHERE vm_id = ? AND cluster_name = ?"),
+                (vm_id, cn),
+            ).fetchall()
+        ]
+        rep_row = db.execute(
+            text("SELECT * FROM vm_replication WHERE vm_id = ? AND cluster_name = ?"),
+            (vm_id, cn),
         ).fetchone()
+        replication = _row_to_dict(rep_row)
 
         return jsonify(
             {
-                "vm": dict(vm._mapping),
-                "disks": [dict(d._mapping) for d in disks],
-                "network_adapters": [dict(n._mapping) for n in networks],
-                "snapshots": [dict(s._mapping) for s in snapshots],
-                "replication": dict(replication._mapping) if replication else None,
+                "vm": vm_d,
+                "disks": disks,
+                "network_adapters": networks,
+                "snapshots": snapshots,
+                "replication": replication,
             }
         )
 
@@ -157,7 +160,7 @@ def get_stats():
         """)
         ).fetchone()
 
-        return jsonify(dict(stats._mapping))
+        return jsonify(_row_to_dict(stats))
 
 
 @bp.route("/clusters")
@@ -165,7 +168,7 @@ def get_stats():
 def list_clusters():
     """API: Get all enabled clusters for dropdown."""
     clusters = get_all_clusters()
-    return jsonify([dict(c._mapping) for c in clusters])
+    return jsonify(clusters)
 
 
 @bp.route("/hosts")
@@ -176,9 +179,7 @@ def list_hosts():
         hosts = db.execute(
             text("SELECT * FROM hyperv_hosts ORDER BY host_name")
         ).fetchall()
-        return jsonify(
-            {"count": len(hosts), "hosts": [dict(h._mapping) for h in hosts]}
-        )
+        return jsonify({"count": len(hosts), "hosts": [_row_to_dict(h) for h in hosts]})
 
 
 @bp.route("/sync/status")
@@ -193,14 +194,9 @@ def sync_status():
         if not sync_info:
             return jsonify({"status": "never_synced"})
 
-        data = dict(sync_info._mapping)
-
-        vm_count = (
-            db.execute(text("SELECT COUNT(*) as cnt FROM vm_info"))
-            .fetchone()
-            ._mapping["cnt"]
-        )
-        data["vms_discovered"] = vm_count
+        data = _row_to_dict(sync_info)
+        vm_row = db.execute(text("SELECT COUNT(*) as cnt FROM vm_info")).fetchone()
+        data["vms_discovered"] = _row_to_dict(vm_row)["cnt"]
 
         return jsonify(data)
 
