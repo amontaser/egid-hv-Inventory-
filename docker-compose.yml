@@ -1,10 +1,9 @@
-version: "2.1"
 services:
   redis:
     image: redis:7-alpine
     container_name: hyperv-redis
     environment:
-      - TZ=Africa/Cairo
+      TZ: Africa/Cairo
     volumes:
       - hyperv-redis-data:/data
     restart: unless-stopped
@@ -17,7 +16,7 @@ services:
     environment:
       POSTGRES_DB: hyperv_inventory
       POSTGRES_USER: hyperv
-      POSTGRES_PASSWORD: hyperv_secret_2024
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       TZ: Africa/Cairo
     volumes:
       - hyperv-pg-data:/var/lib/postgresql/data
@@ -29,14 +28,14 @@ services:
     build: .
     container_name: hyperv-web
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Africa/Cairo
-      - SERVICE=web
-      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
-      - ADMIN_PASSWORD=P@ssw0rd
-      - DATABASE_URL=postgresql://hyperv:hyperv_secret_2024@postgres:5432/hyperv_inventory
-      - REDIS_URL=redis://redis:6379/0
+      PUID: 1000
+      PGID: 1000
+      TZ: Africa/Cairo
+      SERVICE: web
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
     #ports:
@@ -46,20 +45,21 @@ services:
       - postgres
     restart: unless-stopped
     networks:
-      - hyperv-nw
-      - reverseproxy-nw
-
+      hyperv-nw:
+      reverseproxy-nw:
+      hyperv-ipvlan:
+        ipv4_address: 10.2.24.10/24 
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Africa/Cairo
-      - SERVICE=celery-worker
-      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
-      - DATABASE_URL=postgresql://hyperv:hyperv_secret_2024@postgres:5432/hyperv_inventory
-      - REDIS_URL=redis://redis:6379/0
+      PUID: 1000
+      PGID: 1000
+      TZ: Africa/Cairo
+      SERVICE: celery-worker
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
     depends_on:
@@ -73,13 +73,13 @@ services:
     build: .
     container_name: hyperv-celery-beat
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Africa/Cairo
-      - SERVICE=celery-beat
-      - SECRET_KEY=aa89226456d3c321f69edd3392b2ec50794f1ea152612b5e1a42a8f8a23273ed
-      - DATABASE_URL=postgresql://hyperv:hyperv_secret_2024@postgres:5432/hyperv_inventory
-      - REDIS_URL=redis://redis:6379/0
+      PUID: 1000
+      PGID: 1000
+      TZ: Africa/Cairo
+      SERVICE: celery-beat
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
     depends_on:
@@ -100,5 +100,17 @@ volumes:
 networks:
   hyperv-nw:
     driver: bridge
+
   reverseproxy-nw:
     external: true
+
+  hyperv-ipvlan:
+    driver: ipvlan
+    driver_opts:
+      parent: eth2
+      ipvlan_mode: l2
+    ipam:
+      config:
+        - subnet: 10.2.24.0/24
+          gateway: 10.2.24.1
+          ip_range: 10.2.24.10/24
