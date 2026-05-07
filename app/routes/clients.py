@@ -12,6 +12,7 @@ from flask import (
 from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
+from app.utils.sql import group_concat
 from sqlalchemy import text
 import logging
 
@@ -38,13 +39,11 @@ def client_list():
             SELECT
                 c.*,
                 (SELECT COUNT(*) FROM vm_clients WHERE client_id = c.id) as vm_count,
-                (SELECT GROUP_CONCAT(vlan_id, ',') FROM (
-                    SELECT DISTINCT na.vlan_id
-                    FROM vm_network_adapters na
-                    JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
-                    WHERE vc.client_id = c.id AND na.vlan_id IS NOT NULL AND na.vlan_id != 0
-                    ORDER BY na.vlan_id
-                )) as vlans
+                (SELECT {group_concat("vlan_id", separator=",", distinct=True)}
+                 FROM vm_network_adapters na
+                 JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
+                 WHERE vc.client_id = c.id AND na.vlan_id IS NOT NULL AND na.vlan_id != 0
+                ) as vlans
             FROM clients c
             ORDER BY c.name
         """)

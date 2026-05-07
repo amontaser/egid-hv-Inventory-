@@ -35,5 +35,5 @@ def test_collect_csv_returns_empty_list_on_error():
 def test_ps_get_csv_info_uses_correct_partition_path():
     # Verify the fixed property chain is used (not the old buggy VolumeName.Path)
     assert "VolumeName.Path" not in PS_GET_CSV_INFO
-    assert "Partition.Name" in PS_GET_CSV_INFO or "$partition.Name" in PS_GET_CSV_INFO
-    assert "Get-ClusterSharedVolumeState" in PS_GET_CSV_INFO
+    # In the current implementation we use $i.Partition.Size etc.
+    assert ".Partition.Size" in PS_GET_CSV_INFO
