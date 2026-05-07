@@ -12,6 +12,7 @@ from flask import (
 from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
+from app.utils.sql import group_concat
 from sqlalchemy import text
 import csv
 from io import StringIO
@@ -235,7 +236,7 @@ def export_csv():
                 v.notes,
                 (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
                 (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
-                (SELECT GROUP_CONCAT(ip_addresses, ',') FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
+                (SELECT {group_concat("ip_addresses", separator=",")} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at

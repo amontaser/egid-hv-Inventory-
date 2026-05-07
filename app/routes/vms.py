@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, session, abort, redirect,
 from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
+from app.utils.sql import group_concat
 from sqlalchemy import text
 import logging
 
@@ -149,8 +150,8 @@ def index():
                 (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
                 (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
-                (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
-                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
+                (SELECT {group_concat("ip_addresses")} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
+                (SELECT {group_concat("vlan_id", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
                 h.host_name as host_node_name,
                 c.id as client_id,
                 c.name as client_name
