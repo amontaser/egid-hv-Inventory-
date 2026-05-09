@@ -32,34 +32,67 @@
     <!-- Cluster Statistics -->
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card" style="border-left: 4px solid #0d6efd;">
                 <div class="card-body">
-                    <h6 class="opacity-75">Total VMs</h6>
-                    <h2>{{ stats.vm_count or 0 }}</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(13,110,253,.12);">
+                            <i class="bi bi-hdd-stack" style="color:#0d6efd;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total VMs</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ stats.vm_count or 0 }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card" style="border-left: 4px solid #198754;">
                 <div class="card-body">
-                    <h6 class="opacity-75">Running VMs</h6>
-                    <h2>{{ stats.running_vms or 0 }}</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(25,135,84,.12);">
+                            <i class="bi bi-play-circle" style="color:#198754;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Running VMs</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ stats.running_vms or 0 }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card" style="border-left: 4px solid #0dcaf0;">
                 <div class="card-body">
-                    <h6 class="opacity-75">Hosts</h6>
-                    <h2>{{ stats.host_count or 0 }}</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(13,202,240,.12);">
+                            <i class="bi bi-hdd-rack" style="color:#0dcaf0;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Hosts</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ stats.host_count or 0 }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning">
+            <div class="card" style="border-left: 4px solid {{ '#198754' if cluster.is_enabled else '#6c757d' }};">
                 <div class="card-body">
-                    <h6 class="opacity-75">Status</h6>
-                    <h4>{{ 'Enabled' if cluster.is_enabled else 'Disabled' }}</h4>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:{{ 'rgba(25,135,84,.12)' if cluster.is_enabled else 'rgba(108,117,125,.12)' }};">
+                            <i class="bi bi-{{ 'check-circle' if cluster.is_enabled else 'dash-circle' }}"
+                               style="color:{{ '#198754' if cluster.is_enabled else '#6c757d' }};font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Status</div>
+                            <div style="font-size:1.3rem;font-weight:700;line-height:1.2;">{{ 'Enabled' if cluster.is_enabled else 'Disabled' }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

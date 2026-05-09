@@ -49,51 +49,99 @@
     <!-- Summary Cards -->
     <div class="row g-3 mb-4">
         <div class="col-md-2">
-            <div class="card bg-primary text-white h-100">
+            <div class="card h-100" style="border-left: 4px solid #0d6efd;">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Volumes</h6>
-                    <h2 class="card-title mb-0">{{ totals.volume_count }}</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(13,110,253,.12);">
+                            <i class="bi bi-device-hdd" style="color:#0d6efd;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Volumes</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;">{{ totals.volume_count }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card bg-info text-white h-100">
+            <div class="card h-100" style="border-left: 4px solid #0dcaf0;">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Total Capacity</h6>
-                    <h2 class="card-title mb-0">{{ "%.1f"|format(totals.total_capacity_gb / 1024) }} TB</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(13,202,240,.12);">
+                            <i class="bi bi-database" style="color:#0dcaf0;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total Capacity</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;">{{ "%.1f"|format(totals.total_capacity_gb / 1024) }} TB</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card bg-warning text-dark h-100">
+            <div class="card h-100" style="border-left: 4px solid #ffc107;">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Used Space</h6>
-                    <h2 class="card-title mb-0">{{ totals.overall_percent_used }}%</h2>
-                    <small>{{ "%.1f"|format(totals.total_used_gb / 1024) }} TB</small>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(255,193,7,.12);">
+                            <i class="bi bi-hdd-fill" style="color:#ffc107;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Used Space</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;">{{ totals.overall_percent_used }}%</div>
+                            <div class="text-muted" style="font-size:.75rem;">{{ "%.1f"|format(totals.total_used_gb / 1024) }} TB</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card bg-success text-white h-100">
+            <div class="card h-100" style="border-left: 4px solid #198754;">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Free Space</h6>
-                    <h2 class="card-title mb-0">{{ "%.1f"|format(totals.total_free_gb / 1024) }} TB</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(25,135,84,.12);">
+                            <i class="bi bi-check-circle" style="color:#198754;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Free Space</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;">{{ "%.1f"|format(totals.total_free_gb / 1024) }} TB</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card bg-secondary text-white h-100">
+            <div class="card h-100" style="border-left: 4px solid #6c757d;">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">VHD Provisioned</h6>
-                    <h2 class="card-title mb-0">{{ "%.1f"|format(totals.total_vhd_max_gb / 1024) }} TB</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(108,117,125,.12);">
+                            <i class="bi bi-files" style="color:#6c757d;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VHD Provisioned</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;">{{ "%.1f"|format(totals.total_vhd_max_gb / 1024) }} TB</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
-            <div class="card {{ 'bg-danger' if totals.overall_oversubscription > 100 else 'bg-dark' }} text-white h-100">
+            <div class="card h-100" style="border-left: 4px solid {{ '#dc3545' if totals.overall_oversubscription > 100 else '#6f42c1' }};">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 opacity-75">Oversubscription</h6>
-                    <h2 class="card-title mb-0">{{ totals.overall_oversubscription }}%</h2>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:{{ 'rgba(220,53,69,.12)' if totals.overall_oversubscription > 100 else 'rgba(111,66,193,.12)' }};">
+                            <i class="bi bi-exclamation-triangle" style="color:{{ '#dc3545' if totals.overall_oversubscription > 100 else '#6f42c1' }};font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Oversubscription</div>
+                            <div style="font-size:1.4rem;font-weight:700;line-height:1.2;color:{{ '#dc3545' if totals.overall_oversubscription > 100 else 'inherit' }};">{{ totals.overall_oversubscription }}%</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
