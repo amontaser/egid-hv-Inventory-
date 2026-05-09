@@ -5,7 +5,7 @@ import sys
 from dotenv import load_dotenv
 
 # Add to Python path
-sys.path.insert(0, '/opt/hyperv_inventory')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Load environment variables
 load_dotenv()

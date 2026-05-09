@@ -12,8 +12,8 @@ def configure_db(app):
     """Configure Flask-SQLAlchemy on the Flask app."""
     from app.models import db
 
-    db_path = os.getenv("DATABASE_PATH", "/opt/hyperv_inventory/database.db")
-    database_url = os.getenv("DATABASE_URL", f"sqlite:///{db_path}")
+    db_path = os.getenv("DATABASE_PATH", "/home/runner/workspace/data/hyperv_inventory.db")
+    database_url = os.getenv("APP_DATABASE_URL", os.getenv("DATABASE_URL", f"sqlite:///{db_path}"))
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     db.init_app(app)

@@ -1,7 +1,8 @@
 """WSGI entry point for production deployment with Gunicorn"""
 
 import sys
-sys.path.insert(0, '/opt/hyperv_inventory')
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 

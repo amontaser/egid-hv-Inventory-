@@ -1,0 +1,47 @@
+modules = ["web", "python-3.12", "bash"]
+[agent]
+expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+SECRET_KEY = "d0753a82b4df3fec52fc8eebab0cb4d8afba1fb101590c7341cddf1508b56104"
+ADMIN_PASSWORD = "admin123"
+APP_DATABASE_URL = "sqlite:////home/runner/workspace/data/hyperv_inventory.db"
+DEBUG = "false"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gunicorn --config gunicorn.conf.py wsgi:app"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["gunicorn", "--config", "gunicorn.conf.py", "wsgi:app"]
