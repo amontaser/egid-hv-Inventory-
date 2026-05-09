@@ -193,6 +193,14 @@ def index():
     )
 
 
+@bp.route("/vms")
+@login_required
+def vms_list():
+    """Dedicated Virtual Machines page — reuses the dashboard index template."""
+    from flask import redirect, url_for
+    return redirect(url_for("vms.index"))
+
+
 @bp.route("/vm/<vm_id>")
 @login_required
 def vm_details(vm_id):

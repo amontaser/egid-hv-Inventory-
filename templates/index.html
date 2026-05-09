@@ -108,12 +108,90 @@
         </div>
     </div>
     <div class="row g-3 mb-4">
-        <div class="col-md-2"><div class="card bg-primary text-white"><div class="card-body"><h6 class="opacity-75">Total VMs</h6><h2>{{ stats.total_vms or 0 }}</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-success text-white"><div class="card-body"><h6 class="opacity-75">Running</h6><h2>{{ stats.running_vms or 0 }}</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-secondary text-white"><div class="card-body"><h6 class="opacity-75">Stopped</h6><h2>{{ stats.stopped_vms or 0 }}</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-info text-white"><div class="card-body"><h6 class="opacity-75">vCPUs</h6><h2>{{ stats.total_vcpus or 0 }}</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-warning"><div class="card-body"><h6 class="opacity-75">Memory</h6><h2>{{ stats.total_memory_gb or 0 }}GB</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-dark text-white"><div class="card-body"><h6 class="opacity-75">Hosts</h6><h2>{{ stats.host_count or 0 }}</h2></div></div></div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #0d6efd;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(13,110,253,0.1);">
+                        <i class="bi bi-cpu fs-5 text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total VMs</div>
+                        <div class="fw-bold fs-4 lh-1">{{ stats.total_vms or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #198754;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(25,135,84,0.1);">
+                        <i class="bi bi-play-circle fs-5 text-success"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Running</div>
+                        <div class="fw-bold fs-4 lh-1 text-success">{{ stats.running_vms or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #6c757d;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(108,117,125,0.1);">
+                        <i class="bi bi-stop-circle fs-5 text-secondary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Stopped</div>
+                        <div class="fw-bold fs-4 lh-1">{{ stats.stopped_vms or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #0dcaf0;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(13,202,240,0.1);">
+                        <i class="bi bi-diagram-3 fs-5 text-info"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">vCPUs</div>
+                        <div class="fw-bold fs-4 lh-1">{{ stats.total_vcpus or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #ffc107;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(255,193,7,0.1);">
+                        <i class="bi bi-memory fs-5 text-warning"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Memory</div>
+                        <div class="fw-bold fs-4 lh-1">{{ stats.total_memory_gb or 0 }}<span class="fs-6">GB</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100" style="border-left: 4px solid #495057;">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                         style="width:44px;height:44px;background:rgba(73,80,87,0.1);">
+                        <i class="bi bi-hdd-rack fs-5" style="color:#495057;"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Hosts</div>
+                        <div class="fw-bold fs-4 lh-1">{{ stats.host_count or 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if clusters %}
@@ -287,17 +365,52 @@
                           {% endif %}
                        </td>
                       <td>{{ vm.total_disk_gb or '-' }}GB</td>
-                      <td>{% if vm.snapshot_count %}<span class="badge bg-warning">{{ vm.snapshot_count }}</span>{% else %}-{% endif %}</td>
+                      <td>
+                          {% if vm.snapshot_count %}
+                              {% if vm.snapshot_count >= 10 %}
+                                  <span class="badge bg-danger" title="{{ vm.snapshot_count }} snapshots — high count">{{ vm.snapshot_count }}</span>
+                              {% elif vm.snapshot_count >= 3 %}
+                                  <span class="badge bg-warning text-dark" title="{{ vm.snapshot_count }} snapshots">{{ vm.snapshot_count }}</span>
+                              {% else %}
+                                  <span class="badge bg-secondary" title="{{ vm.snapshot_count }} snapshot(s)">{{ vm.snapshot_count }}</span>
+                              {% endif %}
+                          {% else %}-{% endif %}
+                      </td>
                   </tr>
                   {% endfor %}
                   </tbody>
             </table>
-        </div>
-        <div class="card-footer text-muted small">
-            <span id="vmCount">{{ vms|length }}</span> VMs displayed
-            {% if vms|length != stats.total_vms %}
-            (filtered from {{ stats.total_vms }} total)
+            <!-- Empty State -->
+            <div id="vmEmptyState" class="d-none py-5 text-center">
+                <i class="bi bi-search text-muted" style="font-size:2.5rem;"></i>
+                <h6 class="text-muted mt-3 mb-1">No VMs match your filters</h6>
+                <p class="text-muted small mb-3">Try adjusting your search or filter criteria.</p>
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearAllFilters()">
+                    <i class="bi bi-x-circle me-1"></i>Clear Filters
+                </button>
+            </div>
+            <!-- No VMs at all state -->
+            {% if not vms %}
+            <div class="py-5 text-center">
+                <i class="bi bi-cpu text-muted" style="font-size:2.5rem;"></i>
+                <h6 class="text-muted mt-3 mb-1">No Virtual Machines Found</h6>
+                <p class="text-muted small mb-3">Run a sync to discover VMs from your Hyper-V clusters.</p>
+                <form action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
+                    </button>
+                </form>
+            </div>
             {% endif %}
+        </div>
+        <div class="card-footer d-flex align-items-center justify-content-between">
+            <small class="text-muted">
+                Showing <span id="vmPageStart">1</span>–<span id="vmPageEnd">25</span> of <span id="vmCount">{{ vms|length }}</span> VMs
+                {% if vms|length != stats.total_vms %} (filtered from {{ stats.total_vms }} total){% endif %}
+            </small>
+            <nav id="vmPagination" aria-label="VM pagination">
+                <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+            </nav>
         </div>
     </div>
  </div>
@@ -379,6 +492,19 @@ function clearSearch() {
     searchInput.focus();
 }
 
+// Pagination state
+const PAGE_SIZE = 25;
+let currentPage = 1;
+let filteredRows = [];
+
+function clearAllFilters() {
+    searchInput.value = '';
+    stateFilter.value = '';
+    const cf = document.getElementById('clusterFilter');
+    if (cf) cf.value = '';
+    filterAndDisplayVMs();
+}
+
 // Filter and display VMs
 function filterAndDisplayVMs() {
     const search = parseSearchTerm(searchInput.value);
@@ -388,10 +514,11 @@ function filterAndDisplayVMs() {
     // Update badge
     updateSearchBadge(search);
 
-    const rows = vmTableBody.querySelectorAll('.vm-row');
-    let visibleCount = 0;
+    const rows = Array.from(vmTableBody.querySelectorAll('.vm-row'));
+    filteredRows = [];
 
     rows.forEach(row => {
+        row.style.display = 'none';
         const name = row.dataset.name || '';
         const state = row.dataset.state || '';
         const host = row.dataset.host || '';
@@ -400,26 +527,19 @@ function filterAndDisplayVMs() {
         const ips = (row.dataset.ips || '').toLowerCase();
 
         let matchesSearch = false;
-
         switch(search.type) {
             case 'vlan':
-                // Exact match in VLAN list
                 matchesSearch = vlans.split(',').includes(search.value);
                 break;
-
             case 'ip':
-                // Partial match in IP addresses
                 matchesSearch = ips.includes(search.value);
                 break;
-
             case 'general':
-                // Search name, host, state
                 matchesSearch = !search.value ||
                     name.includes(search.value) ||
                     host.includes(search.value) ||
                     state.toLowerCase().includes(search.value);
                 break;
-
             default:
                 matchesSearch = true;
         }
@@ -428,14 +548,93 @@ function filterAndDisplayVMs() {
         const matchesCluster = !clusterValue || cluster === clusterValue;
 
         if (matchesSearch && matchesState && matchesCluster) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
+            filteredRows.push(row);
         }
     });
 
-    vmCountSpan.textContent = visibleCount;
+    currentPage = 1;
+    renderPage();
+}
+
+function renderPage() {
+    const total = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, total);
+
+    // Hide all, show page slice
+    const allRows = vmTableBody.querySelectorAll('.vm-row');
+    allRows.forEach(r => r.style.display = 'none');
+    filteredRows.forEach((r, i) => {
+        r.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+
+    // Update footer counts
+    const vmCountSpan = document.getElementById('vmCount');
+    const vmPageStart = document.getElementById('vmPageStart');
+    const vmPageEnd = document.getElementById('vmPageEnd');
+    if (vmCountSpan) vmCountSpan.textContent = total;
+    if (vmPageStart) vmPageStart.textContent = total === 0 ? 0 : start + 1;
+    if (vmPageEnd) vmPageEnd.textContent = end;
+
+    // Empty state
+    const emptyState = document.getElementById('vmEmptyState');
+    if (emptyState) {
+        emptyState.classList.toggle('d-none', total > 0 || document.querySelectorAll('.vm-row').length === 0);
+    }
+
+    // Pagination controls
+    buildPagination(totalPages);
+}
+
+function buildPagination(totalPages) {
+    const ul = document.getElementById('paginationControls');
+    if (!ul) return;
+    ul.innerHTML = '';
+
+    if (totalPages <= 1) return;
+
+    const mkLi = (label, page, disabled, active) => {
+        const li = document.createElement('li');
+        li.className = `page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}`;
+        const a = document.createElement('a');
+        a.className = 'page-link';
+        a.href = '#';
+        a.innerHTML = label;
+        if (!disabled && !active) {
+            a.addEventListener('click', e => { e.preventDefault(); currentPage = page; renderPage(); });
+        }
+        li.appendChild(a);
+        return li;
+    };
+
+    ul.appendChild(mkLi('<i class="bi bi-chevron-left"></i>', currentPage - 1, currentPage === 1, false));
+
+    let pages = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages = [1];
+        if (currentPage > 3) pages.push('...');
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+        if (currentPage < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+    }
+
+    pages.forEach(p => {
+        if (p === '...') {
+            const li = document.createElement('li');
+            li.className = 'page-item disabled';
+            li.innerHTML = '<span class="page-link">…</span>';
+            ul.appendChild(li);
+        } else {
+            ul.appendChild(mkLi(p, p, false, p === currentPage));
+        }
+    });
+
+    ul.appendChild(mkLi('<i class="bi bi-chevron-right"></i>', currentPage + 1, currentPage === totalPages, false));
 }
 
 // Sort VMs
@@ -488,6 +687,8 @@ function sortVMs(column, direction) {
     });
 
     rows.forEach(row => vmTableBody.appendChild(row));
+    // Re-run filter to rebuild filteredRows in sorted order, then re-render page
+    filterAndDisplayVMs();
 }
 
 // Handle column header clicks
@@ -497,7 +698,6 @@ document.querySelectorAll('.sortable').forEach(header => {
         const column = header.dataset.sort;
         const icon = header.querySelector('.sort-icon');
 
-        // Toggle direction if clicking same column, otherwise reset to asc
         if (currentSort.column === column) {
             currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
         } else {
@@ -505,14 +705,11 @@ document.querySelectorAll('.sortable').forEach(header => {
             currentSort.direction = 'asc';
         }
 
-        // Update icons
         document.querySelectorAll('.sort-icon').forEach(i => {
             i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-1';
         });
-
         icon.className = `bi bi-arrow-${currentSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
 
-        // Sort the rows
         sortVMs(column, currentSort.direction);
     });
 });
@@ -531,6 +728,11 @@ searchInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         clearSearch();
     }
+});
+
+// Initial render on page load
+document.addEventListener('DOMContentLoaded', () => {
+    filterAndDisplayVMs();
 });
 
 // Sync status monitoring
