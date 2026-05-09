@@ -30,11 +30,15 @@ def get_db_connection():
 def get_db():
     """Context manager yielding db.session. Commits on success, rolls back on error."""
     from app.models import db
+    from werkzeug.exceptions import HTTPException
 
     session = db.session
     try:
         yield session
         session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
     except Exception as e:
         session.rollback()
         logger.error(f"Database error: {e}")
