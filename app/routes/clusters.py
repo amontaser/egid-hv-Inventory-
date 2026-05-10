@@ -30,19 +30,12 @@ def _row_to_dict(row):
 
 
 def _encrypt_password(password: str) -> str:
-    """Encrypt a password using Fernet. Key from ENCRYPTION_KEY env var or key file."""
+    """Encrypt a password using Fernet. Key from ENCRYPTION_KEY env var."""
     from cryptography.fernet import Fernet
 
     key = os.getenv("ENCRYPTION_KEY", "")
-    key_file = "/opt/hyperv_inventory/encryption_key.key"
-    if not key and os.path.exists(key_file):
-        with open(key_file, "rb") as f:
-            key = f.read().decode()
     if not key:
-        key = Fernet.generate_key().decode()
-        with open(key_file, "wb") as f:
-            f.write(key.encode())
-        logger.info("Generated new encryption key")
+        raise ValueError("ENCRYPTION_KEY env var is not set. Cannot encrypt password.")
 
     fernet = Fernet(key.encode() if isinstance(key, str) else key)
     return fernet.encrypt(password.encode()).decode()

@@ -34,11 +34,11 @@ services:
       SERVICE: web
       SECRET_KEY: ${SECRET_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
       REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
-      - ./encryption_key.key:/opt/hyperv_inventory/encryption_key.key:ro
     depends_on:
       - redis
       - postgres
@@ -58,11 +58,11 @@ services:
       TZ: Africa/Cairo
       SERVICE: celery-worker
       SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
       REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
-      - ./encryption_key.key:/opt/hyperv_inventory/encryption_key.key:ro
     depends_on:
       - web
     restart: unless-stopped

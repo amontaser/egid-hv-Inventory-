@@ -91,11 +91,8 @@ def _decrypt_password(encrypted_pw: str) -> Optional[str]:
         from cryptography.fernet import Fernet
 
         key = os.getenv("ENCRYPTION_KEY", "")
-        key_file = "/opt/hyperv_inventory/encryption_key.key"
-        if not key and os.path.exists(key_file):
-            with open(key_file, "rb") as f:
-                key = f.read().decode().strip()
         if not key:
+            logger.error("ENCRYPTION_KEY env var is not set. Cannot decrypt password.")
             return None
         f = Fernet(key.encode() if isinstance(key, str) else key)
         return f.decrypt(encrypted_pw.encode()).decode()
