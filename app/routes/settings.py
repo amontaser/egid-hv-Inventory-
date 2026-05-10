@@ -144,6 +144,65 @@ def settings():
     )
 
 
+@bp.route("/settings/schedule", methods=["POST"])
+@login_required
+def save_schedule():
+    """Save sync schedule settings."""
+    from datetime import datetime
+
+    fields = [
+        "sync_enabled",
+        "sync_schedule_type",
+        "sync_hour",
+        "sync_minute",
+        "sync_cron_expression",
+    ]
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db() as db:
+        for field in fields:
+            value = request.form.get(field, "")
+            db.execute(
+                text("""
+                INSERT INTO settings (key, value, updated_at) VALUES (:key, :value, :now)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """),
+                {"key": field, "value": value, "now": now},
+            )
+        db.commit()
+    return jsonify({"success": True})
+
+
+@bp.route("/api/schedule/status")
+@login_required
+def schedule_status():
+    """Return current sync status and schedule settings."""
+    with get_db() as db:
+        sync_row = db.execute(
+            text("SELECT * FROM sync_metadata WHERE id = 1")
+        ).fetchone()
+        sync_meta = _row_to_dict(sync_row) if sync_row else {}
+
+        setting_rows = db.execute(
+            text("SELECT key, value FROM settings WHERE key LIKE 'sync_%'")
+        ).fetchall()
+        schedule = {_row_to_dict(r)["key"]: _row_to_dict(r)["value"] for r in setting_rows}
+
+    return jsonify({"sync": sync_meta, "schedule": schedule})
+
+
+@bp.route("/api/schedule/trigger", methods=["POST"])
+@login_required
+def trigger_sync_now():
+    """Trigger an immediate sync."""
+    try:
+        from celeryconfig import celery as celery_app
+        task = celery_app.send_task("tasks.sync.fetch_hyperv_data")
+        return jsonify({"success": True, "task_id": task.id})
+    except Exception as e:
+        logger.error("Failed to trigger sync: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bp.route("/settings/notifications", methods=["GET", "POST"])
 @login_required
 def notification_settings():
