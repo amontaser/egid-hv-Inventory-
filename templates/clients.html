@@ -2,52 +2,81 @@
 {% block title %}Clients{% endblock %}
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="mb-4">
-        <div class="row align-items-end mb-3">
-            <div class="col">
-                <h1 class="h2 mb-1"><i class="bi bi-building me-2 text-primary"></i>Clients Management</h1>
-                <small class="text-muted">Manage clients and their infrastructure assignments</small>
-            </div>
-            <div class="col-auto">
-                <a href="/client/add" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Add New Client</a>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1"><i class="bi bi-building me-2 text-primary"></i>Clients Management</h1>
+            <small class="text-muted">Manage clients and their infrastructure assignments</small>
+        </div>
+        <a href="/client/add" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Add New Client
+        </a>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card" style="border-left: 4px solid #0d6efd;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(13,110,253,.12);">
+                            <i class="bi bi-building" style="color:#0d6efd;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total Clients</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ clients|length }}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="row g-3">
-            <div class="col-md-4">
-                <div class="card border-0 bg-light">
-                    <div class="card-body py-2">
-                        <small class="text-muted d-block">Total Clients</small>
-                        <span id="totalClients">{{ clients|length }}</span>
+        <div class="col-md-4">
+            <div class="card" style="border-left: 4px solid #198754;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(25,135,84,.12);">
+                            <i class="bi bi-check-circle" style="color:#198754;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Active Clients</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ clients|selectattr('state', 'equalto', 1)|list|length }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card border-0 bg-light">
-                    <div class="card-body py-2">
-                        <small class="text-muted d-block">Active Clients</small>
-                        <span id="activeClients">{{ clients|selectattr('state', 'equalto', 1)|list|length }}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card border-0 bg-light">
-                    <div class="card-body py-2">
-                        <small class="text-muted d-block">Total VMs Assigned</small>
-                        <span id="totalVMs">{{ clients|map(attribute='vm_count')|sum }}</span>
+        </div>
+        <div class="col-md-4">
+            <div class="card" style="border-left: 4px solid #6f42c1;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:48px;height:48px;background:rgba(111,66,193,.12);">
+                            <i class="bi bi-cpu" style="color:#6f42c1;font-size:1.2rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total VMs Assigned</div>
+                            <div style="font-size:1.6rem;font-weight:700;line-height:1.2;">{{ clients|map(attribute='vm_count')|sum }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card border-0 mb-4 shadow-sm">
+    <!-- Search & Filter -->
+    <div class="card mb-4">
         <div class="card-body py-2">
             <div class="row g-2">
                 <div class="col-md-8">
                     <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" id="clientSearch" class="form-control border-start-0" placeholder="Search clients by name, website..." autocomplete="off">
+                        <span class="input-group-text bg-transparent border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" id="clientSearch" class="form-control border-start-0"
+                               placeholder="Search clients by name, website..." autocomplete="off">
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -61,23 +90,34 @@
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm">
+    <!-- Clients Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-building me-2"></i>Clients
+                <span class="badge bg-primary ms-2">{{ clients|length }}</span>
+            </h5>
+            <small class="text-muted">
+                <span id="clientCount">{{ clients|length }}</span> of {{ clients|length }} displayed
+            </small>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
-                <thead class="table-light">
+                <thead>
                     <tr>
-                        <th class="sortable ps-4" data-sort="name" style="cursor: pointer;">
-                            <i class="bi bi-building me-2"></i>Client Name
-                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
+                        <th class="sortable ps-4" data-sort="name">
+                            Client Name
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.8em;"></i>
                         </th>
                         <th>Website</th>
-                        <th class="sortable text-center" data-sort="vlan" style="cursor: pointer;">
-                            <i class="bi bi-diagram-3 me-2"></i>VLANs
-                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
+                        <th>Country</th>
+                        <th class="sortable text-center" data-sort="vlan">
+                            VLANs
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.8em;"></i>
                         </th>
-                        <th class="sortable text-center" data-sort="vms" style="cursor: pointer;">
-                            <i class="bi bi-cpu me-2"></i>VMs
-                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-2" style="font-size: 0.8em;"></i>
+                        <th class="sortable text-center" data-sort="vms">
+                            VMs
+                            <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.8em;"></i>
                         </th>
                         <th class="text-center">Status</th>
                         <th class="text-end pe-4">Actions</th>
@@ -92,26 +132,44 @@
                         data-vms="{{ client.vm_count or 0 }}"
                         data-status="{% if client.state == 1 %}active{% else %}inactive{% endif %}">
                         <td class="ps-4">
-                            <a href="/client/{{ client.id }}" class="text-decoration-none">
-                                <strong>{{ client.name }}</strong>
-                            </a>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                     style="width:36px;height:36px;background:rgba(13,110,253,.1);">
+                                    <i class="bi bi-building" style="color:#0d6efd;font-size:.9rem;"></i>
+                                </div>
+                                <div>
+                                    <a href="/client/{{ client.id }}" class="text-decoration-none fw-semibold">
+                                        {{ client.name }}
+                                    </a>
+                                </div>
+                            </div>
                         </td>
                         <td>
                             {% if client.website %}
-                                <a href="{{ client.website }}" target="_blank" class="text-decoration-none">{{ client.website|truncate(35) }} <i class="bi bi-box-arrow-up-right ms-1"></i></a>
+                                <a href="{{ client.website }}" target="_blank" class="text-decoration-none text-muted small">
+                                    {{ client.website|truncate(35) }}
+                                    <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                </a>
                             {% else %}
-                                <span class="text-muted">-</span>
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if client.country %}
+                                <span class="text-muted small">{{ client.country }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td class="text-center vlans-cell" data-vlans="{{ client.vlans or '' }}">
                             {% if client.vlans %}
-                                <div class="d-inline-flex flex-wrap gap-1">
+                                <div class="d-inline-flex flex-wrap gap-1 justify-content-center">
                                     {% for vlan in client.vlans.split(',') %}
                                     <span class="badge bg-info text-dark">{{ vlan.strip() }}</span>
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <span class="text-muted">-</span>
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -123,17 +181,21 @@
                         </td>
                         <td class="text-center">
                             {% if client.state == 1 %}
-                                <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                <span class="badge bg-success-subtle text-success">
+                                    <i class="bi bi-check-circle me-1"></i>Active
+                                </span>
                             {% else %}
-                                <span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-circle me-1"></i>Inactive</span>
+                                <span class="badge bg-secondary-subtle text-secondary">
+                                    <i class="bi bi-circle me-1"></i>Inactive
+                                </span>
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">
-                            <div class="btn-group" role="group">
-                                <a href="/client/{{ client.id }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="/client/{{ client.id }}" class="btn btn-outline-primary" title="View Details">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <a href="/client/{{ client.id }}/edit" class="btn btn-sm btn-outline-warning" title="Edit">
+                                <a href="/client/{{ client.id }}/edit" class="btn btn-outline-secondary" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                             </div>
@@ -141,12 +203,14 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="py-5">
+                        <td colspan="7" class="py-5">
                             <div class="text-center">
-                                <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                                <i class="bi bi-building text-muted" style="font-size:3rem;opacity:.4;"></i>
                                 <h5 class="text-muted mt-3 mb-2">No Clients Found</h5>
-                                <p class="text-muted mb-3">Get started by adding your first client.</p>
-                                <a href="/client/add" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Add Client</a>
+                                <p class="text-muted mb-3 small">Get started by adding your first client.</p>
+                                <a href="/client/add" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Client
+                                </a>
                             </div>
                         </td>
                     </tr>
@@ -154,11 +218,13 @@
                 </tbody>
             </table>
         </div>
-        <div class="card-footer bg-light border-top">
+        {% if clients %}
+        <div class="card-footer">
             <small class="text-muted">
-                <span id="clientCount">{{ clients|length }}</span> of {{ clients|length }} clients displayed
+                Showing <strong id="clientCount2">{{ clients|length }}</strong> of {{ clients|length }} clients
             </small>
         </div>
+        {% endif %}
     </div>
 </div>
 
@@ -167,6 +233,7 @@ const clientTableBody = document.getElementById('clientTableBody');
 const clientSearchInput = document.getElementById('clientSearch');
 const statusFilter = document.getElementById('statusFilter');
 const clientCountSpan = document.getElementById('clientCount');
+const clientCountSpan2 = document.getElementById('clientCount2');
 let currentClientSort = { column: null, direction: 'asc' };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -174,16 +241,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const vlans = cell.dataset.vlans;
         if (vlans) {
             const vlanArray = vlans.split(',').map(v => v.trim()).filter(v => v);
-            const sortedVlans = vlanArray.sort((a, b) => {
-                return (parseInt(a) || 0) - (parseInt(b) || 0);
-            });
+            const sortedVlans = vlanArray.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
             const badgesHtml = sortedVlans.map(vlan =>
                 `<span class="badge bg-info text-dark">${vlan}</span>`
             ).join(' ');
-            cell.innerHTML = badgesHtml || '<span class="text-muted">-</span>';
+            cell.innerHTML = badgesHtml || '<span class="text-muted">—</span>';
         }
     });
 });
+
+function updateCount(n) {
+    if (clientCountSpan) clientCountSpan.textContent = n;
+    if (clientCountSpan2) clientCountSpan2.textContent = n;
+}
 
 function filterAndDisplayClients() {
     const searchTerm = clientSearchInput.value.toLowerCase().trim();
@@ -192,13 +262,8 @@ function filterAndDisplayClients() {
     let visibleCount = 0;
 
     rows.forEach(row => {
-        const name = row.dataset.name;
-        const status = row.dataset.status;
-        const text = row.textContent.toLowerCase();
-
-        const matchesSearch = !searchTerm || name.includes(searchTerm) || text.includes(searchTerm);
-        const matchesStatus = !statusValue || status === statusValue;
-
+        const matchesSearch = !searchTerm || row.textContent.toLowerCase().includes(searchTerm);
+        const matchesStatus = !statusValue || row.dataset.status === statusValue;
         if (matchesSearch && matchesStatus) {
             row.style.display = '';
             visibleCount++;
@@ -207,7 +272,7 @@ function filterAndDisplayClients() {
         }
     });
 
-    clientCountSpan.textContent = visibleCount;
+    updateCount(visibleCount);
 }
 
 function sortClients(column, direction) {
@@ -215,16 +280,14 @@ function sortClients(column, direction) {
 
     rows.sort((a, b) => {
         let aVal, bVal;
-        switch(column) {
+        switch (column) {
             case 'name':
                 aVal = a.dataset.name;
                 bVal = b.dataset.name;
                 break;
             case 'vlan':
-                const aVlans = a.dataset.vlans || '';
-                const bVlans = b.dataset.vlans || '';
-                aVal = parseInt(aVlans.split(',')[0].trim()) || 999999;
-                bVal = parseInt(bVlans.split(',')[0].trim()) || 999999;
+                aVal = parseInt((a.dataset.vlans || '').split(',')[0].trim()) || 999999;
+                bVal = parseInt((b.dataset.vlans || '').split(',')[0].trim()) || 999999;
                 break;
             case 'vms':
                 aVal = parseInt(a.dataset.vms);
@@ -257,11 +320,11 @@ document.querySelectorAll('thead .sortable').forEach(header => {
         }
 
         document.querySelectorAll('thead .sort-icon').forEach(i => {
-            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-2';
+            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-1';
             i.style.fontSize = '0.8em';
         });
 
-        icon.className = `bi bi-arrow-${currentClientSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-2`;
+        icon.className = `bi bi-arrow-${currentClientSort.direction === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
         icon.style.fontSize = '0.8em';
 
         sortClients(column, currentClientSort.direction);
