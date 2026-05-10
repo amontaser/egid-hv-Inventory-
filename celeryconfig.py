@@ -1,6 +1,10 @@
 # Celery Beat Schedule Configuration
 
 import os
+import sys
+
+sys.path.insert(0, "/opt/hyperv_inventory")
+
 from celery import Celery
 from celery.schedules import crontab
 

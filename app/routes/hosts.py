@@ -1,6 +1,6 @@
 """Host management routes"""
 
-from flask import Blueprint, render_template, request, session, abort, redirect
+from flask import Blueprint, render_template, request, session, abort, redirect, url_for
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
@@ -179,3 +179,16 @@ def host_details(host_id):
         contacts = []
 
     return render_template("host_details.html", host=host, contacts=contacts, vms=vms)
+
+
+@bp.route("/host/<int:host_id>/notes", methods=["POST"])
+@login_required
+def save_host_notes(host_id):
+    notes = request.form.get("notes", "").strip()
+    with get_db() as db:
+        db.execute(
+            text("UPDATE hyperv_hosts SET notes = :notes WHERE id = :host_id"),
+            {"notes": notes, "host_id": host_id},
+        )
+        db.commit()
+    return redirect(url_for("hosts.host_details", host_id=host_id))

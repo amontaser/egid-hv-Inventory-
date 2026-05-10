@@ -9,6 +9,17 @@ from sqlalchemy import text
 
 from app.db import get_db_connection
 from tasks.collectors.winrm import create_winrm_session, resolve_node_ip
+
+logger = logging.getLogger(__name__)
+
+
+def _get_app():
+    from app import create_app
+
+    app = create_app()
+    return app
+
+
 from tasks.collectors.hosts import collect_cluster_nodes, PS_GET_CLUSTER_NODES
 from tasks.collectors.vms import (
     collect_vms,
@@ -37,8 +48,6 @@ from tasks.monitor import (
     get_storage_threshold,
 )
 from tasks.notifications import dispatch_notifications  # noqa: E402
-
-logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +173,12 @@ def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str
 @shared_task(bind=True, name="tasks.sync.fetch_hyperv_data")
 def fetch_hyperv_data(self):
     """Top-level orchestrator: discover nodes, dispatch per-host + per-cluster tasks."""
+    app = _get_app()
+    with app.app_context():
+        return _fetch_hyperv_data_impl()
+
+
+def _fetch_hyperv_data_impl():
     logger.info("Starting Hyper-V inventory sync")
 
     session = get_db_connection()
@@ -233,6 +248,12 @@ def fetch_hyperv_data(self):
 @shared_task(name="tasks.sync.fetch_single_host")
 def fetch_single_host(host_ip: str, cluster_id: int = None):
     """Collect all data from one Hyper-V host node."""
+    app = _get_app()
+    with app.app_context():
+        return _fetch_single_host_impl(host_ip, cluster_id)
+
+
+def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
     logger.info(f"[Host] Collecting from {host_ip}")
 
     cluster_name = None
@@ -342,6 +363,12 @@ def fetch_single_host(host_ip: str, cluster_id: int = None):
 @shared_task(name="tasks.sync.fetch_cluster_csv_storage")
 def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
     """Scan CSV volumes for a cluster (tries each node until one succeeds)."""
+    app = _get_app()
+    with app.app_context():
+        return _fetch_cluster_csv_storage_impl(cluster_id, cluster_name, nodes)
+
+
+def _fetch_cluster_csv_storage_impl(cluster_id: int, cluster_name: str, nodes: list):
     import os
 
     logger.info(f"[CSV] Scanning cluster {cluster_name}")
@@ -379,6 +406,12 @@ def fetch_cluster_csv_storage(cluster_id: int, cluster_name: str, nodes: list):
 @shared_task(name="tasks.sync.aggregate_sync_results_with_csv")
 def aggregate_and_monitor(results, vm_snapshot=None, csv_snapshot=None):
     """Chord callback: aggregate results, run change detection, dispatch notifications."""
+    app = _get_app()
+    with app.app_context():
+        return _aggregate_and_monitor_impl(results, vm_snapshot, csv_snapshot)
+
+
+def _aggregate_and_monitor_impl(results, vm_snapshot=None, csv_snapshot=None):
     logger.info(f"Aggregating {len(results)} task results")
 
     total_vms = sum(
