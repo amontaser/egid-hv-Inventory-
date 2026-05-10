@@ -62,12 +62,14 @@ services:
       REDIS_URL: redis://redis:6379/0
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
+      - ./encryption_key.key:/opt/hyperv_inventory/encryption_key.key:ro
     depends_on:
       - redis
       - postgres
     restart: unless-stopped
     networks:
       - hyperv-nw
+      - hyperv-ipvlan
 
   celery-beat:
     build: .
