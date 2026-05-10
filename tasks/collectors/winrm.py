@@ -17,9 +17,13 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
     username = os.getenv("HYPERV_USERNAME")
     password = os.getenv("HYPERV_PASSWORD")
     transport = "ntlm"
+    dns_servers = None
+    domain_name = None
 
     if (not username or not password) and cluster_id:
-        username, password, transport = _load_cluster_credentials(cluster_id)
+        username, password, transport, dns_servers, domain_name = (
+            _load_cluster_credentials(cluster_id)
+        )
 
     if not username or not password:
         raise ValueError(
@@ -27,12 +31,31 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
             "or configure a cluster with saved credentials."
         )
 
+    resolved_host = _resolve_host(host, dns_servers, domain_name)
+
     return winrm.Session(
-        target=host,
+        target=resolved_host,
         auth=(username, password),
         server_cert_validation="ignore",
         transport=transport,
     )
+
+
+def _resolve_host(host: str, dns_servers: str, domain_name: str = None) -> str:
+    """Try system DNS first, fall back to cluster's configured DNS servers."""
+    try:
+        socket.gethostbyname(host)
+        return host
+    except socket.gaierror:
+        pass
+
+    if dns_servers and dns_servers.strip():
+        ip = resolve_node_ip(host, dns_servers, domain_name)
+        if ip and ip != host:
+            logger.info(f"Resolved {host} -> {ip} via cluster DNS ({dns_servers})")
+            return ip
+
+    return host
 
 
 def _load_cluster_credentials(cluster_id: int):
@@ -44,13 +67,13 @@ def _load_cluster_credentials(cluster_id: int):
     session = get_db_connection()
     row = session.execute(
         text(
-            "SELECT username, password, transport, require_https FROM clusters WHERE id = :cluster_id"
+            "SELECT username, password, transport, require_https, dns_servers, domain_name FROM clusters WHERE id = :cluster_id"
         ),
         {"cluster_id": cluster_id},
     ).fetchone()
 
     if not row:
-        return None, None, "ntlm"
+        return None, None, "ntlm", None, None
 
     username = row._mapping["username"]
     encrypted_pw = row._mapping["password"]
@@ -59,9 +82,11 @@ def _load_cluster_credentials(cluster_id: int):
         if row._mapping["require_https"]
         else (row._mapping["transport"] or "ntlm")
     )
+    dns_servers = row._mapping["dns_servers"]
+    domain_name = row._mapping["domain_name"]
 
     password = _decrypt_password(encrypted_pw)
-    return username, password, transport
+    return username, password, transport, dns_servers, domain_name
 
 
 def _decrypt_password(encrypted_pw: str) -> Optional[str]:
