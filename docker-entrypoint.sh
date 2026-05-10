@@ -31,6 +31,7 @@ elif [ "$SERVICE" = "celery-worker" ]; then
 elif [ "$SERVICE" = "celery-beat" ]; then
     run_as celery -A celeryconfig beat \
         --loglevel=INFO \
+        --schedule=/opt/hyperv_inventory/data/celerybeat-schedule \
         --pidfile=/opt/hyperv_inventory/data/celery-beat.pid
 else
     exec "$@"
