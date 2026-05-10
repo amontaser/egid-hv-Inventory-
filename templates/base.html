@@ -129,7 +129,7 @@
         .sidebar.collapsed .brand-text,
         .sidebar.collapsed .nav-link .nav-text,
         .sidebar.collapsed .sidebar-user-name {
-            display: none;
+            display: none !important;
         }
 
         .sidebar.collapsed .sidebar-brand h4 {
@@ -137,16 +137,17 @@
         }
 
         .sidebar.collapsed .nav-link {
+            display: flex;
             justify-content: center;
+            align-items: center;
             padding-left: 0;
             padding-right: 0;
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: clip;
+            text-align: center;
         }
 
         .sidebar.collapsed .nav-link i {
             margin-right: 0;
+            margin-left: 0;
             font-size: 1.15rem;
         }
 
