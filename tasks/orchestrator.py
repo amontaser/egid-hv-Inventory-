@@ -8,6 +8,7 @@ from celery import shared_task, group, chord
 from sqlalchemy import text
 
 from app.db import get_db_connection
+from app.utils.db_compat import bool_eq
 from tasks.collectors.winrm import create_winrm_session, resolve_node_ip
 
 logger = logging.getLogger(__name__)
@@ -183,7 +184,9 @@ def _fetch_hyperv_data_impl():
 
     session = get_db_connection()
     clusters = session.execute(
-        text("SELECT id, cluster_name, domain FROM clusters WHERE is_enabled = 1")
+        text(
+            f"SELECT id, cluster_name, domain FROM clusters WHERE {bool_eq('is_enabled')}"
+        )
     ).fetchall()
 
     if not clusters:
