@@ -29,16 +29,23 @@ def _row_to_dict(row):
         return dict(row)
 
 
-def _encrypt_password(password: str) -> str:
-    """Encrypt a password using Fernet. Key from ENCRYPTION_KEY env var."""
+def _get_fernet():
+    """Derive a Fernet key from the existing SECRET_KEY."""
     from cryptography.fernet import Fernet
+    import hashlib, base64
 
-    key = os.getenv("ENCRYPTION_KEY", "")
-    if not key:
-        raise ValueError("ENCRYPTION_KEY env var is not set. Cannot encrypt password.")
+    secret = os.getenv("SECRET_KEY", "")
+    if not secret:
+        raise ValueError("SECRET_KEY is not set.")
+    derived = base64.urlsafe_b64encode(
+        hashlib.sha256((secret + "hyperv-inventory-encryption").encode()).digest()
+    )
+    return Fernet(derived)
 
-    fernet = Fernet(key.encode() if isinstance(key, str) else key)
-    return fernet.encrypt(password.encode()).decode()
+
+def _encrypt_password(password: str) -> str:
+    """Encrypt a password using Fernet derived from SECRET_KEY."""
+    return _get_fernet().encrypt(password.encode()).decode()
 
 
 @bp.route("/clusters")

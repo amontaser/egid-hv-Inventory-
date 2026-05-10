@@ -88,13 +88,17 @@ def _load_cluster_credentials(cluster_id: int):
 
 def _decrypt_password(encrypted_pw: str) -> Optional[str]:
     try:
+        import hashlib, base64
         from cryptography.fernet import Fernet
 
-        key = os.getenv("ENCRYPTION_KEY", "")
-        if not key:
-            logger.error("ENCRYPTION_KEY env var is not set. Cannot decrypt password.")
+        secret = os.getenv("SECRET_KEY", "")
+        if not secret:
+            logger.error("SECRET_KEY is not set. Cannot decrypt password.")
             return None
-        f = Fernet(key.encode() if isinstance(key, str) else key)
+        derived = base64.urlsafe_b64encode(
+            hashlib.sha256((secret + "hyperv-inventory-encryption").encode()).digest()
+        )
+        f = Fernet(derived)
         return f.decrypt(encrypted_pw.encode()).decode()
     except Exception as e:
         logger.error(f"Password decryption failed: {e}")

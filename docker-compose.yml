@@ -34,7 +34,6 @@ services:
       SERVICE: web
       SECRET_KEY: ${SECRET_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
       REDIS_URL: redis://redis:6379/0
     volumes:
@@ -58,7 +57,6 @@ services:
       TZ: Africa/Cairo
       SERVICE: celery-worker
       SECRET_KEY: ${SECRET_KEY}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       DATABASE_URL: postgresql://hyperv:${POSTGRES_PASSWORD}@postgres:5432/hyperv_inventory
       REDIS_URL: redis://redis:6379/0
     volumes:
