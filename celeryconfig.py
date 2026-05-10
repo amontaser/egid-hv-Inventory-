@@ -24,13 +24,59 @@ celery.conf.update(
     },
 )
 
-beat_schedule = {
-    # Full sync (VMs + CSV) daily at midnight
-    "full-sync-daily-midnight": {
-        "task": "tasks.sync.fetch_hyperv_data",
-        "schedule": crontab(hour=0, minute=0),
-        "options": {"expires": 86400},
-    },
-}
+
+def _load_schedule_from_db():
+    try:
+        import sqlite3
+
+        db_path = os.getenv(
+            "DATABASE_PATH", os.path.join(os.path.dirname(__file__), "database.db")
+        )
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(os.path.dirname(__file__), db_path)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT key, value FROM settings WHERE key LIKE 'sync_%'"
+        ).fetchall()
+        settings = {row["key"]: row["value"] for row in rows}
+        conn.close()
+
+        enabled = settings.get("sync_enabled", "0") == "1"
+        if not enabled:
+            return {}
+
+        hour = int(settings.get("sync_hour", "0"))
+        minute = int(settings.get("sync_minute", "0"))
+        sched_type = settings.get("sync_schedule_type", "daily")
+
+        if sched_type == "hourly":
+            schedule = crontab(minute=minute)
+        elif sched_type == "weekly":
+            schedule = crontab(day_of_week=1, hour=hour, minute=minute)
+        else:
+            schedule = crontab(hour=hour, minute=minute)
+
+        return {
+            "full-sync-scheduled": {
+                "task": "tasks.sync.fetch_hyperv_data",
+                "schedule": schedule,
+                "options": {"expires": 86400},
+            },
+        }
+    except Exception:
+        return {}
+
+
+beat_schedule = _load_schedule_from_db()
+
+if not beat_schedule:
+    beat_schedule = {
+        "full-sync-daily-midnight": {
+            "task": "tasks.sync.fetch_hyperv_data",
+            "schedule": crontab(hour=0, minute=0),
+            "options": {"expires": 86400},
+        },
+    }
 
 celery.conf.beat_schedule = beat_schedule

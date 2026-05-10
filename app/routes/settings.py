@@ -10,6 +10,28 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("settings", __name__)
 
 
+def _reload_celery_beat():
+    try:
+        import subprocess
+
+        subprocess.Popen(
+            [
+                "/opt/hyperv_inventory/venv/bin/celery",
+                "-A",
+                "celeryconfig",
+                "beat",
+                "--loglevel=INFO",
+                "--logfile=/opt/hyperv_inventory/logs/celery-beat.log",
+                "--pidfile=/opt/hyperv_inventory/pids/celery-beat.pid",
+                "--detach",
+            ],
+            cwd="/opt/hyperv_inventory",
+        )
+        logger.info("Restarted celery-beat to pick up new schedule")
+    except Exception as e:
+        logger.warning(f"Could not restart celery-beat: {e}")
+
+
 def _row_to_dict(row):
     if row is None:
         return None
@@ -147,8 +169,9 @@ def settings():
 @bp.route("/settings/schedule", methods=["POST"])
 @login_required
 def save_schedule():
-    """Save sync schedule settings."""
+    """Save sync schedule settings and reload Celery Beat."""
     from datetime import datetime
+    import signal
 
     fields = [
         "sync_enabled",
@@ -169,6 +192,9 @@ def save_schedule():
                 {"key": field, "value": value, "now": now},
             )
         db.commit()
+
+    _reload_celery_beat()
+
     return jsonify({"success": True})
 
 
@@ -185,7 +211,9 @@ def schedule_status():
         setting_rows = db.execute(
             text("SELECT key, value FROM settings WHERE key LIKE 'sync_%'")
         ).fetchall()
-        schedule = {_row_to_dict(r)["key"]: _row_to_dict(r)["value"] for r in setting_rows}
+        schedule = {
+            _row_to_dict(r)["key"]: _row_to_dict(r)["value"] for r in setting_rows
+        }
 
     return jsonify({"sync": sync_meta, "schedule": schedule})
 
@@ -196,6 +224,7 @@ def trigger_sync_now():
     """Trigger an immediate sync."""
     try:
         from celeryconfig import celery as celery_app
+
         task = celery_app.send_task("tasks.sync.fetch_hyperv_data")
         return jsonify({"success": True, "task_id": task.id})
     except Exception as e:
