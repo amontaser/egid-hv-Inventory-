@@ -41,7 +41,8 @@ def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
 def _resolve_host(host: str, dns_servers: str, domain_name: str = None) -> str:
     """Try system DNS first, fall back to cluster's configured DNS servers."""
     try:
-        socket.gethostbyname(host)
+        ip = socket.gethostbyname(host)
+        logger.debug(f"System DNS resolved {host} -> {ip}")
         return host
     except socket.gaierror:
         pass
@@ -51,7 +52,10 @@ def _resolve_host(host: str, dns_servers: str, domain_name: str = None) -> str:
         if ip and ip != host:
             logger.info(f"Resolved {host} -> {ip} via cluster DNS ({dns_servers})")
             return ip
+        if not ip:
+            logger.warning(f"Cluster DNS ({dns_servers}) failed to resolve {host}")
 
+    logger.warning(f"Could not resolve {host} via system or cluster DNS")
     return host
 
 
@@ -232,35 +236,32 @@ def resolve_node_ip(
     """Resolve a cluster node name to IP using configured DNS servers."""
     import dns.resolver
 
-    if not dns_servers_str or not dns_servers_str.strip():
-        try:
-            return socket.gethostbyname(node_name)
-        except socket.gaierror:
-            pass
-        if domain_name:
-            fqdn = f"{node_name}.{domain_name}"
-            try:
-                return socket.gethostbyname(fqdn)
-            except socket.gaierror:
-                return fqdn
+    dns_servers = [s.strip() for s in dns_servers_str.split(",") if s.strip()]
+    if not dns_servers:
         return node_name
 
-    dns_servers = [s.strip() for s in dns_servers_str.split(",") if s.strip()]
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = dns_servers
-    resolver.timeout = 3
-    resolver.lifetime = 5
+    resolver.timeout = 5
+    resolver.lifetime = 10
 
-    if domain_name:
+    already_fqdn = "." in node_name
+
+    if domain_name and not already_fqdn:
         try:
             ans = resolver.resolve(f"{node_name}.{domain_name}", "A")
-            return str(ans[0])
-        except Exception:
-            pass
+            ip = str(ans[0])
+            logger.info(f"Cluster DNS resolved {node_name}.{domain_name} -> {ip}")
+            return ip
+        except Exception as e:
+            logger.warning(f"Cluster DNS failed for {node_name}.{domain_name}: {e}")
+
     try:
         ans = resolver.resolve(node_name, "A")
-        return str(ans[0])
-    except Exception:
-        pass
+        ip = str(ans[0])
+        logger.info(f"Cluster DNS resolved {node_name} -> {ip}")
+        return ip
+    except Exception as e:
+        logger.warning(f"Cluster DNS failed for {node_name}: {e}")
 
-    return f"{node_name}.{domain_name}" if domain_name else node_name
+    return node_name
