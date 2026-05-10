@@ -52,6 +52,7 @@ services:
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
+    network_mode: "service:web"
     environment:
       PUID: 1000
       PGID: 1000
@@ -64,12 +65,8 @@ services:
       - hyperv-app-data:/opt/hyperv_inventory/data
       - ./encryption_key.key:/opt/hyperv_inventory/encryption_key.key:ro
     depends_on:
-      - redis
-      - postgres
+      - web
     restart: unless-stopped
-    networks:
-      - hyperv-nw
-      - hyperv-ipvlan
 
   celery-beat:
     build: .
