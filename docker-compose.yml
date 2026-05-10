@@ -27,6 +27,8 @@ services:
   web:
     build: .
     container_name: hyperv-web
+    dns:
+      - 127.0.0.11
     environment:
       PUID: 1000
       PGID: 1000
