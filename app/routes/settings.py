@@ -270,3 +270,98 @@ def notification_settings():
         rows = db.execute(text("SELECT key, value FROM settings")).fetchall()
         settings = {_row_to_dict(r)["key"]: _row_to_dict(r)["value"] for r in rows}
         return render_template("notification_settings.html", settings=settings)
+
+
+@bp.route("/settings/manager/add", methods=["POST"])
+@login_required
+def add_manager():
+    from datetime import datetime
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "Name is required"}), 400
+
+    email = request.form.get("email", "").strip()
+    phone = request.form.get("phone", "").strip()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_db() as db:
+        db.execute(
+            text(
+                "INSERT INTO account_managers (name, email, phone, state, created_at, updated_at) "
+                "VALUES (:name, :email, :phone, 1, :now, :now)"
+            ),
+            {"name": name, "email": email or None, "phone": phone or None, "now": now},
+        )
+        db.commit()
+
+    return jsonify({"success": True})
+
+
+@bp.route("/settings/manager/<int:manager_id>/edit", methods=["POST"])
+@login_required
+def edit_manager(manager_id):
+    from datetime import datetime
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "Name is required"}), 400
+
+    email = request.form.get("email", "").strip()
+    phone = request.form.get("phone", "").strip()
+    state = 1 if request.form.get("state") else 0
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_db() as db:
+        db.execute(
+            text(
+                "UPDATE account_managers SET name=:name, email=:email, phone=:phone, "
+                "state=:state, updated_at=:now WHERE id=:id"
+            ),
+            {
+                "name": name,
+                "email": email or None,
+                "phone": phone or None,
+                "state": state,
+                "now": now,
+                "id": manager_id,
+            },
+        )
+        db.commit()
+
+    return jsonify({"success": True})
+
+
+@bp.route("/settings/manager/<int:manager_id>/delete", methods=["POST"])
+@login_required
+def delete_manager(manager_id):
+    with get_db() as db:
+        db.execute(
+            text("DELETE FROM client_account_managers WHERE manager_id = :id"),
+            {"id": manager_id},
+        )
+        db.execute(
+            text("DELETE FROM account_managers WHERE id = :id"),
+            {"id": manager_id},
+        )
+        db.commit()
+
+    return jsonify({"success": True})
+
+
+@bp.route("/settings/manager/<int:manager_id>/clients")
+@login_required
+def manager_clients(manager_id):
+    with get_db() as db:
+        rows = db.execute(
+            text(
+                "SELECT c.id, c.name, c.country, cam.assigned_at "
+                "FROM clients c "
+                "JOIN client_account_managers cam ON c.id = cam.client_id "
+                "WHERE cam.manager_id = :id "
+                "ORDER BY c.name"
+            ),
+            {"id": manager_id},
+        ).fetchall()
+
+    return jsonify([_row_to_dict(r) for r in rows])
