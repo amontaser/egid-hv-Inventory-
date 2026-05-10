@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-# Ensure Docker's internal DNS is used for service name resolution
-# (ipvlan overrides /etc/resolv.conf with host DNS, breaking container name resolution)
-if ! grep -q "127.0.0.11" /etc/resolv.conf 2>/dev/null; then
-    sed -i '1i\nameserver 127.0.0.11' /etc/resolv.conf
-fi
-
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 

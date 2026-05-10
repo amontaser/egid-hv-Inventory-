@@ -50,7 +50,6 @@ services:
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
-    network_mode: "service:web"
     environment:
       PUID: 1000
       PGID: 1000
@@ -62,8 +61,13 @@ services:
     volumes:
       - hyperv-app-data:/opt/hyperv_inventory/data
     depends_on:
-      - web
+      - redis
+      - postgres
     restart: unless-stopped
+    networks:
+      - hyperv-nw
+    extra_hosts:
+      - "host-gateway:host-gateway"
 
   celery-beat:
     build: .
