@@ -171,6 +171,27 @@ def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str
 # ---------------------------------------------------------------------------
 
 
+@shared_task(name="tasks.sync.test_cluster_connection")
+def test_cluster_connection(domain: str, cluster_id: int):
+    """Lightweight connection test: resolve + WinRM connect + one PS command."""
+    app = _get_app()
+    with app.app_context():
+        try:
+            session = create_winrm_session(domain, cluster_id=cluster_id)
+            from tasks.collectors.winrm import run_ps
+
+            result = run_ps(
+                session,
+                "Get-ClusterNode | Select-Object -ExpandProperty Name | ConvertTo-Json",
+                context="connection test",
+            )
+            nodes = result if isinstance(result, list) else []
+            return {"success": True, "nodes": nodes, "node_count": len(nodes)}
+        except Exception as e:
+            logger.error(f"Connection test failed for cluster {cluster_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+
 @shared_task(bind=True, name="tasks.sync.fetch_hyperv_data")
 def fetch_hyperv_data(self):
     """Top-level orchestrator: discover nodes, dispatch per-host + per-cluster tasks."""

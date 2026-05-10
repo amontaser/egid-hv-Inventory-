@@ -4,6 +4,17 @@ set -e
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+wait_for_db() {
+    if [ -n "$DATABASE_URL" ]; then
+        echo "Waiting for database..."
+        for i in $(seq 1 30); do
+            python3 -c "import psycopg2; psycopg2.connect('$DATABASE_URL'); print('Database ready')" 2>/dev/null && return 0
+            sleep 1
+        done
+        echo "Warning: database not ready after 30s, continuing anyway"
+    fi
+}
+
 create_user() {
     if [ "$(id -u)" = "0" ]; then
         groupadd -g "$PGID" appuser 2>/dev/null || true
@@ -12,6 +23,8 @@ create_user() {
         echo "appuser"
     fi
 }
+
+wait_for_db
 
 if [ "${SERVICE:-web}" = "web" ]; then
     exec gunicorn --config gunicorn.conf.py wsgi:app

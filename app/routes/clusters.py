@@ -300,7 +300,7 @@ def delete_cluster_alt(cluster_id):
 @bp.route("/cluster/test/<int:cluster_id>", methods=["POST"])
 @login_required
 def test_cluster_connection(cluster_id):
-    """Test WinRM connection to a Hyper-V cluster."""
+    """Test WinRM connection to a Hyper-V cluster via celery worker."""
     with get_db() as db:
         row = db.execute(
             text("SELECT * FROM clusters WHERE id = :cluster_id"),
@@ -311,19 +311,39 @@ def test_cluster_connection(cluster_id):
         cluster = _row_to_dict(row)
 
     try:
-        from tasks.hyperv import create_winrm_session, run_powershell
+        from celeryconfig import celery as celery_app
 
         domain = cluster["domain"] or cluster["cluster_name"]
-        session = create_winrm_session(domain, cluster_id=cluster_id)
-        result = run_powershell(
-            session,
-            "Get-ClusterNode | Select-Object -ExpandProperty Name | ConvertTo-Json",
+        task = celery_app.send_task(
+            "tasks.sync.test_cluster_connection",
+            args=[domain, cluster_id],
+            queue="hyperv",
         )
-        node_count = len(result) if result else 0
+        result = task.get(timeout=120)
+        if not result.get("success"):
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Connection failed: {result.get('error', 'Unknown error')}",
+                }
+            )
+        node_count = result.get("node_count", 0)
         return jsonify(
             {
                 "success": True,
                 "message": f"Connected to {domain}. Found {node_count} node(s).",
+            }
+        )
+        result = task.get(timeout=120)
+        if result.get("status") == "error":
+            return jsonify(
+                {"success": False, "message": result.get("error", "Unknown error")}
+            )
+        vm_count = result.get("vms", 0) if isinstance(result, dict) else 0
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Connected to {domain}.",
             }
         )
     except Exception as e:

@@ -17,6 +17,7 @@ celery.conf.update(
     result_backend=redis_url,
     include=["tasks.orchestrator"],
     task_routes={
+        "tasks.sync.test_cluster_connection": {"queue": "hyperv"},
         "tasks.sync.fetch_hyperv_data": {"queue": "hyperv"},
         "tasks.sync.fetch_single_host": {"queue": "hyperv"},
         "tasks.sync.aggregate_sync_results_with_csv": {"queue": "hyperv"},
