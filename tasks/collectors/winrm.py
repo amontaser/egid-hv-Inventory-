@@ -13,22 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 def create_winrm_session(host: str, cluster_id: int = None) -> winrm.Session:
-    """Create authenticated WinRM session. Credentials from env or DB (Fernet-encrypted)."""
-    username = os.getenv("HYPERV_USERNAME")
-    password = os.getenv("HYPERV_PASSWORD")
-    transport = "ntlm"
-    dns_servers = None
-    domain_name = None
-
-    if (not username or not password) and cluster_id:
-        username, password, transport, dns_servers, domain_name = (
-            _load_cluster_credentials(cluster_id)
+    """Create authenticated WinRM session. Credentials from DB (Fernet-encrypted)."""
+    if not cluster_id:
+        raise ValueError(
+            "cluster_id is required to load credentials from the database."
         )
+
+    username, password, transport, dns_servers, domain_name = _load_cluster_credentials(
+        cluster_id
+    )
 
     if not username or not password:
         raise ValueError(
-            "No credentials: set HYPERV_USERNAME/HYPERV_PASSWORD env vars "
-            "or configure a cluster with saved credentials."
+            "No credentials found: configure this cluster with saved credentials."
         )
 
     resolved_host = _resolve_host(host, dns_servers, domain_name)
