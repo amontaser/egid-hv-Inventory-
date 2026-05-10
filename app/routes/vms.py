@@ -196,9 +196,85 @@ def index():
 @bp.route("/vms")
 @login_required
 def vms_list():
-    """Dedicated Virtual Machines page — reuses the dashboard index template."""
-    from flask import redirect, url_for
-    return redirect(url_for("vms.index"))
+    """Dedicated Virtual Machines page."""
+    cluster_id = get_selected_cluster()
+    cluster_name = get_cluster_name(cluster_id)
+
+    cluster_filter = ""
+    cluster_filter_v = ""
+    params = {}
+    if cluster_name:
+        cluster_filter = "WHERE cluster_name = :cluster_name"
+        cluster_filter_v = "WHERE v.cluster_name = :cluster_name"
+        params = {"cluster_name": cluster_name}
+
+    all_clusters = get_all_clusters()
+
+    with get_db() as db:
+        stats = db.execute(
+            text(f"""
+            SELECT
+                COUNT(*) as total_vms,
+                SUM(CASE WHEN state = 'Running' THEN 1 ELSE 0 END) as running_vms,
+                SUM(CASE WHEN state = 'Off' THEN 1 ELSE 0 END) as stopped_vms,
+                SUM(cpu_count) as total_vcpus,
+                ROUND(SUM(memory_assigned_gb), 2) as total_memory_gb,
+                COUNT(DISTINCT host_name) as host_count
+            FROM vm_info
+            {cluster_filter}
+        """),
+            params,
+        ).fetchone()
+
+        vms_raw = db.execute(
+            text(f"""
+            SELECT
+                v.*,
+                (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
+                (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
+                (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
+                (SELECT GROUP_CONCAT(ip_addresses) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
+                (SELECT GROUP_CONCAT(DISTINCT vlan_id) FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
+                h.host_name as host_node_name,
+                c.id as client_id,
+                c.name as client_name
+            FROM vm_info v
+            LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
+            LEFT JOIN clients c ON vc.client_id = c.id AND c.state = 1
+            {cluster_filter_v}
+            ORDER BY v.machine_name
+        """),
+            params,
+        ).fetchall()
+
+        sync_info = db.execute(
+            text("SELECT * FROM sync_metadata WHERE id = 1")
+        ).fetchone()
+
+    vms = []
+    for vm in vms_raw:
+        vm_dict = _row_to_dict(vm)
+        if vm_dict["vlans"]:
+            vm_dict["vlan_list"] = sorted([int(v) for v in vm_dict["vlans"].split(",")])
+        else:
+            vm_dict["vlan_list"] = []
+        vms.append(vm_dict)
+
+    stats_dict = _row_to_dict(stats)
+    sync_dict = _row_to_dict(sync_info)
+    last_update_time = format_last_update(sync_dict)
+
+    return render_template(
+        "vms.html",
+        stats=stats_dict,
+        vms=vms,
+        last_update_time=last_update_time,
+        sync_info=sync_dict,
+        clusters=all_clusters,
+        selected_cluster_id=cluster_id,
+        selected_cluster_name=cluster_name,
+    )
 
 
 @bp.route("/vm/<vm_id>")
