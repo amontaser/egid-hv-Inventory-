@@ -13,6 +13,7 @@ from flask import (
 )
 from flask_login import login_required
 from app.utils.db import get_db
+from app.utils.db_compat import bool_val
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,8 @@ def add_cluster():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         transport = request.form.get("transport", "ntlm")
-        require_https = 1 if request.form.get("require_https") else 0
-        is_enabled = 1
+        require_https = bool_val(request.form.get("require_https"))
+        is_enabled = bool_val(True)
 
         if not cluster_name or not domain or not username or not password:
             flash("Cluster name, domain, username and password are required", "error")
@@ -198,8 +199,8 @@ def edit_cluster(cluster_id):
         location = request.form.get("location", "").strip() or None
         username = request.form.get("username", "").strip()
         transport = request.form.get("transport", "ntlm")
-        require_https = 1 if request.form.get("require_https") else 0
-        is_enabled = 1 if request.form.get("is_enabled") else 0
+        require_https = bool_val(request.form.get("require_https"))
+        is_enabled = bool_val(request.form.get("is_enabled"))
         new_password = request.form.get("password", "")
 
         with get_db() as db:

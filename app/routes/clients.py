@@ -13,7 +13,7 @@ from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
-from app.utils.db_compat import str_agg, bool_eq
+from app.utils.db_compat import str_agg, bool_eq, bool_val
 import logging
 
 logger = logging.getLogger(__name__)
@@ -285,7 +285,7 @@ def add_client_contact(client_id):
     email = request.form.get("email")
     phone = request.form.get("phone")
     mobile_phone = request.form.get("mobile_phone")
-    is_primary_contact = 1 if request.form.get("is_primary_contact") else 0
+    is_primary_contact = bool_val(request.form.get("is_primary_contact"))
 
     if not name:
         flash("Name is required", "error")
