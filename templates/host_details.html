@@ -1,181 +1,577 @@
 {% extends "base.html" %}
-{% block title %}{{ host.host_name }}{% endblock %}
+{% block title %}{{ host.host_name }} – Host Details{% endblock %}
 {% block content %}
 <div class="container-fluid py-4">
-    <nav aria-label="breadcrumb">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
             <li class="breadcrumb-item"><a href="/hosts">Hosts</a></li>
             <li class="breadcrumb-item active">{{ host.host_name }}</li>
         </ol>
     </nav>
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-hdd-rack text-primary"></i> {{ host.host_name }}</h5>
-                    <div>
-                        {% if host.needs_update %}
-                        <span class="badge bg-warning me-2"><i class="bi bi-exclamation-triangle"></i> Needs Update</span>
-                        {% endif %}
-                        {% if host.needs_restart %}
-                        <span class="badge bg-danger me-2"><i class="bi bi-arrow-clockwise"></i> Needs Restart</span>
-                        {% endif %}
-                        <a href="/host/{{ host.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Cluster:</strong> {{ host.cluster_name or '-' }}</p>
-                            <p><strong>Logical Processors:</strong> {{ host.logical_processors }}</p>
-                            <p><strong>Total Memory:</strong> {{ host.total_memory_gb|round(1) }} GB</p>
-                            <p><strong>Available Memory:</strong> {{ host.available_memory_gb|round(1) }} GB</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>VM Count:</strong> {{ host.vm_count }}</p>
-                            <p><strong>OS Version:</strong> {{ host.os_version or 'Unknown' }}</p>
-                            <p><strong>Last Updated:</strong> {{ host.last_updated or 'Never' }}</p>
-                        </div>
-                    </div>
-                    {% if host.notes %}
-                    <hr>
-                    <p><strong>Notes:</strong> {{ host.notes }}</p>
-                    {% endif %}
-                </div>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                 style="width:52px;height:52px;background:rgba(13,110,253,.12);">
+                <i class="bi bi-server" style="font-size:1.4rem;color:#0d6efd;"></i>
             </div>
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Contacts ({{ contacts|length }})</h5>
-                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
-                        <i class="bi bi-plus-lg"></i> Add Contact
-                    </button>
-                </div>
-                <div class="card-body">
-                    {% if contacts %}
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead><tr><th>Name</th><th>Job Title</th><th>Email</th><th>Phone</th><th>Mobile</th><th>Primary</th><th>Actions</th></tr></thead>
-                            <tbody>
-                            {% for contact in contacts %}
-                            <tr>
-                                <td>
-                                    {% if contact.is_primary_contact %}
-                                    <i class="bi bi-star-fill text-warning me-1" title="Primary Contact"></i>
-                                    {% endif %}
-                                    {{ contact.name }}
-                                </td>
-                                <td>{{ contact.job_title or '-' }}</td>
-                                <td>{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}-{% endif %}</td>
-                                <td>{{ contact.phone or '-' }}</td>
-                                <td>{{ contact.mobile_phone or '-' }}</td>
-                                <td>
-                                    <form action="/host/{{ host.id }}/contact/{{ contact.id }}/toggle-primary" method="POST" class="d-inline">
-                                        <input type="checkbox" {% if contact.is_primary_contact %}checked{% endif %}
-                                               onchange="this.form.submit()" title="Toggle Primary Contact">
-                                    </form>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editContactModal{{ contact.id }}">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <form action="/host/{{ host.id }}/contact/{{ contact.id }}/delete" method="POST" class="d-inline" id="deleteContactForm{{ contact.id }}">
-                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteHostContact({{ contact.id }})"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="text-muted text-center py-3">No contacts yet. <button class="btn btn-sm btn-link p-0" data-bs-toggle="modal" data-bs-target="#addContactModal">Add one</button></p>
+            <div>
+                <h1 class="h3 mb-1">
+                    {{ host.host_name }}
+                    {% if host.needs_restart %}
+                    <span class="badge bg-danger ms-1"><i class="bi bi-arrow-clockwise me-1"></i>Restart Required</span>
                     {% endif %}
-                </div>
+                    {% if host.needs_update %}
+                    <span class="badge bg-warning text-dark ms-1">
+                        <i class="bi bi-arrow-down-circle me-1"></i>{{ host.pending_updates_count }} Update{% if host.pending_updates_count != 1 %}s{% endif %}
+                        {% if host.critical_updates_count > 0 %}
+                        <span class="badge bg-danger ms-1">{{ host.critical_updates_count }} Critical</span>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                </h1>
+                <small class="text-muted">
+                    <i class="bi bi-diagram-3 me-1"></i>{{ host.cluster_name or 'No cluster' }}
+                    {% if host.fqdn and host.fqdn != host.host_name %}
+                    <span class="mx-1">·</span><i class="bi bi-globe me-1"></i>{{ host.fqdn }}
+                    {% endif %}
+                </small>
             </div>
-            <div class="card">
-                <div class="card-header"><h5 class="mb-0">VMs on this Host ({{ vms|length }})</h5></div>
-                <div class="table-responsive">
-                    <table class="table mb-0">
-                        <thead><tr><th>VM</th><th>State</th><th>vCPUs</th><th>Memory</th><th>Cluster</th></tr></thead>
-                        <tbody>
-                        {% for vm in vms %}
-                        <tr>
-                            <td><a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a></td>
-                            <td><span class="badge bg-{{ 'success' if vm.state == 'Running' else 'secondary' }}">{{ vm.state }}</span></td>
-                            <td>{{ vm.cpu_count }}</td>
-                            <td>{{ vm.memory_assigned_gb }}GB</td>
-                            <td>{{ vm.cluster_name or '-' }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="5" class="text-center text-muted">No VMs on this host</td></tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+        </div>
+        <a href="/host/{{ host.id }}/edit" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit Host
+        </a>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #0d6efd;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(13,110,253,.12);">
+                            <i class="bi bi-cpu" style="color:#0d6efd;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">vCPUs</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ host.logical_processors }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-4">
-            <div class="card bg-light">
-                <div class="card-header"><h5 class="mb-0">Quick Stats</h5></div>
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #198754;">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Total VMs:</span>
-                        <strong>{{ vms|length }}</strong>
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(25,135,84,.12);">
+                            <i class="bi bi-pc-display" style="color:#198754;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VMs</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">
+                                {{ vms|length }}
+                                <span class="text-success" style="font-size:.85rem;font-weight:500;">
+                                    ({{ vms|selectattr('state','equalto','Running')|list|length }} running)
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Running VMs:</span>
-                        <strong class="text-success">{{ vms|selectattr('state', 'equalto', 'Running')|list|length }}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #fd7e14;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(253,126,20,.12);">
+                            <i class="bi bi-memory" style="color:#fd7e14;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total RAM</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ host.total_memory_gb|round(0)|int }}<span style="font-size:.9rem;font-weight:500;"> GB</span></div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Memory Usage:</span>
-                        <strong>{{ ((host.total_memory_gb - host.available_memory_gb) / host.total_memory_gb * 100)|round(1) }}%</strong>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            {% set mem_used_pct = ((host.total_memory_gb - (host.available_memory_gb or 0)) / host.total_memory_gb * 100)|round(1) if host.total_memory_gb else 0 %}
+            <div class="card" style="border-left:4px solid {% if mem_used_pct < 70 %}#198754{% elif mem_used_pct < 88 %}#ffc107{% else %}#dc3545{% endif %};">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:{% if mem_used_pct < 70 %}rgba(25,135,84,.12){% elif mem_used_pct < 88 %}rgba(255,193,7,.12){% else %}rgba(220,53,69,.12){% endif %};">
+                            <i class="bi bi-thermometer-half"
+                               style="color:{% if mem_used_pct < 70 %}#198754{% elif mem_used_pct < 88 %}#ffc107{% else %}#dc3545{% endif %};font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">RAM Free</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ (host.available_memory_gb or 0)|round(1) }}<span style="font-size:.9rem;font-weight:500;"> GB</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <div class="row g-4">
+        <!-- Main Column -->
+        <div class="col-lg-8">
+
+            <!-- Overview Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h6 class="text-muted text-uppercase mb-3" style="font-size:.72rem;letter-spacing:.5px;">Identity</h6>
+                            <dl class="row mb-0" style="row-gap:.5rem;">
+                                <dt class="col-5 text-muted fw-normal">Host Name</dt>
+                                <dd class="col-7 mb-0 fw-semibold">{{ host.host_name }}</dd>
+
+                                {% if host.fqdn and host.fqdn != host.host_name %}
+                                <dt class="col-5 text-muted fw-normal">FQDN</dt>
+                                <dd class="col-7 mb-0 small"><code>{{ host.fqdn }}</code></dd>
+                                {% endif %}
+
+                                <dt class="col-5 text-muted fw-normal">Cluster</dt>
+                                <dd class="col-7 mb-0">
+                                    <i class="bi bi-diagram-3 text-muted me-1"></i>{{ host.cluster_name or '—' }}
+                                </dd>
+
+                                <dt class="col-5 text-muted fw-normal">OS</dt>
+                                <dd class="col-7 mb-0 small">
+                                    <i class="bi bi-windows text-muted me-1"></i>{{ host.os_version or 'Unknown' }}
+                                </dd>
+
+                                <dt class="col-5 text-muted fw-normal">Last Synced</dt>
+                                <dd class="col-7 mb-0 small text-muted">{{ host.last_updated or 'Never' }}</dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted text-uppercase mb-3" style="font-size:.72rem;letter-spacing:.5px;">Resources</h6>
+                            <dl class="row mb-0" style="row-gap:.5rem;">
+                                <dt class="col-6 text-muted fw-normal">Logical CPUs</dt>
+                                <dd class="col-6 mb-0 fw-semibold">{{ host.logical_processors }}</dd>
+
+                                <dt class="col-6 text-muted fw-normal">Total Memory</dt>
+                                <dd class="col-6 mb-0 fw-semibold">{{ host.total_memory_gb|round(1) }} GB</dd>
+
+                                <dt class="col-6 text-muted fw-normal">Free Memory</dt>
+                                <dd class="col-6 mb-0">{{ (host.available_memory_gb or 0)|round(1) }} GB</dd>
+
+                                {% if host.c_drive_size_gb %}
+                                <dt class="col-6 text-muted fw-normal">C Drive</dt>
+                                <dd class="col-6 mb-0">{{ host.c_drive_free_gb|round(1) }} / {{ host.c_drive_size_gb|round(1) }} GB</dd>
+                                {% endif %}
+                            </dl>
+
+                            {% if host.total_memory_gb %}
+                            {% set mem_pct = ((host.total_memory_gb - (host.available_memory_gb or 0)) / host.total_memory_gb * 100)|round(1) %}
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-muted small">Memory Usage</span>
+                                    <span class="small fw-semibold">{{ mem_pct }}%</span>
+                                </div>
+                                <div class="progress" style="height:8px;border-radius:4px;">
+                                    <div class="progress-bar bg-{% if mem_pct < 70 %}success{% elif mem_pct < 88 %}warning{% else %}danger{% endif %}"
+                                         style="width:{{ mem_pct }}%"></div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if host.c_drive_size_gb %}
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-muted small"><i class="bi bi-hdd me-1"></i>C Drive Usage</span>
+                                    <span class="small fw-semibold">{{ host.c_drive_percent_used|round(1) }}%</span>
+                                </div>
+                                <div class="progress" style="height:8px;border-radius:4px;">
+                                    <div class="progress-bar bg-{% if host.c_drive_percent_used < 70 %}success{% elif host.c_drive_percent_used < 90 %}warning{% else %}danger{% endif %}"
+                                         style="width:{{ host.c_drive_percent_used }}%"></div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if host.notes %}
+                    <hr class="my-3">
+                    <div class="p-3 rounded-3" style="border:1px solid rgba(0,0,0,.06);border-left:3px solid #0d6efd;">
+                        <div class="text-muted mb-1" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">
+                            <i class="bi bi-card-text me-1"></i>Notes
+                        </div>
+                        <p class="mb-0 small">{{ host.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Contacts Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-lines-fill me-2"></i>Contacts
+                        <span class="badge bg-secondary ms-1">{{ contacts|length }}</span>
+                    </h5>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-plus-circle me-1"></i>Add Contact
+                    </button>
+                </div>
+                {% if contacts %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Job Title</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th style="width:70px;" class="text-center">Primary</th>
+                                <th style="width:90px;" class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for contact in contacts %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="width:30px;height:30px;background:{% if contact.is_primary_contact %}rgba(255,193,7,.15){% else %}rgba(108,117,125,.1){% endif %};">
+                                        <i class="bi bi-person{% if contact.is_primary_contact %}-fill text-warning{% else %} text-muted{% endif %}" style="font-size:.75rem;"></i>
+                                    </div>
+                                    <span class="fw-semibold">{{ contact.name }}</span>
+                                </div>
+                            </td>
+                            <td class="text-muted small">{{ contact.job_title or '—' }}</td>
+                            <td>
+                                {% if contact.email %}
+                                <a href="mailto:{{ contact.email }}" class="text-decoration-none small">{{ contact.email }}</a>
+                                {% else %}<span class="text-muted">—</span>{% endif %}
+                            </td>
+                            <td class="small">{{ contact.phone or '—' }}</td>
+                            <td class="text-center">
+                                <form action="/host/{{ host.id }}/contact/{{ contact.id }}/toggle-primary" method="POST" class="d-inline">
+                                    {% if contact.is_primary_contact %}
+                                    <i class="bi bi-star-fill text-warning" title="Primary Contact"></i>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-sm btn-link p-0 text-muted" title="Set as primary">
+                                        <i class="bi bi-star"></i>
+                                    </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editContactModal{{ contact.id }}" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form action="/host/{{ host.id }}/contact/{{ contact.id }}/delete" method="POST" class="d-inline" id="deleteContactForm{{ contact.id }}">
+                                        <button type="button" class="btn btn-outline-danger" onclick="deleteHostContact({{ contact.id }})" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-4">
+                    <i class="bi bi-person-lines-fill text-muted" style="font-size:2rem;opacity:.4;"></i>
+                    <p class="text-muted small mt-2 mb-2">No contacts yet.</p>
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                        <i class="bi bi-plus-circle me-1"></i>Add Contact
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- VMs Card -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pc-display me-2"></i>Virtual Machines
+                        <span class="badge bg-secondary ms-1">{{ vms|length }}</span>
+                    </h5>
+                    {% set running_count = vms|selectattr('state','equalto','Running')|list|length %}
+                    {% if running_count > 0 %}
+                    <span class="badge bg-success"><i class="bi bi-play-fill me-1"></i>{{ running_count }} Running</span>
+                    {% endif %}
+                </div>
+                {% if vms %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>VM Name</th>
+                                <th style="width:100px;">State</th>
+                                <th style="width:70px;" class="text-center">vCPUs</th>
+                                <th style="width:100px;" class="text-end">Memory</th>
+                                <th>Cluster</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for vm in vms %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="width:28px;height:28px;background:{% if vm.state == 'Running' %}rgba(25,135,84,.1){% else %}rgba(108,117,125,.1){% endif %};">
+                                        <i class="bi bi-pc-display" style="font-size:.65rem;color:{% if vm.state == 'Running' %}#198754{% else %}#6c757d{% endif %};"></i>
+                                    </div>
+                                    <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="text-decoration-none fw-semibold">
+                                        {{ vm.machine_name }}
+                                    </a>
+                                </div>
+                            </td>
+                            <td>
+                                {% if vm.state == 'Running' %}
+                                <span class="badge bg-success">Running</span>
+                                {% elif vm.state == 'Off' %}
+                                <span class="badge bg-secondary">Off</span>
+                                {% elif vm.state == 'Saved' %}
+                                <span class="badge bg-info">Saved</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ vm.state }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ vm.cpu_count }}</td>
+                            <td class="text-end">{{ vm.memory_assigned_gb }} GB</td>
+                            <td class="text-muted small">{{ vm.cluster_name or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body text-center py-4">
+                    <i class="bi bi-pc-display text-muted" style="font-size:2rem;opacity:.4;"></i>
+                    <p class="text-muted small mt-2 mb-0">No VMs on this host.</p>
+                </div>
+                {% endif %}
+            </div>
+
+        </div><!-- /col-lg-8 -->
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+
+            <!-- VM Status Summary -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>VM Summary</h5>
+                </div>
+                <div class="card-body">
+                    {% set running = vms|selectattr('state','equalto','Running')|list|length %}
+                    {% set off = vms|selectattr('state','equalto','Off')|list|length %}
+                    {% set other = vms|length - running - off %}
+
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded-3" style="background:rgba(25,135,84,.08);">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-play-circle-fill text-success"></i>
+                            <span class="fw-semibold small">Running</span>
+                        </div>
+                        <span class="badge bg-success fs-6">{{ running }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded-3" style="background:rgba(108,117,125,.08);">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-stop-circle text-secondary"></i>
+                            <span class="fw-semibold small">Off</span>
+                        </div>
+                        <span class="badge bg-secondary fs-6">{{ off }}</span>
+                    </div>
+                    {% if other > 0 %}
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded-3" style="background:rgba(255,193,7,.08);">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-question-circle text-warning"></i>
+                            <span class="fw-semibold small">Other</span>
+                        </div>
+                        <span class="badge bg-warning text-dark fs-6">{{ other }}</span>
+                    </div>
+                    {% endif %}
+
+                    {% if vms %}
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Running ratio</span>
+                            <span class="small fw-semibold">{{ (running / vms|length * 100)|round(0)|int }}%</span>
+                        </div>
+                        <div class="progress" style="height:8px;border-radius:4px;">
+                            <div class="progress-bar bg-success" style="width:{{ (running / vms|length * 100)|round(0) }}%"></div>
+                            <div class="progress-bar bg-secondary" style="width:{{ (off / vms|length * 100)|round(0) }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Memory Card -->
+            {% if host.total_memory_gb %}
+            {% set mem_pct = ((host.total_memory_gb - (host.available_memory_gb or 0)) / host.total_memory_gb * 100)|round(1) %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-memory me-2"></i>Memory</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div style="font-size:2rem;font-weight:700;color:{% if mem_pct < 70 %}#198754{% elif mem_pct < 88 %}#ffc107{% else %}#dc3545{% endif %};">
+                            {{ mem_pct }}%
+                        </div>
+                        <div class="text-muted small">used</div>
+                    </div>
+                    <div class="progress mb-3" style="height:12px;border-radius:6px;">
+                        <div class="progress-bar bg-{% if mem_pct < 70 %}success{% elif mem_pct < 88 %}warning{% else %}danger{% endif %}"
+                             style="width:{{ mem_pct }}%"></div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-6 border-end">
+                            <div class="fw-bold">{{ (host.total_memory_gb - (host.available_memory_gb or 0))|round(1) }} GB</div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Used</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold text-success">{{ (host.available_memory_gb or 0)|round(1) }} GB</div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Free</div>
+                        </div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <small class="text-muted">Total: {{ host.total_memory_gb|round(1) }} GB</small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- C Drive Card -->
+            {% if host.c_drive_size_gb %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-hdd me-2"></i>C Drive</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div style="font-size:2rem;font-weight:700;color:{% if host.c_drive_percent_used < 70 %}#198754{% elif host.c_drive_percent_used < 90 %}#ffc107{% else %}#dc3545{% endif %};">
+                            {{ host.c_drive_percent_used|round(1) }}%
+                        </div>
+                        <div class="text-muted small">used</div>
+                    </div>
+                    <div class="progress mb-3" style="height:12px;border-radius:6px;">
+                        <div class="progress-bar bg-{% if host.c_drive_percent_used < 70 %}success{% elif host.c_drive_percent_used < 90 %}warning{% else %}danger{% endif %}"
+                             style="width:{{ host.c_drive_percent_used }}%"></div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-6 border-end">
+                            <div class="fw-bold">{{ (host.c_drive_size_gb - host.c_drive_free_gb)|round(1) }} GB</div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Used</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold text-success">{{ host.c_drive_free_gb|round(1) }} GB</div>
+                            <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;">Free</div>
+                        </div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <small class="text-muted">Total: {{ host.c_drive_size_gb|round(1) }} GB</small>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Update Status -->
+            {% if host.needs_restart or host.needs_update or host.last_update_check_time %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Update Status</h5>
+                </div>
+                <div class="card-body">
+                    {% if host.needs_restart %}
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3 mb-2" style="background:rgba(220,53,69,.08);border:1px solid rgba(220,53,69,.15);">
+                        <i class="bi bi-arrow-clockwise text-danger"></i>
+                        <span class="fw-semibold text-danger small">Restart Required</span>
+                    </div>
+                    {% endif %}
+                    {% if host.needs_update %}
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3 mb-2" style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.25);">
+                        <i class="bi bi-arrow-down-circle text-warning"></i>
+                        <div>
+                            <div class="fw-semibold text-warning-emphasis small">{{ host.pending_updates_count }} Update{% if host.pending_updates_count != 1 %}s{% endif %} Available</div>
+                            {% if host.critical_updates_count > 0 %}
+                            <div class="small"><span class="badge bg-danger">{{ host.critical_updates_count }} Critical</span></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if not host.needs_restart and not host.needs_update %}
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3" style="background:rgba(25,135,84,.08);border:1px solid rgba(25,135,84,.15);">
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                        <span class="fw-semibold text-success small">Up to Date</span>
+                    </div>
+                    {% endif %}
+                    {% if host.last_update_check_time %}
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-clock me-1"></i>Last checked: {{ host.last_update_check_time }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div><!-- /col-lg-4 -->
+    </div><!-- /row -->
 </div>
 
 <!-- Add Contact Modal -->
 <div class="modal fade" id="addContactModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Contact</h5>
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add Contact</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="/host/{{ host.id }}/contact/add" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Name *</label>
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="name" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Job Title</label>
                         <input type="text" class="form-control" name="job_title">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-control" name="phone">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" name="phone">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mobile</label>
                         <input type="tel" class="form-control" name="mobile_phone">
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="addPrimaryCheck">
-                            <label class="form-check-label" for="addPrimaryCheck">Primary Contact</label>
-                        </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="is_primary_contact" id="addPrimaryCheck">
+                        <label class="form-check-label" for="addPrimaryCheck">
+                            <i class="bi bi-star-fill text-warning me-1"></i>Primary Contact
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Contact</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Add Contact</button>
                 </div>
             </form>
         </div>
@@ -185,44 +581,47 @@
 <!-- Edit Contact Modals -->
 {% for contact in contacts %}
 <div class="modal fade" id="editContactModal{{ contact.id }}" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit Contact</h5>
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Contact</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="/host/{{ host.id }}/contact/{{ contact.id }}/edit" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Name *</label>
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="name" value="{{ contact.name }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Job Title</label>
                         <input type="text" class="form-control" name="job_title" value="{{ contact.job_title or '' }}">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" value="{{ contact.email or '' }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-control" name="phone" value="{{ contact.phone or '' }}">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" value="{{ contact.email or '' }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" name="phone" value="{{ contact.phone or '' }}">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mobile</label>
                         <input type="tel" class="form-control" name="mobile_phone" value="{{ contact.mobile_phone or '' }}">
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="is_primary_contact" id="editPrimaryCheck{{ contact.id }}" {% if contact.is_primary_contact %}checked{% endif %}>
-                            <label class="form-check-label" for="editPrimaryCheck{{ contact.id }}">Primary Contact</label>
-                        </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="is_primary_contact"
+                               id="editPrimaryCheck{{ contact.id }}" {% if contact.is_primary_contact %}checked{% endif %}>
+                        <label class="form-check-label" for="editPrimaryCheck{{ contact.id }}">
+                            <i class="bi bi-star-fill text-warning me-1"></i>Primary Contact
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle me-1"></i>Save Changes</button>
                 </div>
             </form>
         </div>
