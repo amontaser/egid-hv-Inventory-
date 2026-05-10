@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Virtual Machines{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
 
@@ -9,568 +10,511 @@
             <h1 class="h3 mb-1">
                 <i class="bi bi-pc-display me-2 text-primary"></i>Virtual Machines
             </h1>
-            {% if selected_cluster_name %}
-            <div class="mt-1">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                    <i class="bi bi-funnel me-1"></i>{{ selected_cluster_name }}
-                    <a href="{{ request.path }}" class="text-primary ms-1" title="Clear filter">
-                        <i class="bi bi-x-lg"></i>
-                    </a>
-                </span>
-            </div>
-            {% else %}
-            <small class="text-muted">{{ last_update_time }}</small>
-            {% endif %}
+            <small class="text-muted">{{ last_update_time }} &nbsp;·&nbsp; {{ stats.total_vms or 0 }} total machines</small>
         </div>
         <div class="d-flex gap-2">
             <a href="/export/csv" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-download me-1"></i>Export CSV
+                <i class="bi bi-download me-1"></i>Export
             </a>
             <form id="syncForm" action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
                 <button type="submit" class="btn btn-primary btn-sm" id="syncButton">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Sync
+                    <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- Stat Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #0d6efd;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(13,110,253,.12);">
-                            <i class="bi bi-pc-display" style="color:#0d6efd;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total VMs</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ stats.total_vms or 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #198754;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(25,135,84,.12);">
-                            <i class="bi bi-play-circle-fill" style="color:#198754;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Running</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;color:#198754;">{{ stats.running_vms or 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #6c757d;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(108,117,125,.12);">
-                            <i class="bi bi-stop-circle" style="color:#6c757d;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Stopped</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ stats.stopped_vms or 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #0dcaf0;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(13,202,240,.12);">
-                            <i class="bi bi-cpu" style="color:#0dcaf0;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">vCPUs</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ stats.total_vcpus or 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #ffc107;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(255,193,7,.12);">
-                            <i class="bi bi-memory" style="color:#ffc107;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Memory</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ stats.total_memory_gb or 0 }}<span style="font-size:.9rem;font-weight:500;"> GB</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card" style="border-left:4px solid #495057;">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                             style="width:42px;height:42px;background:rgba(73,80,87,.12);">
-                            <i class="bi bi-hdd-rack" style="color:#495057;font-size:1rem;"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted" style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Hosts</div>
-                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ stats.host_count or 0 }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="row g-4">
 
-    <!-- VM Table Card -->
-    <div class="card">
-        <div class="card-header">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <h5 class="mb-0"><i class="bi bi-table me-2"></i>All Virtual Machines</h5>
-                <span class="badge bg-secondary" id="vmCountBadge">{{ vms|length }}</span>
-            </div>
-            <!-- Filters Row -->
-            <div class="row g-2 align-items-center">
-                {% if clusters %}
-                <div class="col-auto">
-                    <select id="clusterFilter" class="form-select form-select-sm" style="min-width:160px;">
-                        <option value="">All Clusters</option>
-                        {% for cluster in clusters %}
-                        <option value="{{ cluster.cluster_name }}">{{ cluster.cluster_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endif %}
-                <div class="col-auto">
-                    <select id="stateFilter" class="form-select form-select-sm" style="min-width:130px;">
-                        <option value="">All States</option>
-                        <option value="Running">Running</option>
-                        <option value="Off">Off</option>
-                        <option value="Saved">Saved</option>
-                        <option value="Paused">Paused</option>
-                    </select>
-                </div>
-                <div class="col">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-transparent"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" id="search" class="form-control border-start-0"
-                               placeholder="Search by name, host, IP, 'vlan 100'…">
-                        <span id="searchTypeBadge" class="input-group-text d-none" style="border-left:none;"></span>
+        <!-- ── LEFT SIDEBAR ── -->
+        <div class="col-lg-3">
+
+            <!-- Search -->
+            <div class="card mb-3">
+                <div class="card-body p-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" id="search" class="form-control border-start-0 ps-0"
+                               placeholder="Search VMs…">
+                    </div>
+                    <div id="searchHint" class="text-muted mt-2 d-none" style="font-size:.72rem;">
+                        Try: <code>vlan 100</code> · <code>ip 10.0</code>
                     </div>
                 </div>
-                <div class="col-auto">
-                    <button class="btn btn-outline-secondary btn-sm" onclick="clearAllFilters()" title="Clear all filters">
-                        <i class="bi bi-x-circle me-1"></i>Clear
+            </div>
+
+            <!-- State Filter -->
+            <div class="card mb-3">
+                <div class="card-header py-2">
+                    <span class="fw-semibold small"><i class="bi bi-activity me-1"></i>State</span>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-grid gap-1" id="stateFilterGroup">
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 active-filter btn-primary"
+                                data-state="" onclick="setStateFilter(this, '')">
+                            <i class="bi bi-grid-3x3-gap-fill"></i>
+                            <span class="flex-grow-1">All States</span>
+                            <span class="badge bg-white text-dark">{{ stats.total_vms or 0 }}</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-success"
+                                data-state="Running" onclick="setStateFilter(this, 'Running')">
+                            <i class="bi bi-play-circle-fill"></i>
+                            <span class="flex-grow-1">Running</span>
+                            <span class="badge bg-success">{{ stats.running_vms or 0 }}</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-secondary"
+                                data-state="Off" onclick="setStateFilter(this, 'Off')">
+                            <i class="bi bi-stop-circle"></i>
+                            <span class="flex-grow-1">Off</span>
+                            <span class="badge bg-secondary">{{ stats.stopped_vms or 0 }}</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-info"
+                                data-state="Saved" onclick="setStateFilter(this, 'Saved')">
+                            <i class="bi bi-pause-circle-fill"></i>
+                            <span class="flex-grow-1">Saved</span>
+                            <span class="badge bg-info text-dark">—</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-warning"
+                                data-state="Paused" onclick="setStateFilter(this, 'Paused')">
+                            <i class="bi bi-pause-fill"></i>
+                            <span class="flex-grow-1">Paused</span>
+                            <span class="badge bg-warning text-dark">—</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cluster Filter -->
+            {% if clusters %}
+            <div class="card mb-3">
+                <div class="card-header py-2">
+                    <span class="fw-semibold small"><i class="bi bi-diagram-3 me-1"></i>Cluster</span>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-grid gap-1" id="clusterFilterGroup">
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-primary active-cluster"
+                                data-cluster="" onclick="setClusterFilter(this, '')">
+                            <i class="bi bi-layers-fill"></i>
+                            <span class="flex-grow-1">All Clusters</span>
+                        </button>
+                        {% for cluster in clusters %}
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-secondary"
+                                data-cluster="{{ cluster.cluster_name }}" onclick="setClusterFilter(this, '{{ cluster.cluster_name }}')">
+                            <i class="bi bi-diagram-3"></i>
+                            <span class="flex-grow-1 text-truncate">{{ cluster.cluster_name }}</span>
+                            <span class="badge bg-secondary">{{ cluster.vm_count or 0 }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Resource Summary -->
+            <div class="card mb-3">
+                <div class="card-header py-2">
+                    <span class="fw-semibold small"><i class="bi bi-bar-chart me-1"></i>Resources</span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">vCPUs Allocated</span>
+                            <span class="fw-bold small">{{ stats.total_vcpus or 0 }}</span>
+                        </div>
+                        <div class="progress" style="height:6px;border-radius:3px;">
+                            <div class="progress-bar bg-info" style="width:100%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Memory Allocated</span>
+                            <span class="fw-bold small">{{ stats.total_memory_gb or 0 }} GB</span>
+                        </div>
+                        <div class="progress" style="height:6px;border-radius:3px;">
+                            <div class="progress-bar bg-warning" style="width:100%"></div>
+                        </div>
+                    </div>
+                    <div class="row text-center g-0 pt-1">
+                        <div class="col border-end">
+                            <div class="fw-bold text-success">{{ stats.running_vms or 0 }}</div>
+                            <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;">Running</div>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold text-secondary">{{ stats.stopped_vms or 0 }}</div>
+                            <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;">Off</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Snapshot Warning -->
+            {% set snap_vms = vms | selectattr('snapshot_count') | list | length %}
+            {% if snap_vms > 0 %}
+            <div class="card border-warning">
+                <div class="card-body py-2 px-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-camera-fill text-warning"></i>
+                    <div class="small">
+                        <div class="fw-semibold text-warning-emphasis">{{ snap_vms }} VM{% if snap_vms != 1 %}s{% endif %} with snapshots</div>
+                        <div class="text-muted">Review recommended</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div><!-- /sidebar -->
+
+        <!-- ── MAIN CONTENT ── -->
+        <div class="col-lg-9">
+
+            <!-- Toolbar -->
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">
+                        <span id="visibleCount">{{ vms|length }}</span> of {{ vms|length }} VMs
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary d-none" id="clearFiltersBtn" onclick="clearAllFilters()">
+                        <i class="bi bi-x-circle me-1"></i>Clear filters
+                    </button>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-secondary active" id="viewList" onclick="setView('list')" title="List view">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="viewGrid" onclick="setView('grid')" title="Grid view">
+                        <i class="bi bi-grid-3x3-gap"></i>
                     </button>
                 </div>
             </div>
-        </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 align-middle">
-                <thead>
-                    <tr>
-                        <th class="sortable" data-sort="name" style="cursor:pointer;">
-                            VM Name <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th class="sortable" data-sort="state" style="cursor:pointer;width:100px;">
-                            State <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th class="sortable" data-sort="host" style="cursor:pointer;">
-                            Host / Cluster <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th class="sortable text-center" data-sort="cpu" style="cursor:pointer;width:75px;">
-                            vCPUs <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th class="sortable text-end" data-sort="memory" style="cursor:pointer;width:100px;">
-                            Memory <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th>IP / VLANs</th>
-                        <th class="sortable text-end" data-sort="disk" style="cursor:pointer;width:90px;">
-                            Storage <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                        <th class="sortable text-center" data-sort="snapshots" style="cursor:pointer;width:90px;">
-                            Snaps <i class="bi bi-arrow-down-up sort-icon text-muted ms-1" style="font-size:.75rem;"></i>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody id="vmTableBody">
-                {% for vm in vms %}
-                <tr class="vm-row"
-                    data-name="{{ vm.machine_name|lower }}"
-                    data-state="{{ vm.state }}"
-                    data-host="{{ vm.host_node_name|lower if vm.host_node_name else vm.host_name|lower }}"
-                    data-cluster="{{ vm.cluster_id or '' }}"
-                    data-cluster-name="{{ vm.cluster_name or '' }}"
-                    data-cpu="{{ vm.cpu_count }}"
-                    data-memory="{{ vm.memory_assigned_gb }}"
-                    data-disk="{{ vm.total_disk_gb or 0 }}"
-                    data-snapshots="{{ vm.snapshot_count or 0 }}"
-                    data-vlans="{{ vm.vlans or '' }}"
-                    data-ips="{{ vm.ip_addresses or '' }}">
+            <!-- VM List View -->
+            <div id="listView">
+                {% if vms %}
+                <div class="card">
+                    <div class="list-group list-group-flush" id="vmListGroup">
+                        {% for vm in vms %}
+                        <div class="list-group-item px-4 py-3 vm-item"
+                             data-name="{{ vm.machine_name|lower }}"
+                             data-state="{{ vm.state }}"
+                             data-cluster="{{ vm.cluster_name or '' }}"
+                             data-vlans="{{ vm.vlans or '' }}"
+                             data-ips="{{ vm.ip_addresses or '' }}"
+                             data-host="{{ vm.host_name|lower }}">
 
-                    <!-- Name -->
-                    <td>
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:28px;height:28px;background:{% if vm.state == 'Running' %}rgba(25,135,84,.1){% else %}rgba(108,117,125,.1){% endif %};">
-                                <i class="bi bi-pc-display"
-                                   style="font-size:.65rem;color:{% if vm.state == 'Running' %}#198754{% else %}#6c757d{% endif %};"></i>
-                            </div>
-                            <div>
+                            <div class="d-flex align-items-center gap-3">
+
+                                <!-- State indicator -->
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:42px;height:42px;background:{% if vm.state == 'Running' %}rgba(25,135,84,.12){% elif vm.state == 'Off' %}rgba(108,117,125,.1){% else %}rgba(255,193,7,.12){% endif %};">
+                                    <i class="bi bi-{% if vm.state == 'Running' %}play-circle-fill text-success{% elif vm.state == 'Off' %}stop-circle text-secondary{% else %}pause-circle-fill text-warning{% endif %}"
+                                       style="font-size:1.1rem;"></i>
+                                </div>
+
+                                <!-- Name + meta -->
+                                <div style="min-width:0;flex:1;">
+                                    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                        <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}"
+                                           class="fw-semibold text-decoration-none">{{ vm.machine_name }}</a>
+                                        {% if vm.state == 'Running' %}
+                                        <span class="badge bg-success" style="font-size:.65rem;">Running</span>
+                                        {% elif vm.state == 'Off' %}
+                                        <span class="badge bg-secondary" style="font-size:.65rem;">Off</span>
+                                        {% elif vm.state == 'Saved' %}
+                                        <span class="badge bg-info text-dark" style="font-size:.65rem;">Saved</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark" style="font-size:.65rem;">{{ vm.state }}</span>
+                                        {% endif %}
+                                        {% if vm.snapshot_count %}
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:.65rem;">
+                                            <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }} snap{% if vm.snapshot_count != 1 %}s{% endif %}
+                                        </span>
+                                        {% endif %}
+                                        {% if vm.client_name %}
+                                        <a href="/client/{{ vm.client_id }}"
+                                           class="badge bg-primary-subtle text-primary border border-primary-subtle"
+                                           style="font-size:.65rem;text-decoration:none;">
+                                            <i class="bi bi-building me-1"></i>{{ vm.client_name }}
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.75rem;color:#6c757d;">
+                                        <span><i class="bi bi-hdd-rack me-1"></i>{{ vm.host_name }}</span>
+                                        {% if vm.cluster_name %}
+                                        <span><i class="bi bi-diagram-3 me-1"></i>{{ vm.cluster_name }}</span>
+                                        {% endif %}
+                                        {% if vm.ip_addresses %}
+                                        <span class="font-monospace"><i class="bi bi-router me-1"></i>{{ vm.ip_addresses.split(',')[0] }}</span>
+                                        {% endif %}
+                                        {% if vm.vlan_list %}
+                                        <span>
+                                            {% for vlan in vm.vlan_list %}
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle me-1" style="font-size:.6rem;">VLAN {{ vlan }}</span>
+                                            {% endfor %}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Resource mini-bars -->
+                                <div class="d-none d-xl-flex flex-column gap-1" style="width:140px;flex-shrink:0;">
+                                    <div>
+                                        <div class="d-flex justify-content-between mb-1" style="font-size:.68rem;">
+                                            <span class="text-muted"><i class="bi bi-cpu me-1"></i>{{ vm.cpu_count }} vCPU</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="d-flex justify-content-between mb-1" style="font-size:.68rem;">
+                                            <span class="text-muted"><i class="bi bi-memory me-1"></i>{{ vm.memory_assigned_gb }} GB</span>
+                                        </div>
+                                    </div>
+                                    {% if vm.total_disk_gb %}
+                                    <div style="font-size:.68rem;color:#6c757d;">
+                                        <i class="bi bi-hdd me-1"></i>{{ vm.total_disk_gb }} GB
+                                        {% if vm.disk_count %}<span class="text-muted">({{ vm.disk_count }} disk{% if vm.disk_count != 1 %}s{% endif %})</span>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Resource pills (smaller screens) -->
+                                <div class="d-flex d-xl-none flex-column align-items-end gap-1 flex-shrink-0" style="font-size:.72rem;">
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-cpu me-1"></i>{{ vm.cpu_count }}</span>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-memory me-1"></i>{{ vm.memory_assigned_gb }} GB</span>
+                                </div>
+
+                                <!-- Arrow -->
                                 <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}"
-                                   class="fw-semibold text-decoration-none">{{ vm.machine_name }}</a>
-                                {% if vm.client_name %}
-                                <a href="/client/{{ vm.client_id }}"
-                                   class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1"
-                                   style="font-size:.65rem;text-decoration:none;">
-                                    <i class="bi bi-building me-1"></i>{{ vm.client_name }}
+                                   class="btn btn-sm btn-outline-primary flex-shrink-0 d-none d-md-inline-flex align-items-center">
+                                    <i class="bi bi-arrow-right-circle"></i>
                                 </a>
+
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- VM Grid View (hidden by default) -->
+            <div id="gridView" class="d-none">
+                <div class="row g-3" id="vmGridGroup">
+                    {% for vm in vms %}
+                    <div class="col-md-6 col-xl-4 vm-item"
+                         data-name="{{ vm.machine_name|lower }}"
+                         data-state="{{ vm.state }}"
+                         data-cluster="{{ vm.cluster_name or '' }}"
+                         data-vlans="{{ vm.vlans or '' }}"
+                         data-ips="{{ vm.ip_addresses or '' }}"
+                         data-host="{{ vm.host_name|lower }}">
+                        <div class="card h-100" style="border-radius:.625rem;">
+                            <div class="card-header d-flex align-items-center gap-2 py-2">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width:30px;height:30px;background:{% if vm.state == 'Running' %}rgba(25,135,84,.12){% else %}rgba(108,117,125,.1){% endif %};">
+                                    <i class="bi bi-pc-display" style="font-size:.7rem;color:{% if vm.state == 'Running' %}#198754{% else %}#6c757d{% endif %};"></i>
+                                </div>
+                                <span class="fw-semibold text-truncate small flex-grow-1">{{ vm.machine_name }}</span>
+                                {% if vm.state == 'Running' %}
+                                <span class="badge bg-success" style="font-size:.6rem;">On</span>
+                                {% else %}
+                                <span class="badge bg-secondary" style="font-size:.6rem;">{{ vm.state }}</span>
                                 {% endif %}
                             </div>
-                        </div>
-                    </td>
-
-                    <!-- State -->
-                    <td>
-                        {% if vm.state == 'Running' %}
-                        <span class="badge bg-success">
-                            <i class="bi bi-play-fill me-1"></i>Running
-                        </span>
-                        {% elif vm.state == 'Off' %}
-                        <span class="badge bg-secondary">
-                            <i class="bi bi-stop-fill me-1"></i>Off
-                        </span>
-                        {% elif vm.state == 'Saved' %}
-                        <span class="badge bg-info text-dark">
-                            <i class="bi bi-pause-fill me-1"></i>Saved
-                        </span>
-                        {% elif vm.state == 'Paused' %}
-                        <span class="badge bg-warning text-dark">
-                            <i class="bi bi-pause-fill me-1"></i>Paused
-                        </span>
-                        {% else %}
-                        <span class="badge bg-secondary">{{ vm.state }}</span>
-                        {% endif %}
-                    </td>
-
-                    <!-- Host / Cluster -->
-                    <td>
-                        <div class="small fw-semibold">
-                            <i class="bi bi-hdd-rack text-muted me-1"></i>
-                            {{ vm.host_node_name if vm.host_node_name else vm.host_name }}
-                        </div>
-                        {% if vm.cluster_name %}
-                        <div class="text-muted" style="font-size:.72rem;">
-                            <i class="bi bi-diagram-3 me-1"></i>{{ vm.cluster_name }}
-                        </div>
-                        {% endif %}
-                    </td>
-
-                    <!-- vCPUs -->
-                    <td class="text-center fw-semibold">{{ vm.cpu_count }}</td>
-
-                    <!-- Memory -->
-                    <td class="text-end fw-semibold">{{ vm.memory_assigned_gb }}<span class="text-muted fw-normal"> GB</span></td>
-
-                    <!-- IP / VLANs -->
-                    <td>
-                        {% if vm.ip_addresses or vm.vlan_list %}
-                            {% if vm.ip_addresses %}
-                            <div class="small text-muted font-monospace">{{ vm.ip_addresses }}</div>
-                            {% endif %}
-                            {% if vm.vlan_list %}
-                            <div class="d-flex gap-1 flex-wrap mt-1">
-                                {% for vlan in vm.vlan_list %}
-                                <span class="badge bg-info-subtle text-info border border-info-subtle"
-                                      style="font-size:.65rem;">VLAN {{ vlan }}</span>
-                                {% endfor %}
+                            <div class="card-body py-2">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <div class="rounded-3 text-center p-2" style="background:rgba(13,110,253,.06);border:1px solid rgba(13,110,253,.1);">
+                                            <div class="fw-bold text-primary small">{{ vm.cpu_count }}</div>
+                                            <div class="text-muted" style="font-size:.65rem;text-transform:uppercase;">vCPUs</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="rounded-3 text-center p-2" style="background:rgba(255,193,7,.07);border:1px solid rgba(255,193,7,.15);">
+                                            <div class="fw-bold text-warning-emphasis small">{{ vm.memory_assigned_gb }} GB</div>
+                                            <div class="text-muted" style="font-size:.65rem;text-transform:uppercase;">RAM</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-1 small text-muted mb-1">
+                                    <i class="bi bi-hdd-rack flex-shrink-0"></i>
+                                    <span class="text-truncate">{{ vm.host_name }}</span>
+                                </div>
+                                {% if vm.ip_addresses %}
+                                <div class="small font-monospace text-muted text-truncate">
+                                    <i class="bi bi-router me-1"></i>{{ vm.ip_addresses.split(',')[0] }}
+                                </div>
+                                {% endif %}
+                                {% if vm.snapshot_count %}
+                                <div class="mt-2">
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:.65rem;">
+                                        <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }} snapshot{% if vm.snapshot_count != 1 %}s{% endif %}
+                                    </span>
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
-                        {% else %}
-                        <span class="text-muted small">—</span>
-                        {% endif %}
-                    </td>
+                            <div class="card-footer py-2">
+                                <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="btn btn-sm btn-outline-primary w-100">
+                                    <i class="bi bi-arrow-right-circle me-1"></i>View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
 
-                    <!-- Disks -->
-                    <td class="text-end small">
-                        {% if vm.total_disk_gb %}
-                        <span class="fw-semibold">{{ vm.total_disk_gb }}</span><span class="text-muted"> GB</span>
-                        {% if vm.disk_count %}
-                        <div class="text-muted" style="font-size:.68rem;">{{ vm.disk_count }} disk{% if vm.disk_count != 1 %}s{% endif %}</div>
-                        {% endif %}
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-
-                    <!-- Snapshots -->
-                    <td class="text-center">
-                        {% if vm.snapshot_count %}
-                            {% if vm.snapshot_count >= 10 %}
-                            <span class="badge bg-danger" title="{{ vm.snapshot_count }} snapshots — high count">
-                                <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }}
-                            </span>
-                            {% elif vm.snapshot_count >= 3 %}
-                            <span class="badge bg-warning text-dark" title="{{ vm.snapshot_count }} snapshots">
-                                <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }}
-                            </span>
-                            {% else %}
-                            <span class="badge bg-secondary" title="{{ vm.snapshot_count }} snapshot(s)">
-                                <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }}
-                            </span>
-                            {% endif %}
-                        {% else %}
-                        <span class="text-muted small">—</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-
-            <!-- Empty search state -->
-            <div id="vmEmptyState" class="d-none py-5 text-center">
-                <i class="bi bi-search text-muted" style="font-size:2.5rem;opacity:.4;"></i>
-                <h6 class="text-muted mt-3 mb-1">No VMs match your filters</h6>
-                <p class="text-muted small mb-3">Try adjusting your search or filter criteria.</p>
-                <button class="btn btn-sm btn-outline-secondary" onclick="clearAllFilters()">
-                    <i class="bi bi-x-circle me-1"></i>Clear Filters
-                </button>
+            <!-- Empty state -->
+            <div id="emptyState" class="d-none">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-search text-muted" style="font-size:3rem;opacity:.4;"></i>
+                        <h5 class="text-muted mt-3 mb-1">No VMs match your filters</h5>
+                        <p class="text-muted small mb-3">Try adjusting the search or state/cluster filters.</p>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearAllFilters()">
+                            <i class="bi bi-x-circle me-1"></i>Clear all filters
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- No VMs at all -->
             {% if not vms %}
-            <div class="py-5 text-center">
-                <i class="bi bi-pc-display text-muted" style="font-size:3rem;opacity:.4;"></i>
-                <h6 class="text-muted mt-3 mb-1">No Virtual Machines Found</h6>
-                <p class="text-muted small mb-3">Run a sync to discover VMs from your Hyper-V clusters.</p>
-                <form action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
-                    <button type="submit" class="btn btn-sm btn-primary">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
-                    </button>
-                </form>
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-pc-display text-muted" style="font-size:3rem;opacity:.4;"></i>
+                    <h5 class="text-muted mt-3 mb-1">No Virtual Machines Found</h5>
+                    <p class="text-muted small mb-3">Run a sync to discover VMs from your clusters.</p>
+                    <form action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
+                        </button>
+                    </form>
+                </div>
             </div>
             {% endif %}
-        </div>
 
-        <div class="card-footer d-flex align-items-center justify-content-between">
-            <small class="text-muted">
-                Showing <span id="vmPageStart">1</span>–<span id="vmPageEnd">25</span>
-                of <span id="vmCount">{{ vms|length }}</span> VMs
-                {% if vms|length != stats.total_vms %} (filtered from {{ stats.total_vms }} total){% endif %}
-            </small>
-            <nav id="vmPagination" aria-label="VM pagination">
-                <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
-            </nav>
-        </div>
-    </div>
+        </div><!-- /main -->
+    </div><!-- /row -->
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const vmTableBody = document.getElementById('vmTableBody');
-const searchInput = document.getElementById('search');
-const stateFilter = document.getElementById('stateFilter');
-const vmCountSpan = document.getElementById('vmCount');
-const vmCountBadge = document.getElementById('vmCountBadge');
-const searchTypeBadge = document.getElementById('searchTypeBadge');
-let currentSort = { column: null, direction: 'asc' };
+let currentState   = '';
+let currentCluster = '';
+let currentSearch  = '';
+let currentView    = localStorage.getItem('vmView') || 'list';
 
-function parseSearchTerm(searchTerm) {
-    const term = searchTerm.toLowerCase().trim();
-    if (!term) return { type: 'none', value: '' };
-    const vlanMatch = term.match(/^vlan\s+(\d+)$/i);
-    if (vlanMatch) return { type: 'vlan', value: vlanMatch[1] };
-    const ipMatch = term.match(/^ip\s+(.+)$/i);
-    if (ipMatch) return { type: 'ip', value: ipMatch[1] };
-    return { type: 'general', value: term };
+// ── View toggle ──
+function setView(v) {
+    currentView = v;
+    localStorage.setItem('vmView', v);
+    document.getElementById('listView').classList.toggle('d-none', v !== 'list');
+    document.getElementById('gridView').classList.toggle('d-none', v !== 'grid');
+    document.getElementById('viewList').classList.toggle('active', v === 'list');
+    document.getElementById('viewGrid').classList.toggle('active', v === 'grid');
+    applyFilters();
 }
 
-function updateSearchBadge(search) {
-    if (search.type === 'none') { searchTypeBadge.classList.add('d-none'); return; }
-    const map = {
-        vlan:    { cls: 'badge bg-primary',   icon: 'bi-hdd-network', text: `VLAN: ${search.value}` },
-        ip:      { cls: 'badge bg-success',    icon: 'bi-router',      text: `IP: ${search.value}` },
-        general: { cls: 'badge bg-secondary',  icon: 'bi-search',      text: `"${search.value}"` },
-    };
-    const s = map[search.type] || map.general;
-    searchTypeBadge.innerHTML = `<span class="${s.cls} d-flex align-items-center gap-1"><i class="bi ${s.icon}"></i>${s.text}<button type="button" class="btn-close btn-close-white ms-1" style="font-size:.65rem;" onclick="clearSearch()"></button></span>`;
-    searchTypeBadge.classList.remove('d-none');
-}
-
-function clearSearch() {
-    searchInput.value = '';
-    searchInput.dispatchEvent(new Event('input'));
-    searchInput.focus();
-}
-
-const PAGE_SIZE = 25;
-let currentPage = 1;
-let filteredRows = [];
-
-function clearAllFilters() {
-    searchInput.value = '';
-    stateFilter.value = '';
-    const cf = document.getElementById('clusterFilter');
-    if (cf) cf.value = '';
-    filterAndDisplayVMs();
-}
-
-function filterAndDisplayVMs() {
-    const search = parseSearchTerm(searchInput.value);
-    const stateValue = stateFilter.value;
-    const clusterFilter = document.getElementById('clusterFilter');
-    const clusterValue = clusterFilter ? clusterFilter.value.toLowerCase() : '';
-
-    updateSearchBadge(search);
-
-    const allRows = Array.from(vmTableBody.querySelectorAll('tr.vm-row'));
-    filteredRows = allRows.filter(row => {
-        const name        = row.dataset.name || '';
-        const state       = row.dataset.state || '';
-        const host        = row.dataset.host || '';
-        const clusterName = (row.dataset.clusterName || '').toLowerCase();
-        const vlans       = row.dataset.vlans || '';
-        const ips         = row.dataset.ips || '';
-
-        if (stateValue && state !== stateValue) return false;
-        if (clusterValue && clusterName !== clusterValue) return false;
-
-        if (search.type === 'vlan') return vlans.split(',').includes(search.value);
-        if (search.type === 'ip')   return ips.toLowerCase().includes(search.value);
-        if (search.type === 'general') {
-            return name.includes(search.value) || host.includes(search.value) ||
-                   clusterName.includes(search.value) || ips.toLowerCase().includes(search.value);
-        }
-        return true;
-    });
-
-    allRows.forEach(r => r.style.display = 'none');
-    currentPage = 1;
-    renderPage();
-}
-
-function renderPage() {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    const pageRows = filteredRows.slice(start, end);
-    filteredRows.forEach(r => r.style.display = 'none');
-    pageRows.forEach(r => r.style.display = '');
-
-    const total = filteredRows.length;
-    const emptyState = document.getElementById('vmEmptyState');
-    emptyState.classList.toggle('d-none', total > 0);
-    if (vmCountSpan) vmCountSpan.textContent = total;
-    if (vmCountBadge) vmCountBadge.textContent = total;
-
-    const pageStart = total > 0 ? start + 1 : 0;
-    const pageEnd   = Math.min(end, total);
-    document.getElementById('vmPageStart').textContent = pageStart;
-    document.getElementById('vmPageEnd').textContent = pageEnd;
-
-    renderPagination(total);
-}
-
-function renderPagination(total) {
-    const totalPages = Math.ceil(total / PAGE_SIZE);
-    const ul = document.getElementById('paginationControls');
-    ul.innerHTML = '';
-    if (totalPages <= 1) return;
-
-    const mkLi = (label, page, disabled, active) => {
-        const li = document.createElement('li');
-        li.className = `page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}`;
-        const a = document.createElement('a');
-        a.className = 'page-link';
-        a.innerHTML = label;
-        if (!disabled && !active) a.addEventListener('click', e => { e.preventDefault(); currentPage = page; renderPage(); });
-        li.appendChild(a);
-        return li;
-    };
-
-    ul.appendChild(mkLi('<i class="bi bi-chevron-left"></i>', currentPage - 1, currentPage === 1));
-    const range = Array.from({ length: totalPages }, (_, i) => i + 1)
-        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1);
-    let prev = null;
-    range.forEach(p => {
-        if (prev && p - prev > 1) {
-            const li = document.createElement('li');
-            li.className = 'page-item disabled';
-            li.innerHTML = '<span class="page-link">…</span>';
-            ul.appendChild(li);
-        }
-        ul.appendChild(mkLi(p, p, false, p === currentPage));
-        prev = p;
-    });
-    ul.appendChild(mkLi('<i class="bi bi-chevron-right"></i>', currentPage + 1, currentPage === totalPages));
-}
-
-// Sort
-document.querySelectorAll('th.sortable').forEach(th => {
-    th.addEventListener('click', () => {
-        const col = th.dataset.sort;
-        if (currentSort.column === col) {
-            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+// ── State filter ──
+function setStateFilter(btn, state) {
+    currentState = state;
+    document.querySelectorAll('#stateFilterGroup button').forEach(b => {
+        const isActive = b === btn;
+        b.classList.remove('btn-primary','btn-outline-success','btn-outline-secondary','btn-outline-info','btn-outline-warning');
+        const colorMap = { '': 'btn-outline-secondary', Running: 'btn-outline-success', Off: 'btn-outline-secondary', Saved: 'btn-outline-info', Paused: 'btn-outline-warning' };
+        const ds = b.dataset.state;
+        if (isActive) {
+            b.classList.add(ds === '' ? 'btn-primary' : ds === 'Running' ? 'btn-success' : ds === 'Saved' ? 'btn-info' : ds === 'Paused' ? 'btn-warning' : 'btn-secondary');
         } else {
-            currentSort.column = col;
-            currentSort.direction = 'asc';
+            b.classList.add(colorMap[ds] || 'btn-outline-secondary');
         }
-
-        document.querySelectorAll('th.sortable .sort-icon').forEach(i => {
-            i.className = 'bi bi-arrow-down-up sort-icon text-muted ms-1';
-            i.style.fontSize = '.75rem';
-        });
-        const icon = th.querySelector('.sort-icon');
-        if (icon) {
-            icon.className = `bi bi-arrow-${currentSort.direction === 'asc' ? 'up' : 'down'} sort-icon text-primary ms-1`;
-        }
-
-        const map = { name:'name', state:'state', host:'host', cpu:'cpu', memory:'memory', disk:'disk', snapshots:'snapshots' };
-        const attr = map[col] || 'name';
-        filteredRows.sort((a, b) => {
-            let av = a.dataset[attr] || '';
-            let bv = b.dataset[attr] || '';
-            const numCols = ['cpu','memory','disk','snapshots'];
-            if (numCols.includes(col)) { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
-            if (av < bv) return currentSort.direction === 'asc' ? -1 :  1;
-            if (av > bv) return currentSort.direction === 'asc' ?  1 : -1;
-            return 0;
-        });
-        currentPage = 1;
-        renderPage();
     });
+    applyFilters();
+}
+
+// ── Cluster filter ──
+function setClusterFilter(btn, cluster) {
+    currentCluster = cluster;
+    document.querySelectorAll('#clusterFilterGroup button').forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('btn-primary', isActive && b.dataset.cluster === '');
+        b.classList.toggle('btn-secondary', isActive && b.dataset.cluster !== '');
+        b.classList.toggle('btn-outline-secondary', !isActive);
+        b.classList.toggle('btn-outline-primary', false);
+    });
+    applyFilters();
+}
+
+// ── Search ──
+document.getElementById('search').addEventListener('input', function() {
+    currentSearch = this.value.toLowerCase().trim();
+    document.getElementById('searchHint').classList.toggle('d-none', currentSearch.length > 0);
+    applyFilters();
 });
 
-// Live filter
-searchInput.addEventListener('input', filterAndDisplayVMs);
-stateFilter.addEventListener('change', filterAndDisplayVMs);
-const cf = document.getElementById('clusterFilter');
-if (cf) cf.addEventListener('change', filterAndDisplayVMs);
+// ── Apply all filters ──
+function applyFilters() {
+    const allItems = document.querySelectorAll('.vm-item');
+    let visible = 0;
 
-// Init
-filterAndDisplayVMs();
+    allItems.forEach(item => {
+        const name    = item.dataset.name    || '';
+        const state   = item.dataset.state   || '';
+        const cluster = item.dataset.cluster || '';
+        const vlans   = item.dataset.vlans   || '';
+        const ips     = item.dataset.ips     || '';
+        const host    = item.dataset.host    || '';
 
-// Sync button spinner (mirrors dashboard behavior)
+        let show = true;
+        if (currentState   && state   !== currentState)   show = false;
+        if (currentCluster && cluster !== currentCluster) show = false;
+
+        if (show && currentSearch) {
+            const vlanMatch = currentSearch.match(/^vlan\s+(\d+)$/i);
+            const ipMatch   = currentSearch.match(/^ip\s+(.+)$/i);
+            if (vlanMatch) {
+                show = vlans.split(',').includes(vlanMatch[1]);
+            } else if (ipMatch) {
+                show = ips.toLowerCase().includes(ipMatch[1]);
+            } else {
+                show = name.includes(currentSearch) || host.includes(currentSearch) ||
+                       cluster.toLowerCase().includes(currentSearch) || ips.includes(currentSearch);
+            }
+        }
+
+        item.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    document.getElementById('visibleCount').textContent = visible;
+    document.getElementById('emptyState').classList.toggle('d-none', visible > 0 || allItems.length === 0);
+    document.getElementById('clearFiltersBtn').classList.toggle('d-none', !currentState && !currentCluster && !currentSearch);
+
+    // show/hide list vs grid container
+    const listCard = document.querySelector('#listView .card');
+    const gridRow  = document.getElementById('vmGridGroup');
+    if (listCard) listCard.style.display = visible > 0 ? '' : 'none';
+    if (gridRow)  gridRow.style.display  = visible > 0 ? '' : 'none';
+}
+
+function clearAllFilters() {
+    currentState = ''; currentCluster = ''; currentSearch = '';
+    document.getElementById('search').value = '';
+    setStateFilter(document.querySelector('#stateFilterGroup button[data-state=""]'), '');
+    setClusterFilter(document.querySelector('#clusterFilterGroup button[data-cluster=""]'), '');
+    applyFilters();
+}
+
 function startSync(e) {
     const btn = document.getElementById('syncButton');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Syncing…';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
     }
 }
+
+// Init
+setView(currentView);
 </script>
 {% endblock %}
