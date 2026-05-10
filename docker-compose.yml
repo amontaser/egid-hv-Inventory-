@@ -50,9 +50,6 @@ services:
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
-    dns:
-      - 10.2.201.100
-      - 8.8.8.8
     environment:
       PUID: 1000
       PGID: 1000
@@ -75,9 +72,6 @@ services:
   celery-beat:
     build: .
     container_name: hyperv-celery-beat
-    dns:
-      - 10.2.201.100
-      - 8.8.8.8
     environment:
       PUID: 1000
       PGID: 1000
@@ -119,4 +113,3 @@ networks:
       config:
         - subnet: 10.2.24.0/24
           gateway: 10.2.24.1
-          ip_range: 10.2.24.30/32
