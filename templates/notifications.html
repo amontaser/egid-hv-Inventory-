@@ -1,121 +1,277 @@
 {% extends "base.html" %}
-
 {% block title %}Notifications{% endblock %}
-
 {% block content %}
 <div class="container-fluid py-4">
+
+    <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="bi bi-bell"></i> Notifications
-            {% if unread_count > 0 %}
-            <span class="badge bg-danger">{{ unread_count }}</span>
-            {% endif %}
-        </h2>
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-bell me-2 text-primary"></i>Notifications
+                {% if unread_count > 0 %}
+                <span class="badge bg-danger ms-1">{{ unread_count }}</span>
+                {% endif %}
+            </h1>
+            <small class="text-muted">Activity alerts for your virtual machines</small>
+        </div>
+        {% if notifications %}
         <form action="/notifications/mark-all-read" method="POST" class="d-inline">
             <button type="submit" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-check2-all"></i> Mark All Read
+                <i class="bi bi-check2-all me-1"></i>Mark All Read
             </button>
         </form>
+        {% endif %}
     </div>
 
-    <div class="row">
-        <div class="col-md-8">
+    <!-- Stat Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #0d6efd;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(13,110,253,.12);">
+                            <i class="bi bi-bell" style="color:#0d6efd;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ notifications|length }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid {% if unread_count > 0 %}#dc3545{% else %}#198754{% endif %};">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:{% if unread_count > 0 %}rgba(220,53,69,.12){% else %}rgba(25,135,84,.12){% endif %};">
+                            <i class="bi bi-envelope{% if unread_count == 0 %}-open{% endif %}"
+                               style="color:{% if unread_count > 0 %}#dc3545{% else %}#198754{% endif %};font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Unread</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">{{ unread_count }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #198754;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(25,135,84,.12);">
+                            <i class="bi bi-plus-circle" style="color:#198754;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VM Created</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">
+                                {{ notifications|selectattr('notification_type','equalto','vm_created')|list|length }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card" style="border-left:4px solid #dc3545;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                             style="width:42px;height:42px;background:rgba(220,53,69,.12);">
+                            <i class="bi bi-dash-circle" style="color:#dc3545;font-size:1.1rem;"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VM Deleted</div>
+                            <div style="font-size:1.5rem;font-weight:700;line-height:1.2;">
+                                {{ notifications|selectattr('notification_type','equalto','vm_deleted')|list|length }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Notifications List -->
+        <div class="col-lg-8">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Activity Feed</h5>
+                    {% if notifications %}
+                    <span class="badge bg-primary">{{ notifications|length }}</span>
+                    {% endif %}
+                </div>
+
                 {% if notifications %}
                 <div class="list-group list-group-flush">
-                    {% for notification in notifications %}
-                    <div class="list-group-item {{ '' if notification.is_read else 'bg-light' }}">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <div class="mb-2">
-                                    {% if notification.notification_type == 'vm_created' %}
-                                    <span class="badge bg-success me-2">
-                                        <i class="bi bi-plus-circle"></i> VM Created
-                                    </span>
-                                    {% elif notification.notification_type == 'vm_deleted' %}
-                                    <span class="badge bg-danger me-2">
-                                        <i class="bi bi-dash-circle"></i> VM Deleted
-                                    </span>
-                                    {% elif notification.notification_type == 'vm_state' %}
-                                    <span class="badge bg-warning text-dark me-2">
-                                        <i class="bi bi-arrow-repeat"></i> State Changed
-                                    </span>
-                                    {% else %}
-                                    <span class="badge bg-info me-2">
-                                        <i class="bi bi-info-circle"></i> {{ notification.notification_type }}
-                                    </span>
-                                    {% endif %}
+                    {% for n in notifications %}
+                    {% set type_map = {
+                        'vm_created': {'color': '#198754', 'bg': 'rgba(25,135,84,.12)', 'icon': 'bi-plus-circle-fill', 'label': 'VM Created', 'badge': 'success'},
+                        'vm_deleted': {'color': '#dc3545', 'bg': 'rgba(220,53,69,.12)', 'icon': 'bi-dash-circle-fill', 'label': 'VM Deleted', 'badge': 'danger'},
+                        'vm_state':   {'color': '#fd7e14', 'bg': 'rgba(253,126,20,.12)',  'icon': 'bi-arrow-repeat',     'label': 'State Changed', 'badge': 'warning'},
+                        'cpu':        {'color': '#0d6efd', 'bg': 'rgba(13,110,253,.12)',  'icon': 'bi-cpu-fill',         'label': 'CPU Change', 'badge': 'primary'},
+                        'memory':     {'color': '#6f42c1', 'bg': 'rgba(111,66,193,.12)', 'icon': 'bi-memory',           'label': 'Memory Change', 'badge': 'secondary'},
+                        'storage':    {'color': '#fd7e14', 'bg': 'rgba(253,126,20,.12)', 'icon': 'bi-hdd-fill',         'label': 'Storage Alert', 'badge': 'warning'},
+                    } %}
+                    {% set t = type_map.get(n.notification_type, {'color': '#6c757d', 'bg': 'rgba(108,117,125,.12)', 'icon': 'bi-info-circle-fill', 'label': n.notification_type|title, 'badge': 'secondary'}) %}
 
-                                    {% if not notification.is_read %}
-                                    <span class="badge bg-primary">New</span>
+                    <div class="list-group-item px-4 py-3"
+                         style="{% if not n.is_read %}border-left:3px solid {{ t.color }};background:rgba(13,110,253,.02);{% else %}border-left:3px solid transparent;{% endif %}">
+                        <div class="d-flex align-items-start gap-3">
+
+                            <!-- Type Icon -->
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1"
+                                 style="width:38px;height:38px;background:{{ t.bg }};">
+                                <i class="bi {{ t.icon }}" style="color:{{ t.color }};font-size:.95rem;"></i>
+                            </div>
+
+                            <!-- Content -->
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                    <span class="badge bg-{{ t.badge }}{% if t.badge == 'warning' %} text-dark{% endif %}" style="font-size:.7rem;">
+                                        {{ t.label }}
+                                    </span>
+                                    {% if not n.is_read %}
+                                    <span class="badge bg-primary" style="font-size:.65rem;">New</span>
                                     {% endif %}
                                 </div>
-                                <strong class="d-block mb-1">{{ notification.message }}</strong>
-                                <small class="text-muted">
-                                    VM: <a href="/vm/{{ notification.vm_id }}{% if notification.cluster_name %}?cluster={{ notification.cluster_name }}{% endif %}" class="text-decoration-none">{{ notification.machine_name }}</a>
-                                </small>
+                                <p class="mb-1 fw-semibold small">{{ n.message }}</p>
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <span class="text-muted" style="font-size:.75rem;">
+                                        <i class="bi bi-pc-display me-1"></i>
+                                        <a href="/vm/{{ n.vm_id }}{% if n.cluster_name %}?cluster={{ n.cluster_name }}{% endif %}"
+                                           class="text-decoration-none text-muted">{{ n.machine_name }}</a>
+                                    </span>
+                                    {% if n.cluster_name %}
+                                    <span class="text-muted" style="font-size:.75rem;">
+                                        <i class="bi bi-diagram-3 me-1"></i>{{ n.cluster_name }}
+                                    </span>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <div class="text-end ms-3">
-                                <small class="text-muted d-block mb-2">{{ notification.created_at }}</small>
-                                {% if not notification.is_read %}
-                                <form action="/notifications/{{ notification.id }}/read" method="POST" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-link p-0 text-decoration-none">
-                                        <i class="bi bi-check2"></i> Mark read
+
+                            <!-- Time + Action -->
+                            <div class="text-end flex-shrink-0">
+                                <div class="text-muted mb-2" style="font-size:.72rem;white-space:nowrap;">
+                                    <i class="bi bi-clock me-1"></i>{{ n.created_at }}
+                                </div>
+                                {% if not n.is_read %}
+                                <form action="/notifications/{{ n.id }}/read" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem;">
+                                        <i class="bi bi-check2 me-1"></i>Mark read
                                     </button>
                                 </form>
+                                {% else %}
+                                <span class="text-muted" style="font-size:.72rem;">
+                                    <i class="bi bi-check2-all me-1"></i>Read
+                                </span>
                                 {% endif %}
                             </div>
+
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="card-body text-center text-muted py-5">
-                    <i class="bi bi-bell-slash display-4"></i>
-                    <p class="mt-3">No notifications to display.</p>
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-bell-slash text-muted" style="font-size:3rem;opacity:.4;"></i>
+                    <h5 class="text-muted mt-3 mb-1">No Notifications</h5>
+                    <p class="text-muted small mb-0">You're all caught up. Notifications appear here after a sync detects changes.</p>
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card mb-3">
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+
+            <!-- Filters -->
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="bi bi-funnel"></i> Quick Filters</h6>
+                    <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
                 </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="/notifications" class="btn btn-outline-primary text-start">
-                            <i class="bi bi-list-ul"></i> All Notifications
+                <div class="card-body p-2">
+                    <div class="d-grid gap-1">
+                        <a href="/notifications"
+                           class="btn btn-sm text-start d-flex align-items-center gap-2 {{ 'btn-primary' if not request.args.get('unread') and not request.args.get('severity') else 'btn-outline-secondary' }}">
+                            <i class="bi bi-list-ul"></i>
+                            <span class="flex-grow-1">All Notifications</span>
+                            <span class="badge bg-secondary">{{ notifications|length }}</span>
                         </a>
-                        <a href="/notifications?unread=1" class="btn btn-outline-primary text-start">
-                            <i class="bi bi-envelope"></i> Unread Only
+                        <a href="/notifications?unread=1"
+                           class="btn btn-sm text-start d-flex align-items-center gap-2 {{ 'btn-primary' if request.args.get('unread') else 'btn-outline-secondary' }}">
+                            <i class="bi bi-envelope"></i>
+                            <span class="flex-grow-1">Unread Only</span>
                             {% if unread_count > 0 %}
-                            <span class="badge bg-primary float-end">{{ unread_count }}</span>
+                            <span class="badge bg-danger">{{ unread_count }}</span>
                             {% endif %}
                         </a>
-                        <a href="/notifications?severity=critical" class="btn btn-outline-danger text-start">
-                            <i class="bi bi-exclamation-triangle"></i> Critical Only
+                        <a href="/notifications?severity=critical"
+                           class="btn btn-sm text-start d-flex align-items-center gap-2 {{ 'btn-danger' if request.args.get('severity') == 'critical' else 'btn-outline-danger' }}">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <span>Critical Only</span>
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="card">
+            <!-- Notification Types -->
+            <div class="card mb-4">
                 <div class="card-header">
-                    <h6 class="mb-0"><i class="bi bi-info-circle"></i> About Notifications</h6>
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>By Type</h5>
                 </div>
-                <div class="card-body">
-                    <small class="text-muted">
-                        <p class="mb-2">You'll receive notifications for:</p>
-                        <ul class="mb-0">
-                            <li>VMs created</li>
-                            <li>VMs deleted</li>
-                            <li>VM state changes (running/off)</li>
-                        </ul>
-                    </small>
+                <div class="card-body p-0">
+                    {% set types = [
+                        ('vm_created', 'VM Created',     'bi-plus-circle-fill',  '#198754', 'rgba(25,135,84,.08)'),
+                        ('vm_deleted', 'VM Deleted',     'bi-dash-circle-fill',  '#dc3545', 'rgba(220,53,69,.08)'),
+                        ('vm_state',   'State Changed',  'bi-arrow-repeat',      '#fd7e14', 'rgba(253,126,20,.08)'),
+                    ] %}
+                    <div class="list-group list-group-flush">
+                        {% for type_key, type_label, icon, color, bg in types %}
+                        {% set count = notifications|selectattr('notification_type','equalto',type_key)|list|length %}
+                        {% if count > 0 %}
+                        <div class="list-group-item d-flex align-items-center gap-3 px-3 py-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="width:30px;height:30px;background:{{ bg }};">
+                                <i class="bi {{ icon }}" style="color:{{ color }};font-size:.75rem;"></i>
+                            </div>
+                            <span class="flex-grow-1 small fw-semibold">{{ type_label }}</span>
+                            <span class="badge bg-secondary">{{ count }}</span>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        {% if notifications|length == 0 %}
+                        <div class="list-group-item text-center text-muted py-3 small">No data</div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
+
+            <!-- About -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>About</h5>
+                </div>
+                <div class="card-body small text-muted">
+                    <p class="mb-2 fw-semibold">Notifications are triggered when:</p>
+                    <ul class="mb-3 ps-3" style="line-height:1.9;">
+                        <li>A new VM is detected</li>
+                        <li>A VM is removed</li>
+                        <li>A VM state changes (on/off/saved)</li>
+                        <li>CPU, memory or disk changes</li>
+                        <li>Storage drops below threshold</li>
+                    </ul>
+                    <a href="/settings/notifications" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-gear me-1"></i>Notification Settings
+                    </a>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
