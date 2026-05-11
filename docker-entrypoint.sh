@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# ipvlan overrides /etc/resolv.conf, breaking Docker's internal DNS (127.0.0.11)
+# which forwards to the host's systemd-resolved. Prepend it so container name
+# resolution AND external DNS both work.
+if ! grep -q "127.0.0.11" /etc/resolv.conf 2>/dev/null; then
+    sed -i '1i\nameserver 127.0.0.11' /etc/resolv.conf
+fi
+
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
