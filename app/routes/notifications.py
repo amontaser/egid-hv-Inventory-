@@ -77,7 +77,7 @@ def mark_read(notification_id):
     """Mark a specific notification as read."""
     with get_db() as db:
         db.execute(
-            text("UPDATE notifications SET is_read = 1 WHERE id = :notification_id"),
+            text("UPDATE notifications SET is_read = TRUE WHERE id = :notification_id"),
             {"notification_id": notification_id},
         )
         db.commit()

@@ -271,7 +271,7 @@ def persist_events(events: List[Dict]):
             text("""
                 INSERT INTO notifications
                 (notification_type, vm_id, machine_name, message, severity, cluster_name, is_read, created_at)
-                VALUES (:notification_type, :vm_id, :machine_name, :message, :severity, :cluster_name, 0, :created_at)
+                VALUES (:notification_type, :vm_id, :machine_name, :message, :severity, :cluster_name, FALSE, :created_at)
             """),
             {
                 "notification_type": ev["change_type"],
