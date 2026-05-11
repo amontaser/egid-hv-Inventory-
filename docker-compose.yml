@@ -65,9 +65,9 @@ services:
       - postgres
     restart: unless-stopped
     networks:
-      - hyperv-nw
-    extra_hosts:
-      - "host-gateway:host-gateway"
+      hyperv-nw:
+      hyperv-ipvlan:
+        ipv4_address: 10.2.24.11
 
   celery-beat:
     build: .
@@ -113,3 +113,4 @@ networks:
       config:
         - subnet: 10.2.24.0/24
           gateway: 10.2.24.1
+          ip_range: 10.2.24.10/31
