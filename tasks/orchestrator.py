@@ -96,11 +96,11 @@ def _update_sync_metadata(status: str, **kwargs):
 def _clear_vm_data():
     session = get_db_connection()
     for tbl in (
-        "vm_info",
-        "vm_disks",
         "vm_network_adapters",
+        "vm_disks",
         "vm_snapshots",
         "vm_replication",
+        "vm_info",
     ):
         session.execute(text(f"DELETE FROM {tbl}"))
     session.commit()
