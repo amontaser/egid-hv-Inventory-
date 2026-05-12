@@ -6,6 +6,7 @@ from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
 from app.utils.db_compat import str_agg, bool_eq
+from app.utils.export import build_workbook, workbook_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -411,6 +412,164 @@ def vm_details(vm_id):
         history=history_with_style,
         history_count=len(history_with_style),
     )
+
+
+@bp.route("/export/vm/<vm_id>.xlsx")
+@login_required
+def export_vm_xlsx(vm_id):
+    cluster_name = request.args.get("cluster")
+
+    with get_db() as db:
+        if cluster_name:
+            vm = db.execute(
+                text(
+                    "SELECT * FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cluster_name"
+                ),
+                {"vm_id": vm_id, "cluster_name": cluster_name},
+            ).fetchone()
+        else:
+            vm = db.execute(
+                text("SELECT * FROM vm_info WHERE vm_id = :vm_id"), {"vm_id": vm_id}
+            ).fetchone()
+        if not vm:
+            abort(404)
+
+        vm_d = _row_to_dict(vm)
+        cn = vm_d["cluster_name"]
+        disks = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text(
+                    "SELECT * FROM vm_disks WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
+            ).fetchall()
+        ]
+        networks = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text(
+                    "SELECT * FROM vm_network_adapters WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
+            ).fetchall()
+        ]
+        snapshots = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text(
+                    "SELECT * FROM vm_snapshots WHERE vm_id = :vm_id AND cluster_name = :cn"
+                ),
+                {"vm_id": vm_id, "cn": cn},
+            ).fetchall()
+        ]
+        rep_row = db.execute(
+            text(
+                "SELECT * FROM vm_replication WHERE vm_id = :vm_id AND cluster_name = :cn"
+            ),
+            {"vm_id": vm_id, "cn": cn},
+        ).fetchone()
+        replication = _row_to_dict(rep_row)
+
+        notes_rows = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text(
+                    "SELECT note_text FROM vm_notes WHERE vm_id = :vm_id AND cluster_name = :cn ORDER BY created_at DESC"
+                ),
+                {"vm_id": vm_id, "cn": cn},
+            ).fetchall()
+        ]
+        notes_text = "; ".join(n["note_text"] for n in notes_rows if n.get("note_text"))
+
+    info_rows = [
+        ("Machine Name", vm_d.get("vm_name", "")),
+        ("VM ID", vm_d.get("vm_id", "")),
+        ("Host", vm_d.get("host_name", "")),
+        ("Cluster", vm_d.get("cluster_name", "")),
+        ("State", vm_d.get("state", "")),
+        ("vCPUs", vm_d.get("cpu_count", "")),
+        ("Memory Assigned GB", vm_d.get("memory_assigned_gb", "")),
+        ("Memory Demand GB", vm_d.get("memory_demand_gb", "")),
+        ("Dynamic Memory", vm_d.get("dynamic_memory", "")),
+        ("Generation", vm_d.get("generation", "")),
+        ("Version", vm_d.get("version", "")),
+        ("Notes", notes_text),
+    ]
+    sheets = [("Info", ["Field", "Value"], info_rows)]
+
+    if disks:
+        disk_rows = [
+            (
+                d.get("vm_name", ""),
+                d.get("controller_type", ""),
+                d.get("disk_type", ""),
+                d.get("path", ""),
+                d.get("size_gb", ""),
+                d.get("vhd_type", ""),
+                d.get("format", ""),
+            )
+            for d in disks
+        ]
+        sheets.append(
+            (
+                "Disks",
+                [
+                    "VM Name",
+                    "Controller",
+                    "Type",
+                    "Path",
+                    "Size GB",
+                    "VHD Type",
+                    "Format",
+                ],
+                disk_rows,
+            )
+        )
+
+    if networks:
+        net_rows = [
+            (
+                n.get("adapter_name", ""),
+                n.get("switch_name", ""),
+                n.get("vlan_id", ""),
+                n.get("ip_addresses", ""),
+                n.get("mac_address", ""),
+                n.get("connected", ""),
+            )
+            for n in networks
+        ]
+        sheets.append(
+            (
+                "Networks",
+                ["Adapter", "Switch", "VLAN", "IP Addresses", "MAC", "Connected"],
+                net_rows,
+            )
+        )
+
+    if snapshots:
+        snap_rows = [
+            (
+                s.get("snapshot_name", ""),
+                s.get("creation_time", ""),
+                s.get("size_gb", ""),
+            )
+            for s in snapshots
+        ]
+        sheets.append(("Snapshots", ["Name", "Creation Time", "Size GB"], snap_rows))
+
+    if replication:
+        rep_rows = [
+            ("State", replication.get("replication_state", "")),
+            ("Mode", replication.get("replication_mode", "")),
+            ("Frequency sec", replication.get("replication_frequency_sec", "")),
+            ("Last Sync", replication.get("last_replication_time", "")),
+            ("Primary Server", replication.get("primary_server", "")),
+        ]
+        sheets.append(("Replication", ["Field", "Value"], rep_rows))
+
+    wb = build_workbook(sheets)
+    return workbook_response(wb, vm_d.get("vm_name", "vm"))
 
 
 @bp.route("/vm/<vm_id>/history")

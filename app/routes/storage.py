@@ -6,6 +6,7 @@ from flask import (
     request,
     session,
     redirect,
+    url_for,
     jsonify,
     make_response,
 )
@@ -14,8 +15,7 @@ from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
 from app.utils.db_compat import str_agg
-import csv
-from io import StringIO
+from app.utils.export import build_workbook, workbook_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -214,10 +214,37 @@ def trigger_update():
     return redirect("/")
 
 
-@bp.route("/export/csv")
+@bp.route("/export/vms.xlsx")
 @login_required
-def export_csv():
-    """Export VM data to CSV."""
+def export_vms_xlsx():
+    cluster_id = request.args.get("cluster_id")
+    search = request.args.get("search", "").strip()
+
+    cluster_name = None
+    if cluster_id:
+        with get_db() as db:
+            row = db.execute(
+                text("SELECT cluster_name FROM clusters WHERE cluster_id = :cid"),
+                {"cid": cluster_id},
+            ).fetchone()
+            if row:
+                cluster_name = row[0]
+
+    where_clauses = []
+    params = {}
+    if cluster_name:
+        where_clauses.append("v.cluster_name = :cluster_name")
+        params["cluster_name"] = cluster_name
+    if search:
+        where_clauses.append(
+            "(v.machine_name LIKE :search OR v.host_name LIKE :search OR v.notes LIKE :search)"
+        )
+        params["search"] = f"%{search}%"
+
+    where_sql = ""
+    if where_clauses:
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
     with get_db() as db:
         vms_raw = db.execute(
             text(f"""
@@ -241,39 +268,37 @@ def export_csv():
                 v.created_at,
                 v.updated_at
             FROM vm_info v
+            {where_sql}
             ORDER BY v.machine_name
-        """)
+        """),
+            params,
         ).fetchall()
 
-    output = StringIO()
-    writer = csv.writer(output)
+    headers = [
+        "Machine Name",
+        "VM ID",
+        "Host",
+        "Cluster",
+        "State",
+        "vCPUs",
+        "Memory (GB)",
+        "Memory Demand (GB)",
+        "Dynamic Memory",
+        "Generation",
+        "Version",
+        "Notes",
+        "Total Disk (GB)",
+        "Disk Count",
+        "IP Addresses",
+        "Snapshots",
+        "Created",
+        "Updated",
+    ]
 
-    writer.writerow(
-        [
-            "Machine Name",
-            "VM ID",
-            "Host",
-            "Cluster",
-            "State",
-            "vCPUs",
-            "Memory (GB)",
-            "Memory Demand (GB)",
-            "Dynamic Memory",
-            "Generation",
-            "Version",
-            "Notes",
-            "Total Disk (GB)",
-            "Disk Count",
-            "IP Addresses",
-            "Snapshots",
-            "Created",
-            "Updated",
-        ]
-    )
-
+    rows = []
     for vm_row in vms_raw:
         vm = _row_to_dict(vm_row)
-        writer.writerow(
+        rows.append(
             [
                 vm["machine_name"],
                 vm["vm_id"],
@@ -296,11 +321,85 @@ def export_csv():
             ]
         )
 
-    response = make_response(output.getvalue())
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    response.headers["Content-Disposition"] = (
-        f"attachment; filename=HyperV_Inventory_{timestamp}.csv"
-    )
-    response.headers["Content-Type"] = "text/csv"
+    wb = build_workbook([("VMs", headers, rows, None)])
+    return workbook_response(wb, "HyperV_Inventory")
 
-    return response
+
+@bp.route("/export/csv")
+@login_required
+def export_csv():
+    return redirect(url_for("storage.export_vms_xlsx", **request.args))
+
+
+@bp.route("/export/storage.xlsx")
+@login_required
+def export_storage_xlsx():
+    cluster_id = request.args.get("cluster_id")
+    params = {}
+    where = ""
+    if cluster_id and cluster_id.isdigit():
+        with get_db() as db:
+            row = db.execute(
+                text("SELECT cluster_name FROM clusters WHERE id = :cid"),
+                {"cid": int(cluster_id)},
+            ).fetchone()
+            if row:
+                params["cn"] = row._mapping["cluster_name"]
+                where = "WHERE cluster_name = :cn"
+
+    with get_db() as db:
+        storage_raw = db.execute(
+            text(f"""
+            SELECT * FROM cluster_shared_volumes
+            {where}
+            ORDER BY cluster_name, name
+        """),
+            params,
+        ).fetchall()
+
+    headers = [
+        "Volume Name",
+        "Cluster",
+        "Path",
+        "Owner Node",
+        "Total (GB)",
+        "Used (GB)",
+        "Free (GB)",
+        "% Used",
+        "VHD Count",
+        "VHD Max (GB)",
+        "VHD Actual (GB)",
+        "% Oversubscribed",
+    ]
+    rows = []
+    for s in storage_raw:
+        d = _row_to_dict(s)
+        pct = (
+            round((d["used_space_gb"] / d["total_size_gb"]) * 100, 1)
+            if d.get("total_size_gb")
+            else 0
+        )
+        over = (
+            round((d["vhd_max_size_gb"] / d["total_size_gb"]) * 100, 1)
+            if d.get("total_size_gb")
+            else 0
+        )
+        rows.append(
+            [
+                d.get("name"),
+                d.get("cluster_name"),
+                d.get("path"),
+                d.get("owner_node"),
+                d.get("total_size_gb"),
+                d.get("used_space_gb"),
+                d.get("free_space_gb"),
+                pct,
+                d.get("vhd_count"),
+                d.get("vhd_max_size_gb"),
+                d.get("vhd_actual_size_gb"),
+                over,
+            ]
+        )
+
+    wb = build_workbook([("Storage", headers, rows)])
+    return workbook_response(wb, "HyperV_Storage")

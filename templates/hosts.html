@@ -22,16 +22,19 @@
             <small class="text-muted">All clusters · {{ clusters_with_hosts|length }} cluster{% if clusters_with_hosts|length != 1 %}s{% endif %}</small>
             {% endif %}
         </div>
-        {% if clusters_with_hosts %}
         <div class="d-flex gap-2">
+            <a href="/export/hosts.xlsx" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export
+            </a>
+            {% if clusters_with_hosts %}
             <button class="btn btn-outline-primary btn-sm" onclick="expandAll()">
                 <i class="bi bi-chevron-bar-expand me-1"></i>Expand All
             </button>
             <button class="btn btn-outline-secondary btn-sm" onclick="collapseAll()">
                 <i class="bi bi-chevron-bar-contract me-1"></i>Collapse All
             </button>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 
     {% if clusters_with_hosts %}

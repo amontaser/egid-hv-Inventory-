@@ -14,6 +14,7 @@ from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
 from app.utils.db_compat import str_agg, bool_eq, bool_val
+from app.utils.export import build_workbook, workbook_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -448,3 +449,42 @@ def get_client_notes(client_id):
         ).fetchall()
 
         return jsonify([_row_to_dict(n) for n in notes])
+
+
+@bp.route("/export/clients.xlsx")
+@login_required
+def export_clients_xlsx():
+    with get_db() as db:
+        clients_raw = db.execute(
+            text(f"""
+            SELECT
+                c.id, c.name, c.website, c.country, c.description,
+                (SELECT COUNT(*) FROM vm_clients WHERE client_id = c.id) as vm_count,
+                (SELECT {str_agg("vm_name")} FROM (
+                    SELECT v.machine_name as vm_name
+                    FROM vm_clients vc
+                    JOIN vm_info v ON vc.vm_id = v.vm_id AND vc.cluster_name = v.cluster_name
+                    WHERE vc.client_id = c.id
+                    ORDER BY v.machine_name
+                )) as vm_names
+            FROM clients c
+            ORDER BY c.name
+        """)
+        ).fetchall()
+
+    headers = ["ID", "Name", "Website", "Country", "Description", "VM Count", "VMs"]
+    rows = [
+        [
+            d["id"],
+            d["name"],
+            d.get("website", ""),
+            d.get("country", ""),
+            d.get("description", ""),
+            d["vm_count"],
+            d.get("vm_names", ""),
+        ]
+        for d in (_row_to_dict(c) for c in clients_raw)
+    ]
+
+    wb = build_workbook([("Clients", headers, rows)])
+    return workbook_response(wb, "HyperV_Clients")

@@ -33,6 +33,9 @@
             {% endif %}
         </div>
         <div class="d-flex gap-2">
+            <a href="/export/storage.xlsx" class="btn btn-outline-secondary">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export
+            </a>
             <form action="/storage/rescan" method="POST" class="d-inline">
                 <button type="submit" class="btn btn-warning">
                     <i class="bi bi-arrow-clockwise"></i> Rescan CSV

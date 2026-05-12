@@ -5,6 +5,7 @@ from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
 import logging
+from app.utils.export import build_workbook, workbook_response
 
 logger = logging.getLogger(__name__)
 bp = Blueprint("settings", __name__)
@@ -365,3 +366,51 @@ def manager_clients(manager_id):
         ).fetchall()
 
     return jsonify([_row_to_dict(r) for r in rows])
+
+
+@bp.route("/export/history.xlsx")
+@login_required
+def export_history_xlsx():
+    search = request.args.get("search", "")
+    change_type = request.args.get("change_type", "")
+    date_from = request.args.get("date_from", "")
+
+    where_clauses = ["1=1"]
+    params = {}
+    if search:
+        where_clauses.append("h.machine_name LIKE :search")
+        params["search"] = f"%{search}%"
+    if change_type:
+        where_clauses.append("h.change_type = :change_type")
+        params["change_type"] = change_type
+    if date_from:
+        where_clauses.append("DATE(h.detected_at) >= :date_from")
+        params["date_from"] = date_from
+    where_sql = " AND ".join(where_clauses)
+
+    with get_db() as db:
+        history_raw = db.execute(
+            text(f"""
+            SELECT h.*,
+                   (SELECT machine_name FROM vm_info WHERE vm_id = h.vm_id LIMIT 1) as machine_name
+            FROM vm_history h
+            WHERE {where_sql}
+            ORDER BY h.detected_at DESC
+        """),
+            params,
+        ).fetchall()
+
+    headers = ["Machine Name", "Change Type", "Old Value", "New Value", "Detected At"]
+    rows = [
+        [
+            h_dict.get("machine_name", ""),
+            h_dict.get("change_type", ""),
+            h_dict.get("old_value", ""),
+            h_dict.get("new_value", ""),
+            str(h_dict.get("detected_at", "")),
+        ]
+        for h_dict in (_row_to_dict(h) for h in history_raw)
+    ]
+
+    wb = build_workbook([("History", headers, rows)])
+    return workbook_response(wb, "HyperV_History")

@@ -45,6 +45,9 @@
             </div>
         </div>
         <div class="d-flex gap-2">
+            <a href="/export/vm/{{ vm.vm_id }}.xlsx{% if vm.cluster_name %}?cluster={{ vm.cluster_name }}{% endif %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export
+            </a>
             {% if history_count > 0 %}
             <a href="/vm/{{ vm.vm_id }}/history" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-clock-history me-1"></i>History

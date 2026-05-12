@@ -5,6 +5,7 @@ from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
 from app.utils.db_compat import bool_eq
+from app.utils.export import build_workbook, workbook_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -192,3 +193,70 @@ def save_host_notes(host_id):
         )
         db.commit()
     return redirect(url_for("hosts.host_details", host_id=host_id))
+
+
+@bp.route("/export/hosts.xlsx")
+@login_required
+def export_hosts_xlsx():
+    cluster_id = request.args.get("cluster_id")
+    params = {}
+    cluster_filter = ""
+    if cluster_id and cluster_id.isdigit():
+        with get_db() as db:
+            row = db.execute(
+                text("SELECT cluster_name FROM clusters WHERE id = :cid"),
+                {"cid": int(cluster_id)},
+            ).fetchone()
+            if row:
+                params["cn"] = row._mapping["cluster_name"]
+                cluster_filter = "WHERE v.cluster_name = :cn"
+
+    with get_db() as db:
+        hosts_raw = db.execute(
+            text(f"""
+            SELECT
+                COALESCE(hh.host_name, v.host_name) as display_name,
+                v.cluster_name,
+                hh.total_memory_gb,
+                hh.available_memory_gb,
+                hh.logical_processors,
+                hh.os_version,
+                v.actual_vm_count
+            FROM (
+                SELECT host_name, cluster_name, COUNT(*) as actual_vm_count
+                FROM vm_info
+                {cluster_filter}
+                GROUP BY host_name, cluster_name
+            ) v
+            LEFT JOIN hyperv_hosts hh ON v.host_name = hh.host_name
+            ORDER BY v.cluster_name, COALESCE(hh.host_name, v.host_name)
+        """),
+            params,
+        ).fetchall()
+
+    headers = [
+        "Host Name",
+        "Cluster",
+        "Total Memory (GB)",
+        "Available Memory (GB)",
+        "CPUs",
+        "OS",
+        "VM Count",
+    ]
+    rows = []
+    for h in hosts_raw:
+        d = _row_to_dict(h)
+        rows.append(
+            [
+                d["display_name"],
+                d["cluster_name"],
+                d["total_memory_gb"],
+                d["available_memory_gb"],
+                d["logical_processors"],
+                d["os_version"],
+                d["actual_vm_count"],
+            ]
+        )
+
+    wb = build_workbook([("Hosts", headers, rows)])
+    return workbook_response(wb, "HyperV_Hosts")
