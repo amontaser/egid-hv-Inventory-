@@ -277,7 +277,7 @@
                         <span class="input-group-text">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input type="text" id="search" class="form-control" placeholder="Search: name, host, 'vlan 100', 'ip 192.168'...">
+                        <input type="text" id="search" class="form-control" placeholder="Search: name, host, 'vlan 100', 'ip 192.168', 'client name'...">
                         <span id="searchTypeBadge" class="input-group-text d-none" style="border-left: none;"></span>
                     </div>
                 </div>
@@ -328,8 +328,9 @@
                        data-memory="{{ vm.memory_assigned_gb }}"
                        data-disk="{{ vm.total_disk_gb or 0 }}"
                        data-snapshots="{{ vm.snapshot_count or 0 }}"
-                       data-vlans="{{ vm.vlans or '' }}"
-                       data-ips="{{ vm.ip_addresses or '' }}">
+                        data-vlans="{{ vm.vlans or '' }}"
+                        data-ips="{{ vm.ip_addresses or '' }}"
+                        data-client="{{ (vm.client_name or '')|lower }}">
                         <td>
                             <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
                             {% if vm.client_name %}
@@ -444,6 +445,12 @@ function parseSearchTerm(searchTerm) {
         return { type: 'ip', value: ipMatch[1] };
     }
 
+    // Client search: "client name"
+    const clientMatch = term.match(/^client\s+(.+)$/i);
+    if (clientMatch) {
+        return { type: 'client', value: clientMatch[1] };
+    }
+
     // Default: general search
     return { type: 'general', value: term };
 }
@@ -467,6 +474,11 @@ function updateSearchBadge(search) {
             badgeClass = 'badge bg-success';
             icon = 'bi-router';
             badgeText = `IP: ${search.value}`;
+            break;
+        case 'client':
+            badgeClass = 'badge bg-info';
+            icon = 'bi-building';
+            badgeText = `Client: ${search.value}`;
             break;
         default:
             badgeClass = 'badge bg-secondary';
@@ -525,6 +537,7 @@ function filterAndDisplayVMs() {
         const cluster = row.dataset.clusterName || '';
         const vlans = row.dataset.vlans || '';
         const ips = (row.dataset.ips || '').toLowerCase();
+        const client = row.dataset.client || '';
 
         let matchesSearch = false;
         switch(search.type) {
@@ -534,11 +547,15 @@ function filterAndDisplayVMs() {
             case 'ip':
                 matchesSearch = ips.includes(search.value);
                 break;
+            case 'client':
+                matchesSearch = client.includes(search.value);
+                break;
             case 'general':
                 matchesSearch = !search.value ||
                     name.includes(search.value) ||
                     host.includes(search.value) ||
-                    state.toLowerCase().includes(search.value);
+                    state.toLowerCase().includes(search.value) ||
+                    client.includes(search.value);
                 break;
             default:
                 matchesSearch = true;

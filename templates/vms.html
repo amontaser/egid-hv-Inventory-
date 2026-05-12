@@ -39,8 +39,8 @@
                         <input type="text" id="search" class="form-control border-start-0 ps-0"
                                placeholder="Search VMs…">
                     </div>
-                    <div id="searchHint" class="text-muted mt-2 d-none" style="font-size:.72rem;">
-                        Try: <code>vlan 100</code> · <code>ip 10.0</code>
+                    <div id="searchHint" class="text-muted mt-2" style="font-size:.72rem;">
+                        Try: <code>vlan 100</code> · <code>ip 10.0</code> · <code>client name</code>
                     </div>
                 </div>
             </div>
@@ -200,7 +200,8 @@
                              data-cluster="{{ vm.cluster_name or '' }}"
                              data-vlans="{{ vm.vlans or '' }}"
                              data-ips="{{ vm.ip_addresses or '' }}"
-                             data-host="{{ vm.host_name|lower }}">
+                             data-host="{{ vm.host_name|lower }}"
+                             data-client="{{ (vm.client_name or '')|lower }}">>
 
                             <div class="d-flex align-items-center gap-3">
 
@@ -304,9 +305,10 @@
                          data-name="{{ vm.machine_name|lower }}"
                          data-state="{{ vm.state }}"
                          data-cluster="{{ vm.cluster_name or '' }}"
-                         data-vlans="{{ vm.vlans or '' }}"
-                         data-ips="{{ vm.ip_addresses or '' }}"
-                         data-host="{{ vm.host_name|lower }}">
+                          data-vlans="{{ vm.vlans or '' }}"
+                          data-ips="{{ vm.ip_addresses or '' }}"
+                          data-host="{{ vm.host_name|lower }}"
+                          data-client="{{ (vm.client_name or '')|lower }}">
                         <div class="card h-100" style="border-radius:.625rem;">
                             <div class="card-header d-flex align-items-center gap-2 py-2">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -465,21 +467,26 @@ function applyFilters() {
         const vlans   = item.dataset.vlans   || '';
         const ips     = item.dataset.ips     || '';
         const host    = item.dataset.host    || '';
+        const client  = item.dataset.client  || '';
 
         let show = true;
         if (currentState   && state   !== currentState)   show = false;
         if (currentCluster && cluster !== currentCluster) show = false;
 
         if (show && currentSearch) {
-            const vlanMatch = currentSearch.match(/^vlan\s+(\d+)$/i);
-            const ipMatch   = currentSearch.match(/^ip\s+(.+)$/i);
+            const vlanMatch   = currentSearch.match(/^vlan\s+(\d+)$/i);
+            const ipMatch     = currentSearch.match(/^ip\s+(.+)$/i);
+            const clientMatch = currentSearch.match(/^client\s+(.+)$/i);
             if (vlanMatch) {
                 show = vlans.split(',').includes(vlanMatch[1]);
             } else if (ipMatch) {
                 show = ips.toLowerCase().includes(ipMatch[1]);
+            } else if (clientMatch) {
+                show = client.includes(clientMatch[1]);
             } else {
                 show = name.includes(currentSearch) || host.includes(currentSearch) ||
-                       cluster.toLowerCase().includes(currentSearch) || ips.includes(currentSearch);
+                       cluster.toLowerCase().includes(currentSearch) || ips.includes(currentSearch) ||
+                       client.includes(currentSearch);
             }
         }
 
