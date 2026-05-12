@@ -160,14 +160,17 @@ def run_ps_long(
             f"ConvertTo-Json | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'DONE'",
         )
     )
-    # Only replace the first occurrence of ConvertTo-Json
+    import re
+
     wrapper = script
-    wrapper_parts = wrapper.split("ConvertTo-Json", 1)
-    if len(wrapper_parts) == 2:
+    match = re.search(r"ConvertTo-Json\b([^\n|;}]*)", wrapper)
+    if match:
+        ctj_full = match.group(0)
+        ctj_args = match.group(1)
         wrapper = (
-            wrapper_parts[0]
-            + f"ConvertTo-Json | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
-            + wrapper_parts[1]
+            wrapper[: match.start()]
+            + f"{ctj_full} | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
+            + wrapper[match.end() :]
         )
 
     encoded_wrapper = base64.b64encode(wrapper.encode("utf-16-le")).decode("ascii")
@@ -185,10 +188,14 @@ def run_ps_long(
         err = result.std_err.decode("utf-8", errors="ignore")
         out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
         ctx_msg = f" ({context})" if context else ""
-        logger.error(
-            f"PS encoded cmd error{ctx_msg}: code={result.status_code}, stderr={err}, stdout={out}"
+        logger.warning(
+            f"PS encoded cmd error{ctx_msg}: code={result.status_code}, stderr={err}, falling back to run_ps"
         )
         session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
+        fallback = run_ps(session, script, context)
+        if fallback is not None:
+            return fallback
+        logger.error(f"PS fallback also failed{ctx_msg}")
         return None
 
     stdout = result.std_out.decode("utf-8", errors="ignore").strip()
