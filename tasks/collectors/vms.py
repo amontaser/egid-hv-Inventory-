@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict, Optional
 import winrm
 
-from .winrm import run_ps_long
+from .winrm import run_ps, run_ps_long
 
 logger = logging.getLogger(__name__)
 
@@ -113,32 +113,21 @@ def collect_vms(session: winrm.Session) -> List[Dict]:
 
 
 def collect_disks(session: winrm.Session) -> List[Dict]:
-    result = run_ps_long(
-        session, PS_GET_VM_DISKS, context="collect_disks", force_encoded=True
-    )
+    result = run_ps(session, PS_GET_VM_DISKS, context="collect_disks")
     logger.info(f"Collected {len(result or [])} VM disks")
     return result or []
 
 
 def collect_networks(session: winrm.Session) -> List[Dict]:
-    result = run_ps_long(
-        session, PS_GET_VM_NETWORKS, context="collect_networks", force_encoded=True
-    )
+    result = run_ps(session, PS_GET_VM_NETWORKS, context="collect_networks")
     return result or []
 
 
 def collect_snapshots(session: winrm.Session) -> List[Dict]:
-    result = run_ps_long(
-        session, PS_GET_VM_SNAPSHOTS, context="collect_snapshots", force_encoded=True
-    )
+    result = run_ps(session, PS_GET_VM_SNAPSHOTS, context="collect_snapshots")
     return result or []
 
 
 def collect_replication(session: winrm.Session) -> List[Dict]:
-    result = run_ps_long(
-        session,
-        PS_GET_VM_REPLICATION,
-        context="collect_replication",
-        force_encoded=True,
-    )
+    result = run_ps(session, PS_GET_VM_REPLICATION, context="collect_replication")
     return result or []
