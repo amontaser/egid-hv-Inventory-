@@ -47,85 +47,53 @@ Get-VM | ForEach-Object {
 """
 
 PS_GET_VM_DISKS = """
-$ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
-    Get-VMHardDiskDrive -VM $vm -ErrorAction SilentlyContinue | ForEach-Object {
-        $drive = $_
-        $vhd = $null
-        if ($drive.Path) { try { $vhd = Get-VHD -Path $drive.Path -ErrorAction SilentlyContinue } catch {} }
-        $fmt = if ($vhd) { $vhd.VhdFormat.ToString() } elseif ($drive.Path -match '\\.vhdx$') { 'VHDX' } elseif ($drive.Path -match '\\.vhd$') { 'VHD' } else { 'Unknown' }
-        [PSCustomObject]@{
-            VMId = $vm.Id
-            DiskName = $drive.Name
-            DiskPath = $drive.Path
-            DiskFormat = $fmt
-            Size = if ($vhd) { [math]::Round($vhd.FileSize / 1GB, 2) } else { 0 }
-            ControllerType = $drive.ControllerType.ToString()
-            ControllerNumber = $drive.ControllerNumber
-            ControllerLocation = $drive.ControllerLocation
-        }
+    Get-VMHardDiskDrive -VM $vm | ForEach-Object {
+        $d = $_
+        $fmt = "VHDX"
+        if ($d.Path -match ".vhd$") { $fmt = "VHD" }
+        @{VMId=$vm.Id;DiskName=$d.Name;DiskPath=$d.Path;DiskFormat=$fmt;ControllerType=$d.ControllerType.ToString();ControllerNumber=$d.ControllerNumber;ControllerLocation=$d.ControllerLocation}
     }
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json
 """
 
 PS_GET_VM_NETWORKS = """
-$ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
     $vm.NetworkAdapters | ForEach-Object {
         $a = $_
-        $vlan = $null
-        try { $vlan = Get-VMNetworkAdapterVlan -VMNetworkAdapter $a -ErrorAction SilentlyContinue } catch {}
-        $vlanId = if ($vlan -and $vlan.OperationMode -eq 'Access') { $vlan.AccessVlanId } else { 0 }
-        [PSCustomObject]@{
-            VMId = $vm.Id
-            AdapterName = $a.Name
-            SwitchName = $a.SwitchName
-            MacAddress = $a.MacAddress
-            IPAddresses = ($a.IPAddresses | Where-Object { $_ -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$' }) -join ','
-            IsConnected = $a.Status -eq 'Ok'
-            VlanId = $vlanId
-        }
+        $vlanId = 0
+        try { $v = Get-VMNetworkAdapterVlan -VMNetworkAdapter $a -ErrorAction SilentlyContinue; if ($v -and $v.OperationMode -eq 'Access') { $vlanId = $v.AccessVlanId } } catch {}
+        @{VMId=$vm.Id;AdapterName=$a.Name;SwitchName=$a.SwitchName;MacAddress=$a.MacAddress;IPAddresses=($a.IPAddresses | Where-Object { $_ -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$' }) -join ',';IsConnected=$a.Status -eq 'Ok';VlanId=$vlanId}
     }
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json
 """
 
 PS_GET_VM_SNAPSHOTS = """
-$ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
     Get-VMSnapshot -VMName $vm.Name -ErrorAction SilentlyContinue | ForEach-Object {
-        [PSCustomObject]@{
-            VMId = $vm.Id
-            SnapshotName = $_.Name
-            SnapshotType = $_.SnapshotType.ToString()
-            CreationTime = $_.CreationTime.ToString("yyyy-MM-dd HH:mm:ss")
-            ParentSnapshotName = if ($_.ParentSnapshot) { $_.ParentSnapshot.Name } else { $null }
-        }
+        $parent = $null
+        if ($_.ParentSnapshot) { $parent = $_.ParentSnapshot.Name }
+        @{VMId=$vm.Id;SnapshotName=$_.Name;SnapshotType=$_.SnapshotType.ToString();CreationTime=$_.CreationTime.ToString("yyyy-MM-dd HH:mm:ss");ParentSnapshotName=$parent}
     }
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json
 """
 
 PS_GET_VM_REPLICATION = """
-$ErrorActionPreference = "SilentlyContinue"
 Get-VM | ForEach-Object {
     $vm = $_
     $rep = $null
     try { $rep = $vm | Get-VMReplication -ErrorAction Stop } catch {}
     if ($rep) {
-        [PSCustomObject]@{
-            VMId = $vm.Id
-            ReplicationState = $rep.State.ToString()
-            ReplicationHealth = $rep.Health.ToString()
-            ReplicationMode = $rep.ReplicationMode.ToString()
-            PrimaryServer = $rep.PrimaryServer
-            ReplicaServer = $rep.ReplicaServer
-            FrequencySeconds = if ($rep.ReplicationFrequency) { $rep.ReplicationFrequency * 60 } else { $null }
-            LastReplicationTime = if ($rep.LastReplicationTime) { $rep.LastReplicationTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
-        }
+        $freq = $null
+        if ($rep.ReplicationFrequency) { $freq = $rep.ReplicationFrequency * 60 }
+        $lrt = $null
+        if ($rep.LastReplicationTime) { $lrt = $rep.LastReplicationTime.ToString("yyyy-MM-dd HH:mm:ss") }
+        @{VMId=$vm.Id;ReplicationState=$rep.State.ToString();ReplicationHealth=$rep.Health.ToString();ReplicationMode=$rep.ReplicationMode.ToString();PrimaryServer=$rep.PrimaryServer;ReplicaServer=$rep.ReplicaServer;FrequencySeconds=$freq;LastReplicationTime=$lrt}
     }
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json
 """
 
 

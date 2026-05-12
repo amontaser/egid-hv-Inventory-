@@ -156,14 +156,17 @@ def run_ps_long(
     if match:
         wrapper = (
             wrapper[: match.start()]
-            + f"{match.group(0)} | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
+            + f"{match.group(0)} | Out-File -FilePath '{temp_path}' -Encoding UTF8"
             + wrapper[match.end() :]
         )
 
     logger.info(f"Using PowerShell with temp file ({len(wrapper)} chars)")
 
     try:
-        result = session.run_ps(wrapper)
+        result = session.run_ps(
+            f"Set-Item WSMan:\\localhost\\MaxEnvelopeSizeKB 8192 -ErrorAction SilentlyContinue; "
+            + wrapper
+        )
     except Exception as e:
         logger.error(f"Failed to execute command: {e}")
         return None
@@ -179,32 +182,28 @@ def run_ps_long(
 
     stdout = result.std_out.decode("utf-8", errors="ignore").strip()
 
-    # If output was written to file, read it back in chunks
-    if "FILE_WRITTEN" in stdout:
-        logger.info(f"Reading output from temp file {temp_path}")
-        all_content = ""
-        offset = 0
-        chunk_size = 50000
-        while True:
-            read_script = (
-                f"$c = Get-Content '{temp_path}' -TotalCount {offset + chunk_size} -Encoding UTF8; "
-                f"$c | Select-Object -Skip {offset} | Out-String"
-            )
-            chunk_result = session.run_ps(read_script)
-            if chunk_result.status_code != 0:
-                break
-            chunk_text = chunk_result.std_out.decode("utf-8", errors="ignore")
-            if not chunk_text.strip():
-                break
-            all_content += chunk_text
-            if len(chunk_text.strip().split("\n")) < chunk_size:
-                break
-            offset += chunk_size
+    logger.info(f"Reading output from temp file {temp_path}")
+    all_content = ""
+    offset = 0
+    chunk_size = 50000
+    while True:
+        read_script = (
+            f"$c = Get-Content '{temp_path}' -TotalCount {offset + chunk_size} -Encoding UTF8; "
+            f"$c | Select-Object -Skip {offset} | Out-String"
+        )
+        chunk_result = session.run_ps(read_script)
+        if chunk_result.status_code != 0:
+            break
+        chunk_text = chunk_result.std_out.decode("utf-8", errors="ignore")
+        if not chunk_text.strip():
+            break
+        all_content += chunk_text
+        if len(chunk_text.strip().split("\n")) < chunk_size:
+            break
+        offset += chunk_size
 
-        session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
-        output = all_content.strip()
-    else:
-        output = stdout
+    session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
+    output = all_content.strip()
 
     if not output or output in ("null", "[]"):
         return []
