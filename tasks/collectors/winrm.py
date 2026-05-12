@@ -139,64 +139,43 @@ def run_ps(session: winrm.Session, script: str, context: str = "") -> Optional[A
 def run_ps_long(
     session: winrm.Session, script: str, context: str = "", force_encoded: bool = False
 ) -> Optional[Any]:
-    """Run large PS scripts via PowerShell native -EncodedCommand.
-    Uses temp-file approach for large outputs to bypass WinRM envelope size limits.
+    """Run large PS scripts via PowerShell with temp-file output.
     Falls back to run_ps for scripts under 7000 bytes unless force_encoded=True."""
     script_bytes = script.encode("utf-8")
     if len(script_bytes) < 7000 and not force_encoded:
         return run_ps(session, script, context)
 
+    import re
     import time as _time
 
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     temp_name = f"hyperv_out_{int(_time.time())}_{os.getpid()}.json"
     temp_path = f"C:\\Windows\\Temp\\{temp_name}"
-
-    # Write output to temp file instead of stdout to bypass WinRM envelope limits
-    wrapper = (
-        f"$null = Set-Item WSMan:\\localhost\\MaxEnvelopeSizeKB 4096 -ErrorAction SilentlyContinue; "
-        + script.replace(
-            "ConvertTo-Json",
-            f"ConvertTo-Json | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'DONE'",
-        )
-    )
-    import re
 
     wrapper = script
     match = re.search(r"ConvertTo-Json\b([^\n|;}]*)", wrapper)
     if match:
-        ctj_full = match.group(0)
-        ctj_args = match.group(1)
         wrapper = (
             wrapper[: match.start()]
-            + f"{ctj_full} | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
+            + f"{match.group(0)} | Out-File -FilePath '{temp_path}' -Encoding UTF8; Write-Output 'FILE_WRITTEN'"
             + wrapper[match.end() :]
         )
 
-    encoded_wrapper = base64.b64encode(wrapper.encode("utf-16-le")).decode("ascii")
-    logger.info(
-        f"Using PowerShell -EncodedCommand with temp file ({len(encoded_wrapper)} chars)"
-    )
+    logger.info(f"Using PowerShell with temp file ({len(wrapper)} chars)")
 
     try:
-        result = session.run_cmd("powershell.exe", ["-EncodedCommand", encoded_wrapper])
+        result = session.run_ps(wrapper)
     except Exception as e:
-        logger.error(f"Failed to execute encoded command: {e}")
+        logger.error(f"Failed to execute command: {e}")
         return None
 
     if result.status_code != 0:
         err = result.std_err.decode("utf-8", errors="ignore")
-        out = result.std_out.decode("utf-8", errors="ignore").strip()[:200]
         ctx_msg = f" ({context})" if context else ""
         logger.warning(
-            f"PS encoded cmd error{ctx_msg}: code={result.status_code}, stderr={err}, falling back to run_ps"
+            f"PS error{ctx_msg}: code={result.status_code}, stderr={err}, trying run_ps without temp file"
         )
         session.run_ps(f"Remove-Item '{temp_path}' -ErrorAction SilentlyContinue")
-        fallback = run_ps(session, script, context)
-        if fallback is not None:
-            return fallback
-        logger.error(f"PS fallback also failed{ctx_msg}")
-        return None
+        return run_ps(session, script, context)
 
     stdout = result.std_out.decode("utf-8", errors="ignore").strip()
 
