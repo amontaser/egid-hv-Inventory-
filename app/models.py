@@ -56,7 +56,7 @@ class VMDisk(db.Model):
             ["vm_id", "cluster_name"],
             ["vm_info.vm_id", "vm_info.cluster_name"],
         ),
-        db.Index("idx_vm_disks_vm_id", "vm_id", "cluster_name"),
+        db.UniqueConstraint("vm_id", "cluster_name"),
     )
 
 
@@ -79,6 +79,7 @@ class VMNetworkAdapter(db.Model):
             ["vm_id", "cluster_name"],
             ["vm_info.vm_id", "vm_info.cluster_name"],
         ),
+        db.UniqueConstraint("vm_id", "cluster_name", "adapter_name", "mac_address"),
         db.Index("idx_vm_network_vm_id", "vm_id", "cluster_name"),
     )
 
@@ -100,6 +101,7 @@ class VMSnapshot(db.Model):
             ["vm_id", "cluster_name"],
             ["vm_info.vm_id", "vm_info.cluster_name"],
         ),
+        db.UniqueConstraint("vm_id", "cluster_name", "snapshot_name"),
         db.Index("idx_vm_snapshots_vm_id", "vm_id", "cluster_name"),
     )
 

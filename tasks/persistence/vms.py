@@ -84,7 +84,13 @@ def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
             INSERT INTO vm_disks
             (vm_id, cluster_name, disk_name, disk_path, disk_format, size_gb, controller_type, controller_number, controller_location)
             VALUES (:vm_id, :cluster_name, :disk_name, :disk_path, :disk_format, :size_gb, :controller_type, :controller_number, :controller_location)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (vm_id, cluster_name, disk_path) DO UPDATE SET
+                disk_name = EXCLUDED.disk_name,
+                disk_format = EXCLUDED.disk_format,
+                size_gb = EXCLUDED.size_gb,
+                controller_type = EXCLUDED.controller_type,
+                controller_number = EXCLUDED.controller_number,
+                controller_location = EXCLUDED.controller_location
         """),
             {
                 "vm_id": d.get("VMId"),
@@ -112,7 +118,12 @@ def save_networks(networks: List[Dict], cluster_name: str = "Unknown"):
             INSERT INTO vm_network_adapters
             (vm_id, cluster_name, adapter_name, switch_name, mac_address, ip_addresses, is_connected, vlan_id, bandwidth_setting)
             VALUES (:vm_id, :cluster_name, :adapter_name, :switch_name, :mac_address, :ip_addresses, :is_connected, :vlan_id, :bandwidth_setting)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (vm_id, cluster_name, adapter_name, mac_address) DO UPDATE SET
+                switch_name = EXCLUDED.switch_name,
+                ip_addresses = EXCLUDED.ip_addresses,
+                is_connected = EXCLUDED.is_connected,
+                vlan_id = EXCLUDED.vlan_id,
+                bandwidth_setting = EXCLUDED.bandwidth_setting
         """),
             {
                 "vm_id": n.get("VMId"),
@@ -139,7 +150,10 @@ def save_snapshots(snapshots: List[Dict], cluster_name: str = "Unknown"):
             INSERT INTO vm_snapshots
             (vm_id, cluster_name, snapshot_name, snapshot_type, creation_time, parent_snapshot_id)
             VALUES (:vm_id, :cluster_name, :snapshot_name, :snapshot_type, :creation_time, :parent_snapshot_id)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (vm_id, cluster_name, snapshot_name) DO UPDATE SET
+                snapshot_type = EXCLUDED.snapshot_type,
+                creation_time = EXCLUDED.creation_time,
+                parent_snapshot_id = EXCLUDED.parent_snapshot_id
         """),
             {
                 "vm_id": s.get("VMId"),
@@ -165,7 +179,14 @@ def save_replication(reps: List[Dict], cluster_name: str = "Unknown"):
              primary_server, replica_server, frequency_seconds, last_replication_time)
             VALUES (:vm_id, :cluster_name, :replication_state, :replication_health, :replication_mode,
              :primary_server, :replica_server, :frequency_seconds, :last_replication_time)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (vm_id, cluster_name) DO UPDATE SET
+                replication_state = EXCLUDED.replication_state,
+                replication_health = EXCLUDED.replication_health,
+                replication_mode = EXCLUDED.replication_mode,
+                primary_server = EXCLUDED.primary_server,
+                replica_server = EXCLUDED.replica_server,
+                frequency_seconds = EXCLUDED.frequency_seconds,
+                last_replication_time = EXCLUDED.last_replication_time
         """),
             {
                 "vm_id": r.get("VMId"),
