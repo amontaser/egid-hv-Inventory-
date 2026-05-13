@@ -50,6 +50,10 @@ services:
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
+    dns:
+      - 10.2.201.100
+      - 10.2.200.100
+      - 8.8.8.8
     environment:
       PUID: 1000
       PGID: 1000
