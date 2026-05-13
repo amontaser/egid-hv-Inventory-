@@ -49,8 +49,6 @@ services:
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
-    dns:
-      - 10.91.2.10
     environment:
       PUID: 1000
       PGID: 1000
@@ -69,7 +67,6 @@ services:
       hyperv-nw:
       hyperv-ipvlan:
         ipv4_address: 10.2.24.11
-
   celery-beat:
     build: .
     container_name: hyperv-celery-beat
