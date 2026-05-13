@@ -14,7 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 COPY tasks/ tasks/
-COPY notifications/ notifications/
 COPY templates/ templates/
 COPY static/ static/
 COPY wsgi.py .
