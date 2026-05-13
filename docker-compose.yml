@@ -45,8 +45,7 @@ services:
     networks:
       hyperv-nw:
       reverseproxy-nw:
-      hyperv-ipvlan:
-        ipv4_address: 10.2.24.10
+
   celery-worker:
     build: .
     container_name: hyperv-celery-worker
