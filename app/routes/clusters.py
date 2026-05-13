@@ -334,18 +334,6 @@ def test_cluster_connection(cluster_id):
                 "message": f"Connected to {domain}. Found {node_count} node(s).",
             }
         )
-        result = task.get(timeout=120)
-        if result.get("status") == "error":
-            return jsonify(
-                {"success": False, "message": result.get("error", "Unknown error")}
-            )
-        vm_count = result.get("vms", 0) if isinstance(result, dict) else 0
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Connected to {domain}.",
-            }
-        )
     except Exception as e:
         logger.error(f"Connection test failed for cluster {cluster_id}: {e}")
         return jsonify({"success": False, "message": f"Connection failed: {str(e)}"})

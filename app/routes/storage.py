@@ -8,10 +8,8 @@ from flask import (
     redirect,
     url_for,
     jsonify,
-    make_response,
 )
 from flask_login import login_required
-from datetime import datetime
 from app.utils.db import get_db
 from sqlalchemy import text
 from app.utils.db_compat import str_agg
@@ -186,7 +184,7 @@ def trigger_storage_rescan():
         )
         db.commit()
 
-    task = celery.send_task("tasks.csv_scanner.fetch_cluster_csv_storage")
+    task = celery.send_task("tasks.sync.fetch_cluster_csv_storage")
 
     if request.is_json:
         return jsonify(

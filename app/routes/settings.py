@@ -164,7 +164,17 @@ def settings():
         "settings.html",
         clusters=clusters,
         account_managers=account_managers,
+        notification_settings=_load_notification_settings(),
     )
+
+
+def _load_notification_settings():
+    try:
+        with get_db() as db:
+            rows = db.execute(text("SELECT key, value FROM settings")).fetchall()
+            return {dict(r._mapping)["key"]: dict(r._mapping)["value"] for r in rows}
+    except Exception:
+        return {}
 
 
 @bp.route("/settings/schedule", methods=["POST"])

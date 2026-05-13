@@ -1,7 +1,6 @@
 """Persist VM-related data to SQLite."""
 
 import logging
-from datetime import datetime
 from typing import List, Dict, Optional
 
 from sqlalchemy import text
@@ -82,12 +81,13 @@ def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
         session.execute(
             text("""
             INSERT INTO vm_disks
-            (vm_id, cluster_name, disk_name, disk_path, disk_format, size_gb, controller_type, controller_number, controller_location)
-            VALUES (:vm_id, :cluster_name, :disk_name, :disk_path, :disk_format, :size_gb, :controller_type, :controller_number, :controller_location)
+            (vm_id, cluster_name, disk_name, disk_path, disk_format, size_gb, used_gb, controller_type, controller_number, controller_location)
+            VALUES (:vm_id, :cluster_name, :disk_name, :disk_path, :disk_format, :size_gb, :used_gb, :controller_type, :controller_number, :controller_location)
             ON CONFLICT (vm_id, cluster_name, disk_path) DO UPDATE SET
                 disk_name = EXCLUDED.disk_name,
                 disk_format = EXCLUDED.disk_format,
                 size_gb = EXCLUDED.size_gb,
+                used_gb = EXCLUDED.used_gb,
                 controller_type = EXCLUDED.controller_type,
                 controller_number = EXCLUDED.controller_number,
                 controller_location = EXCLUDED.controller_location
@@ -99,6 +99,7 @@ def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
                 "disk_path": d.get("DiskPath"),
                 "disk_format": d.get("DiskFormat"),
                 "size_gb": d.get("Size", 0),
+                "used_gb": d.get("UsedGB", 0),
                 "controller_type": d.get("ControllerType"),
                 "controller_number": d.get("ControllerNumber"),
                 "controller_location": d.get("ControllerLocation"),

@@ -1,6 +1,6 @@
 """VM and client management routes"""
 
-from flask import Blueprint, render_template, request, session, abort, redirect, jsonify
+from flask import Blueprint, render_template, request, session, abort, jsonify
 from flask_login import login_required
 from datetime import datetime
 from app.utils.db import get_db

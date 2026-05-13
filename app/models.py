@@ -56,7 +56,8 @@ class VMDisk(db.Model):
             ["vm_id", "cluster_name"],
             ["vm_info.vm_id", "vm_info.cluster_name"],
         ),
-        db.UniqueConstraint("vm_id", "cluster_name"),
+        db.UniqueConstraint("vm_id", "cluster_name", "disk_path"),
+        db.Index("idx_vm_disks_vm_id", "vm_id", "cluster_name"),
     )
 
 
@@ -125,6 +126,7 @@ class VMReplication(db.Model):
             ["vm_id", "cluster_name"],
             ["vm_info.vm_id", "vm_info.cluster_name"],
         ),
+        db.UniqueConstraint("vm_id", "cluster_name"),
     )
 
 

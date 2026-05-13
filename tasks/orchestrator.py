@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict
 
 from celery import shared_task, group, chord
 from sqlalchemy import text
@@ -21,7 +21,7 @@ def _get_app():
     return app
 
 
-from tasks.collectors.hosts import collect_cluster_nodes, PS_GET_CLUSTER_NODES
+from tasks.collectors.hosts import collect_cluster_nodes
 from tasks.collectors.vms import (
     collect_vms,
     collect_disks,

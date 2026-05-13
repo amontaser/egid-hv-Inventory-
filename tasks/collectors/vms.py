@@ -1,7 +1,7 @@
 """PowerShell scripts and collector functions for VMs."""
 
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 import winrm
 
 from .winrm import run_ps, run_ps_long
@@ -54,6 +54,18 @@ Get-VM | ForEach-Object {
         $fmt = "VHDX"
         if ($d.Path -match ".vhd$") { $fmt = "VHD" }
         @{VMId=$vm.Id;DiskName=$d.Name;DiskPath=$d.Path;DiskFormat=$fmt;ControllerType=$d.ControllerType.ToString();ControllerNumber=$d.ControllerNumber;ControllerLocation=$d.ControllerLocation}
+    }
+} | ConvertTo-Json
+"""
+
+PS_GET_VM_DISK_SIZES = """
+Get-VM | ForEach-Object {
+    $vm = $_
+    Get-VMHardDiskDrive -VM $vm | ForEach-Object {
+        $d = $_
+        $sizeGB = 0; $usedGB = 0
+        try { $vhd = Get-VHD -Path $d.Path -ErrorAction Stop; $sizeGB = [math]::Round($vhd.Size / 1GB, 2); $usedGB = [math]::Round($vhd.FileSize / 1GB, 2) } catch {}
+        @{VMId=$vm.Id;DiskPath=$d.Path;Size=$sizeGB;UsedGB=$usedGB}
     }
 } | ConvertTo-Json
 """
@@ -113,9 +125,24 @@ def collect_vms(session: winrm.Session) -> List[Dict]:
 
 
 def collect_disks(session: winrm.Session) -> List[Dict]:
-    result = run_ps(session, PS_GET_VM_DISKS, context="collect_disks")
-    logger.info(f"Collected {len(result or [])} VM disks")
-    return result or []
+    disks = run_ps(session, PS_GET_VM_DISKS, context="collect_disks")
+    if not disks:
+        logger.info("Collected 0 VM disks")
+        return []
+    sizes = run_ps(session, PS_GET_VM_DISK_SIZES, context="collect_disk_sizes")
+    if sizes:
+        size_map = {
+            (s.get("VMId"), s.get("DiskPath")): (s.get("Size", 0), s.get("UsedGB", 0))
+            for s in sizes
+        }
+        for d in disks:
+            key = (d.get("VMId"), d.get("DiskPath"))
+            sz, used = size_map.get(key, (0, 0))
+            if sz or used:
+                d["Size"] = sz
+                d["UsedGB"] = used
+    logger.info(f"Collected {len(disks)} VM disks")
+    return disks
 
 
 def collect_networks(session: winrm.Session) -> List[Dict]:

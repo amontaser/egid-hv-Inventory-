@@ -9,7 +9,7 @@
             <li class="breadcrumb-item active">Settings</li>
         </ol>
     </nav>
-    
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0"><i class="bi bi-gear me-2 text-primary"></i>Settings</h1>
     </div>
@@ -31,11 +31,17 @@
                 <i class="bi bi-clock me-1"></i> Schedule
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab">
+                <i class="bi bi-bell me-1"></i> Notifications
+            </button>
+        </li>
     </ul>
-    
+
     <!-- Tab Content -->
     <div class="tab-content" id="settingsTabContent">
-        <!-- Clusters Tab -->
+
+        <!-- ── Clusters Tab ─────────────────────────────────────────────── -->
         <div class="tab-pane fade show active" id="clusters" role="tabpanel">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -162,270 +168,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div><!-- /tab-pane #clusters -->
 
-        <!-- Schedule Tab -->
-        <div class="tab-pane fade" id="schedule" role="tabpanel">
-
-            <!-- Status Card -->
-            <div class="row g-3 mb-4" id="scheduleStatusRow">
-                <div class="col-md-3">
-                    <div class="card h-100" style="border-left:4px solid #0d6efd;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                                     style="width:42px;height:42px;background:rgba(13,110,253,.12);">
-                                    <i class="bi bi-arrow-repeat" style="color:#0d6efd;font-size:1.1rem;"></i>
-                                </div>
-                                <div>
-                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Last Sync</div>
-                                    <div id="statusLastSync" style="font-size:.95rem;font-weight:600;line-height:1.3;">—</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card h-100" style="border-left:4px solid #198754;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                                     style="width:42px;height:42px;background:rgba(25,135,84,.12);">
-                                    <i class="bi bi-check-circle" style="color:#198754;font-size:1.1rem;"></i>
-                                </div>
-                                <div>
-                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Status</div>
-                                    <div id="statusSyncStatus" style="font-size:.95rem;font-weight:600;line-height:1.3;">—</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card h-100" style="border-left:4px solid #fd7e14;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                                     style="width:42px;height:42px;background:rgba(253,126,20,.12);">
-                                    <i class="bi bi-cpu" style="color:#fd7e14;font-size:1.1rem;"></i>
-                                </div>
-                                <div>
-                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VMs Synced</div>
-                                    <div id="statusVmsSynced" style="font-size:1.5rem;font-weight:700;line-height:1.2;">—</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card h-100" style="border-left:4px solid #6f42c1;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-                                     style="width:42px;height:42px;background:rgba(111,66,193,.12);">
-                                    <i class="bi bi-hdd-network" style="color:#6f42c1;font-size:1.1rem;"></i>
-                                </div>
-                                <div>
-                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Hosts Processed</div>
-                                    <div id="statusHostsProcessed" style="font-size:1.5rem;font-weight:700;line-height:1.2;">—</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row g-4">
-                <!-- Schedule Config -->
-                <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Sync Schedule</h5>
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" role="switch"
-                                       id="syncEnabledToggle" style="width:2.5rem;height:1.25rem;">
-                                <label class="form-check-label fw-semibold" for="syncEnabledToggle" id="syncEnabledLabel">Enabled</label>
-                            </div>
-                        </div>
-                        <div class="card-body">
-
-                            <!-- Preset Frequency Pills -->
-                            <div class="mb-4">
-                                <label class="form-label fw-semibold">Sync Frequency</label>
-                                <div class="d-flex flex-wrap gap-2" id="frequencySelector">
-                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_1h">
-                                        <i class="bi bi-clock me-1"></i>Every Hour
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_4h">
-                                        <i class="bi bi-clock me-1"></i>Every 4 Hours
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_6h">
-                                        <i class="bi bi-clock me-1"></i>Every 6 Hours
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_12h">
-                                        <i class="bi bi-clock me-1"></i>Every 12 Hours
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="daily">
-                                        <i class="bi bi-calendar-check me-1"></i>Daily
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary freq-btn" data-value="custom">
-                                        <i class="bi bi-code-slash me-1"></i>Custom Cron
-                                    </button>
-                                </div>
-                                <input type="hidden" id="syncScheduleType" value="daily">
-                            </div>
-
-                            <!-- Daily time picker (shown for "daily") -->
-                            <div id="dailyOptions" class="mb-4 d-none">
-                                <label class="form-label fw-semibold">Run at time</label>
-                                <div class="d-flex align-items-center gap-3">
-                                    <div style="width:120px;">
-                                        <label class="form-label small text-muted mb-1">Hour (0–23)</label>
-                                        <select class="form-select" id="syncHour">
-                                            {% for h in range(24) %}
-                                            <option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div style="width:120px;">
-                                        <label class="form-label small text-muted mb-1">Minute (0–59)</label>
-                                        <select class="form-select" id="syncMinute">
-                                            {% for m in [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55] %}
-                                            <option value="{{ m }}">:{{ '%02d'|format(m) }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="mt-4 pt-1">
-                                        <span class="text-muted small" id="dailyTimePreview">Runs at 00:00 every day</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Custom cron options -->
-                            <div id="customCronOptions" class="mb-4 d-none">
-                                <label class="form-label fw-semibold">Cron Expression</label>
-                                <div class="input-group mb-2">
-                                    <span class="input-group-text bg-transparent"><i class="bi bi-code-slash text-muted"></i></span>
-                                    <input type="text" class="form-control font-monospace" id="syncCronExpression"
-                                           placeholder="0 */4 * * *" autocomplete="off">
-                                </div>
-                                <small class="text-muted">
-                                    Format: <code>minute hour day month weekday</code> &nbsp;|&nbsp;
-                                    Examples: <code>0 * * * *</code> (hourly), <code>0 2 * * *</code> (2am daily), <code>0 */6 * * *</code> (every 6h)
-                                </small>
-                                <div id="cronValidationMsg" class="mt-2 small d-none"></div>
-                            </div>
-
-                            <!-- Cron preview banner -->
-                            <div id="schedulePreviewBanner" class="alert alert-primary d-flex align-items-center gap-2 mb-4 d-none" style="border-radius:.625rem;">
-                                <i class="bi bi-info-circle-fill flex-shrink-0"></i>
-                                <span id="schedulePreviewText">—</span>
-                            </div>
-
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-primary" id="saveScheduleBtn" onclick="saveSchedule()">
-                                    <i class="bi bi-check-circle me-1"></i>Save Schedule
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="loadScheduleStatus()">
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Cron Reference -->
-                    <div class="card mt-4">
-                        <div class="card-header">
-                            <h5 class="mb-0"><i class="bi bi-table me-2"></i>Preset Reference</h5>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0 align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Preset</th>
-                                        <th>Cron Expression</th>
-                                        <th>Description</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="small">
-                                    <tr>
-                                        <td><span class="badge bg-primary-subtle text-primary">Every Hour</span></td>
-                                        <td><code>0 * * * *</code></td>
-                                        <td class="text-muted">Runs at minute 0 of every hour</td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-primary-subtle text-primary">Every 4 Hours</span></td>
-                                        <td><code>0 */4 * * *</code></td>
-                                        <td class="text-muted">Runs at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00</td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-primary-subtle text-primary">Every 6 Hours</span></td>
-                                        <td><code>0 */6 * * *</code></td>
-                                        <td class="text-muted">Runs at 00:00, 06:00, 12:00, 18:00</td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-primary-subtle text-primary">Every 12 Hours</span></td>
-                                        <td><code>0 */12 * * *</code></td>
-                                        <td class="text-muted">Runs at midnight and noon</td>
-                                    </tr>
-                                    <tr>
-                                        <td><span class="badge bg-primary-subtle text-primary">Daily</span></td>
-                                        <td><code>0 H * * *</code></td>
-                                        <td class="text-muted">Runs once per day at your chosen time</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right Panel: Manual Sync + Info -->
-                <div class="col-lg-4">
-
-                    <!-- Manual Sync Card -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>Manual Sync</h5>
-                        </div>
-                        <div class="card-body text-center py-4">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                                 style="width:60px;height:60px;background:rgba(13,110,253,.1);">
-                                <i class="bi bi-arrow-repeat text-primary" style="font-size:1.5rem;"></i>
-                            </div>
-                            <p class="text-muted small mb-3">Trigger an immediate sync of all enabled clusters right now.</p>
-                            <button type="button" class="btn btn-primary w-100" id="triggerSyncBtn" onclick="triggerSyncNow()">
-                                <i class="bi bi-play-fill me-1"></i>Run Sync Now
-                            </button>
-                            <div id="syncRunningMsg" class="alert alert-info mt-3 mb-0 d-none small">
-                                <i class="bi bi-hourglass-split me-1"></i>Sync is running…
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Info Card -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>How It Works</h5>
-                        </div>
-                        <div class="card-body small text-muted">
-                            <ul class="mb-3 ps-3" style="line-height:1.8;">
-                                <li>The schedule is managed by <strong>Celery Beat</strong>, which runs as a background service.</li>
-                                <li>After changing the schedule, the Celery Beat worker needs to be restarted to pick up the new timing.</li>
-                                <li>Saved settings are stored in the database and applied when Celery Beat starts.</li>
-                                <li>The <strong>Manual Sync</strong> button triggers a sync immediately, regardless of the schedule.</li>
-                            </ul>
-                            <div class="alert alert-warning mb-0 py-2 small">
-                                <i class="bi bi-exclamation-triangle me-1"></i>
-                                Settings are saved to the database. Restart the Celery Beat worker to apply them.
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- Account Managers Tab -->
+        <!-- ── Account Managers Tab ─────────────────────────────────────── -->
         <div class="tab-pane fade" id="managers" role="tabpanel">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -498,11 +243,367 @@
                     {% endif %}
                 </div>
             </div>
-        </div>
-    </div>
-</div>
+        </div><!-- /tab-pane #managers -->
 
-<!-- Add Manager Modal -->
+        <!-- ── Schedule Tab ─────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="schedule" role="tabpanel">
+
+            <!-- Status Cards -->
+            <div class="row g-3 mb-4" id="scheduleStatusRow">
+                <div class="col-md-3">
+                    <div class="card h-100" style="border-left:4px solid #0d6efd;">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                     style="width:42px;height:42px;background:rgba(13,110,253,.12);">
+                                    <i class="bi bi-arrow-repeat" style="color:#0d6efd;font-size:1.1rem;"></i>
+                                </div>
+                                <div>
+                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Last Sync</div>
+                                    <div id="statusLastSync" style="font-size:.95rem;font-weight:600;line-height:1.3;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100" style="border-left:4px solid #198754;">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                     style="width:42px;height:42px;background:rgba(25,135,84,.12);">
+                                    <i class="bi bi-check-circle" style="color:#198754;font-size:1.1rem;"></i>
+                                </div>
+                                <div>
+                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Status</div>
+                                    <div id="statusSyncStatus" style="font-size:.95rem;font-weight:600;line-height:1.3;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100" style="border-left:4px solid #fd7e14;">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                     style="width:42px;height:42px;background:rgba(253,126,20,.12);">
+                                    <i class="bi bi-cpu" style="color:#fd7e14;font-size:1.1rem;"></i>
+                                </div>
+                                <div>
+                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">VMs Synced</div>
+                                    <div id="statusVmsSynced" style="font-size:1.5rem;font-weight:700;line-height:1.2;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card h-100" style="border-left:4px solid #6f42c1;">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                     style="width:42px;height:42px;background:rgba(111,66,193,.12);">
+                                    <i class="bi bi-hdd-network" style="color:#6f42c1;font-size:1.1rem;"></i>
+                                </div>
+                                <div>
+                                    <div class="text-muted" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Hosts Processed</div>
+                                    <div id="statusHostsProcessed" style="font-size:1.5rem;font-weight:700;line-height:1.2;">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Sync Schedule</h5>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" id="syncEnabledToggle" style="width:2.5rem;height:1.25rem;">
+                                <label class="form-check-label fw-semibold" for="syncEnabledToggle" id="syncEnabledLabel">Enabled</label>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Sync Frequency</label>
+                                <div class="d-flex flex-wrap gap-2" id="frequencySelector">
+                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_1h"><i class="bi bi-clock me-1"></i>Every Hour</button>
+                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_4h"><i class="bi bi-clock me-1"></i>Every 4 Hours</button>
+                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_6h"><i class="bi bi-clock me-1"></i>Every 6 Hours</button>
+                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="every_12h"><i class="bi bi-clock me-1"></i>Every 12 Hours</button>
+                                    <button type="button" class="btn btn-outline-primary freq-btn" data-value="daily"><i class="bi bi-calendar-check me-1"></i>Daily</button>
+                                    <button type="button" class="btn btn-outline-secondary freq-btn" data-value="custom"><i class="bi bi-code-slash me-1"></i>Custom Cron</button>
+                                </div>
+                                <input type="hidden" id="syncScheduleType" value="daily">
+                            </div>
+
+                            <div id="dailyOptions" class="mb-4 d-none">
+                                <label class="form-label fw-semibold">Run at time</label>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div style="width:120px;">
+                                        <label class="form-label small text-muted mb-1">Hour (0–23)</label>
+                                        <select class="form-select" id="syncHour">
+                                            {% for h in range(24) %}
+                                            <option value="{{ h }}">{{ '%02d'|format(h) }}:00</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div style="width:120px;">
+                                        <label class="form-label small text-muted mb-1">Minute (0–59)</label>
+                                        <select class="form-select" id="syncMinute">
+                                            {% for m in [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55] %}
+                                            <option value="{{ m }}">:{{ '%02d'|format(m) }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mt-4 pt-1">
+                                        <span class="text-muted small" id="dailyTimePreview">Runs at 00:00 every day</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="customCronOptions" class="mb-4 d-none">
+                                <label class="form-label fw-semibold">Cron Expression</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text bg-transparent"><i class="bi bi-code-slash text-muted"></i></span>
+                                    <input type="text" class="form-control font-monospace" id="syncCronExpression" placeholder="0 */4 * * *" autocomplete="off">
+                                </div>
+                                <small class="text-muted">Format: <code>minute hour day month weekday</code></small>
+                                <div id="cronValidationMsg" class="mt-2 small d-none"></div>
+                            </div>
+
+                            <div id="schedulePreviewBanner" class="alert alert-primary d-flex align-items-center gap-2 mb-4 d-none" style="border-radius:.625rem;">
+                                <i class="bi bi-info-circle-fill flex-shrink-0"></i>
+                                <span id="schedulePreviewText">—</span>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-primary" id="saveScheduleBtn" onclick="saveSchedule()"><i class="bi bi-check-circle me-1"></i>Save Schedule</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="loadScheduleStatus()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4">
+                        <div class="card-header"><h5 class="mb-0"><i class="bi bi-table me-2"></i>Preset Reference</h5></div>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead><tr><th>Preset</th><th>Cron</th><th>Description</th></tr></thead>
+                                <tbody class="small">
+                                    <tr><td><span class="badge bg-primary-subtle text-primary">Every Hour</span></td><td><code>0 * * * *</code></td><td class="text-muted">Every hour on the hour</td></tr>
+                                    <tr><td><span class="badge bg-primary-subtle text-primary">Every 4 Hours</span></td><td><code>0 */4 * * *</code></td><td class="text-muted">00:00, 04:00, 08:00, 12:00, 16:00, 20:00</td></tr>
+                                    <tr><td><span class="badge bg-primary-subtle text-primary">Every 6 Hours</span></td><td><code>0 */6 * * *</code></td><td class="text-muted">00:00, 06:00, 12:00, 18:00</td></tr>
+                                    <tr><td><span class="badge bg-primary-subtle text-primary">Every 12 Hours</span></td><td><code>0 */12 * * *</code></td><td class="text-muted">Midnight and noon</td></tr>
+                                    <tr><td><span class="badge bg-primary-subtle text-primary">Daily</span></td><td><code>0 H * * *</code></td><td class="text-muted">Once per day at chosen time</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div><!-- /col-lg-8 -->
+
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header"><h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>Manual Sync</h5></div>
+                        <div class="card-body text-center py-4">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width:60px;height:60px;background:rgba(13,110,253,.1);">
+                                <i class="bi bi-arrow-repeat text-primary" style="font-size:1.5rem;"></i>
+                            </div>
+                            <p class="text-muted small mb-3">Trigger an immediate sync of all enabled clusters.</p>
+                            <button type="button" class="btn btn-primary w-100" id="triggerSyncBtn" onclick="triggerSyncNow()"><i class="bi bi-play-fill me-1"></i>Run Sync Now</button>
+                            <div id="syncRunningMsg" class="alert alert-info mt-3 mb-0 d-none small"><i class="bi bi-hourglass-split me-1"></i>Sync is running…</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>How It Works</h5></div>
+                        <div class="card-body small text-muted">
+                            <ul class="mb-3 ps-3" style="line-height:1.8;">
+                                <li>Schedule is managed by <strong>Celery Beat</strong>.</li>
+                                <li>Restart Celery Beat after changing schedule.</li>
+                                <li><strong>Manual Sync</strong> triggers immediately regardless of schedule.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div><!-- /col-lg-4 -->
+            </div><!-- /row -->
+        </div><!-- /tab-pane #schedule -->
+
+        <!-- ── Notifications Tab ────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="notifications" role="tabpanel">
+            <form id="notificationSettingsForm" method="POST" action="/settings/notifications">
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex align-items-center gap-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(253,126,20,.12);">
+                                <i class="bi bi-hdd-fill" style="color:#fd7e14;font-size:.8rem;"></i>
+                            </div>
+                            <h5 class="mb-0">Storage Alerts</h5>
+                        </div>
+                        <div class="card-body">
+                            <label class="form-label fw-semibold">Low Storage Threshold</label>
+                            <div class="input-group" style="max-width:260px;">
+                                <input type="number" name="storage_threshold_pct" class="form-control" value="{{ notification_settings.get('storage_threshold_pct', '20') }}" min="1" max="99">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text mt-1"><i class="bi bi-info-circle me-1"></i>An alert fires when a CSV volume's free space drops below this percentage.</div>
+                            <div class="mt-3 p-3 rounded-3" style="background:rgba(0,0,0,.03);border:1px dashed var(--bs-border-color);">
+                                <div class="d-flex justify-content-between mb-1 small text-muted">
+                                    <span>Example: 80% used</span>
+                                    <span>Alert zone: below <strong id="thresholdPct">{{ notification_settings.get('storage_threshold_pct', '20') }}</strong>%</span>
+                                </div>
+                                <div class="progress" style="height:10px;border-radius:5px;">
+                                    <div class="progress-bar bg-warning" style="width:80%"></div>
+                                    <div class="progress-bar bg-danger" id="thresholdZone" style="width:{{ notification_settings.get('storage_threshold_pct', '20') }}%;opacity:.35;"></div>
+                                </div>
+                                <div class="small text-muted mt-1">Red zone = alert threshold</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(13,110,253,.12);">
+                                    <i class="bi bi-envelope-fill" style="color:#0d6efd;font-size:.8rem;"></i>
+                                </div>
+                                <h5 class="mb-0">Email Alerts</h5>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" name="enable_email_alerts" value="1" id="emailCheck" style="width:2.5rem;height:1.25rem;"
+                                    {% if notification_settings.get('enable_email_alerts') == '1' %}checked{% endif %}
+                                    onchange="toggleSection('emailBody', this.checked)">
+                                <label class="form-check-label fw-semibold" for="emailCheck">{{ 'Enabled' if notification_settings.get('enable_email_alerts') == '1' else 'Disabled' }}</label>
+                            </div>
+                        </div>
+                        <div class="card-body" id="emailBody" style="{{ '' if notification_settings.get('enable_email_alerts') == '1' else 'opacity:.5;pointer-events:none;' }}">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Send Alerts To</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-transparent"><i class="bi bi-at text-muted"></i></span>
+                                    <input type="email" name="alert_email_to" class="form-control border-start-0" placeholder="alerts@yourdomain.com" value="{{ notification_settings.get('alert_email_to', '') }}">
+                                </div>
+                            </div>
+                            <hr class="my-3">
+                            <h6 class="text-muted text-uppercase mb-3" style="font-size:.72rem;letter-spacing:.5px;">SMTP Configuration</h6>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">SMTP Host</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent"><i class="bi bi-server text-muted"></i></span>
+                                        <input type="text" name="smtp_host" class="form-control border-start-0" placeholder="smtp.gmail.com" value="{{ notification_settings.get('smtp_host', '') }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Port</label>
+                                    <input type="number" name="smtp_port" class="form-control" placeholder="587" value="{{ notification_settings.get('smtp_port', '587') }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SMTP Username</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent"><i class="bi bi-person text-muted"></i></span>
+                                        <input type="text" name="smtp_user" class="form-control border-start-0" placeholder="user@domain.com" value="{{ notification_settings.get('smtp_user', '') }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SMTP Password</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent"><i class="bi bi-key text-muted"></i></span>
+                                        <input type="password" name="smtp_password" class="form-control border-start-0" placeholder="••••••••" value="{{ notification_settings.get('smtp_password', '') }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(111,66,193,.12);">
+                                    <i class="bi bi-send-fill" style="color:#6f42c1;font-size:.8rem;"></i>
+                                </div>
+                                <h5 class="mb-0">Webhook Alerts <small class="text-muted fw-normal ms-1" style="font-size:.75rem;">Slack / Teams / Generic</small></h5>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" name="enable_webhook_alerts" value="1" id="webhookCheck" style="width:2.5rem;height:1.25rem;"
+                                    {% if notification_settings.get('enable_webhook_alerts') == '1' %}checked{% endif %}
+                                    onchange="toggleSection('webhookBody', this.checked)">
+                                <label class="form-check-label fw-semibold" for="webhookCheck">{{ 'Enabled' if notification_settings.get('enable_webhook_alerts') == '1' else 'Disabled' }}</label>
+                            </div>
+                        </div>
+                        <div class="card-body" id="webhookBody" style="{{ '' if notification_settings.get('enable_webhook_alerts') == '1' else 'opacity:.5;pointer-events:none;' }}">
+                            <label class="form-label fw-semibold">Webhook URL</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-transparent"><i class="bi bi-link-45deg text-muted"></i></span>
+                                <input type="url" name="webhook_url" class="form-control border-start-0" placeholder="https://hooks.slack.com/services/..." value="{{ notification_settings.get('webhook_url', '') }}">
+                            </div>
+                            <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Supports Slack, Microsoft Teams, or any HTTP endpoint accepting JSON POST.</div>
+                            <div class="d-flex gap-2 mt-3 flex-wrap">
+                                <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3 py-2"><i class="bi bi-slack me-1"></i>Slack</span>
+                                <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-3 py-2"><i class="bi bi-microsoft-teams me-1"></i>Teams</span>
+                                <span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-2"><i class="bi bi-code-slash me-1"></i>Generic HTTP</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-circle me-1"></i>Save Notification Settings</button>
+                    </div>
+                </div><!-- /col-lg-8 -->
+
+                <div class="col-lg-4">
+                    <div class="card mb-4">
+                        <div class="card-header"><h5 class="mb-0"><i class="bi bi-activity me-2"></i>Current Status</h5></div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                <div class="list-group-item d-flex align-items-center gap-3 px-3 py-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:{% if notification_settings.get('enable_email_alerts') == '1' %}rgba(25,135,84,.12){% else %}rgba(108,117,125,.1){% endif %};">
+                                        <i class="bi bi-envelope-fill" style="color:{% if notification_settings.get('enable_email_alerts') == '1' %}#198754{% else %}#6c757d{% endif %};font-size:.8rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1"><div class="fw-semibold small">Email Alerts</div><div class="text-muted" style="font-size:.72rem;">{{ notification_settings.get('alert_email_to', 'Not configured') or 'Not configured' }}</div></div>
+                                    <span class="badge bg-{% if notification_settings.get('enable_email_alerts') == '1' %}success{% else %}secondary{% endif %}">{{ 'On' if notification_settings.get('enable_email_alerts') == '1' else 'Off' }}</span>
+                                </div>
+                                <div class="list-group-item d-flex align-items-center gap-3 px-3 py-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:{% if notification_settings.get('enable_webhook_alerts') == '1' %}rgba(111,66,193,.12){% else %}rgba(108,117,125,.1){% endif %};">
+                                        <i class="bi bi-send-fill" style="color:{% if notification_settings.get('enable_webhook_alerts') == '1' %}#6f42c1{% else %}#6c757d{% endif %};font-size:.8rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1"><div class="fw-semibold small">Webhook</div><div class="text-muted" style="font-size:.72rem;">{% if notification_settings.get('webhook_url') %}{{ notification_settings.get('webhook_url')[:35] }}…{% else %}Not configured{% endif %}</div></div>
+                                    <span class="badge bg-{% if notification_settings.get('enable_webhook_alerts') == '1' %}success{% else %}secondary{% endif %}">{{ 'On' if notification_settings.get('enable_webhook_alerts') == '1' else 'Off' }}</span>
+                                </div>
+                                <div class="list-group-item d-flex align-items-center gap-3 px-3 py-2">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:32px;height:32px;background:rgba(253,126,20,.12);">
+                                        <i class="bi bi-hdd-fill" style="color:#fd7e14;font-size:.8rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1"><div class="fw-semibold small">Storage Threshold</div><div class="text-muted" style="font-size:.72rem;">Alert below {{ notification_settings.get('storage_threshold_pct', '20') }}% free</div></div>
+                                    <span class="badge bg-warning text-dark">{{ notification_settings.get('storage_threshold_pct', '20') }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h5 class="mb-0"><i class="bi bi-question-circle me-2"></i>Help</h5></div>
+                        <div class="card-body small text-muted">
+                            <p class="fw-semibold mb-2">Quick tips:</p>
+                            <ul class="mb-3 ps-3" style="line-height:1.9;">
+                                <li>Use Gmail SMTP on port <strong>587</strong> with TLS</li>
+                                <li>App passwords are recommended over account passwords</li>
+                                <li>Test your Slack webhook URL at <code>api.slack.com</code></li>
+                                <li>Webhooks receive JSON payloads with VM name, change type and cluster</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div><!-- /col-lg-4 -->
+            </div><!-- /row -->
+            </form>
+        </div><!-- /tab-pane #notifications -->
+
+    </div><!-- /tab-content -->
+</div><!-- /container-fluid -->
+
+
+<!-- ── Add Manager Modal ──────────────────────────────────────────────────── -->
 <div class="modal fade" id="addManagerModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -534,7 +635,7 @@
     </div>
 </div>
 
-<!-- Edit Manager Modal -->
+<!-- ── Edit Manager Modal ─────────────────────────────────────────────────── -->
 <div class="modal fade" id="editManagerModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -573,7 +674,7 @@
     </div>
 </div>
 
-<!-- Manager Clients Modal -->
+<!-- ── Manager Clients Modal ──────────────────────────────────────────────── -->
 <div class="modal fade" id="managerClientsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -589,36 +690,53 @@
     </div>
 </div>
 
+<!-- ── Cluster Delete Confirmation Modal ──────────────────────────────────── -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="POST" style="display:inline;">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <script>
-// Add Manager
+// ── Account Managers ──────────────────────────────────────────────────────
+
 document.getElementById('addManagerForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = new FormData(this);
-    
-    fetch('/settings/manager/add', {
-        method: 'POST',
-        body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('addManagerModal')).hide();
-            this.reset();
-            location.reload();
-        } else {
-            showToast('Error: ' + data.error, 'danger');
-        }
-    });
+    fetch('/settings/manager/add', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addManagerModal')).hide();
+                this.reset();
+                location.reload();
+            } else {
+                showToast('Error: ' + data.error, 'danger');
+            }
+        });
 });
 
-// Edit Manager
 function editManager(id, name, email, phone, state) {
     document.getElementById('editManagerId').value = id;
     document.getElementById('editManagerName').value = name;
     document.getElementById('editManagerEmail').value = email;
     document.getElementById('editManagerPhone').value = phone;
     document.getElementById('editManagerState').checked = state === 1;
-    
     new bootstrap.Modal(document.getElementById('editManagerModal')).show();
 }
 
@@ -626,23 +744,18 @@ document.getElementById('editManagerForm').addEventListener('submit', function(e
     e.preventDefault();
     const formData = new FormData(this);
     const id = document.getElementById('editManagerId').value;
-    
-    fetch(`/settings/manager/${id}/edit`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('editManagerModal')).hide();
-            location.reload();
-        } else {
-            showToast('Error: ' + data.error, 'danger');
-        }
-    });
+    fetch(`/settings/manager/${id}/edit`, { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('editManagerModal')).hide();
+                location.reload();
+            } else {
+                showToast('Error: ' + data.error, 'danger');
+            }
+        });
 });
 
-// Delete Manager
 function deleteManager(id, name) {
     showConfirm({
         title: 'Delete Account Manager',
@@ -651,25 +764,21 @@ function deleteManager(id, name) {
         okClass: 'btn-danger',
         icon: 'bi-person-x',
         onConfirm: () => {
-            fetch(`/settings/manager/${id}/delete`, {
-                method: 'POST'
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    showToast('Error: ' + data.error, 'danger');
-                }
-            });
+            fetch(`/settings/manager/${id}/delete`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        showToast('Error: ' + data.error, 'danger');
+                    }
+                });
         }
     });
 }
 
-// View Manager Clients
 function viewManagerClients(id, name) {
     document.getElementById('managerClientsTitle').textContent = `Clients assigned to ${name}`;
-    
     fetch(`/settings/manager/${id}/clients`)
         .then(r => r.json())
         .then(clients => {
@@ -695,7 +804,8 @@ function viewManagerClients(id, name) {
         });
 }
 
-// Test Connection
+// ── Clusters ──────────────────────────────────────────────────────────────
+
 function testConnection(clusterId, clusterName) {
     const btn = event.target.closest('button');
     const originalHTML = btn.innerHTML;
@@ -704,9 +814,7 @@ function testConnection(clusterId, clusterName) {
 
     fetch(`/cluster/test/${clusterId}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
     })
     .then(response => {
         if (!response.ok) {
@@ -717,8 +825,6 @@ function testConnection(clusterId, clusterName) {
         return response.json();
     })
     .then(data => {
-        const alertClass = data.success ? 'alert-success' : 'alert-danger';
-        const icon = data.success ? 'bi-check-circle' : 'bi-exclamation-triangle';
         showToast(`${clusterName}: ${data.message}`, data.success ? 'success' : 'danger');
     })
     .catch(error => {
@@ -730,7 +836,6 @@ function testConnection(clusterId, clusterName) {
     });
 }
 
-// Confirm Delete
 function confirmDelete(clusterId, clusterName, vmCount) {
     const message = vmCount > 0
         ? `Cannot delete cluster '<strong>${clusterName}</strong>' because it has ${vmCount} VM(s).<br><br>Please delete or reassign the VMs first.`
@@ -743,69 +848,59 @@ function confirmDelete(clusterId, clusterName, vmCount) {
     modal.show();
 
     const deleteBtn = document.querySelector('#deleteForm button[type="submit"]');
-    if (vmCount > 0) {
-        deleteBtn.disabled = true;
-        deleteBtn.classList.add('disabled');
-    } else {
-        deleteBtn.disabled = false;
-        deleteBtn.classList.remove('disabled');
-    }
+    deleteBtn.disabled = vmCount > 0;
+    deleteBtn.classList.toggle('disabled', vmCount > 0);
 }
 
-// ── Schedule Tab ─────────────────────────────────────────────────────────────
+// ── Schedule ──────────────────────────────────────────────────────────────
 
 const PRESET_CRONS = {
-    every_1h:  { cron: '0 * * * *',   label: 'Every hour, on the hour' },
-    every_4h:  { cron: '0 */4 * * *', label: 'Every 4 hours (00:00, 04:00, 08:00…)' },
-    every_6h:  { cron: '0 */6 * * *', label: 'Every 6 hours (00:00, 06:00, 12:00, 18:00)' },
-    every_12h: { cron: '0 */12 * * *',label: 'Every 12 hours (midnight and noon)' },
-    daily:     { cron: null,           label: 'Once per day at the chosen time' },
-    custom:    { cron: null,           label: 'Custom cron expression' },
+    every_1h:  { cron: '0 * * * *',    label: 'Every hour, on the hour' },
+    every_4h:  { cron: '0 */4 * * *',  label: 'Every 4 hours (00:00, 04:00, 08:00…)' },
+    every_6h:  { cron: '0 */6 * * *',  label: 'Every 6 hours (00:00, 06:00, 12:00, 18:00)' },
+    every_12h: { cron: '0 */12 * * *', label: 'Every 12 hours (midnight and noon)' },
+    daily:     { cron: null,            label: 'Once per day at the chosen time' },
+    custom:    { cron: null,            label: 'Custom cron expression' },
 };
 
 function selectFrequency(value) {
     document.getElementById('syncScheduleType').value = value;
     document.querySelectorAll('.freq-btn').forEach(b => {
         const active = b.dataset.value === value;
-        b.classList.toggle('btn-primary', active);
-        b.classList.toggle('btn-outline-primary', !active && b.dataset.value !== 'custom');
-        b.classList.toggle('btn-outline-secondary', !active && b.dataset.value === 'custom');
-        b.classList.toggle('btn-secondary', active && b.dataset.value === 'custom');
+        b.classList.toggle('btn-primary',          active && b.dataset.value !== 'custom');
+        b.classList.toggle('btn-secondary',        active && b.dataset.value === 'custom');
+        b.classList.toggle('btn-outline-primary',  !active && b.dataset.value !== 'custom');
+        b.classList.toggle('btn-outline-secondary',!active && b.dataset.value === 'custom');
     });
 
-    const dailyOpts   = document.getElementById('dailyOptions');
-    const customOpts  = document.getElementById('customCronOptions');
-    const previewBanner = document.getElementById('schedulePreviewBanner');
-    const previewText   = document.getElementById('schedulePreviewText');
-
-    dailyOpts.classList.add('d-none');
-    customOpts.classList.add('d-none');
-    previewBanner.classList.add('d-none');
+    document.getElementById('dailyOptions').classList.add('d-none');
+    document.getElementById('customCronOptions').classList.add('d-none');
+    document.getElementById('schedulePreviewBanner').classList.add('d-none');
 
     if (value === 'daily') {
-        dailyOpts.classList.remove('d-none');
+        document.getElementById('dailyOptions').classList.remove('d-none');
         updateDailyPreview();
     } else if (value === 'custom') {
-        customOpts.classList.remove('d-none');
+        document.getElementById('customCronOptions').classList.remove('d-none');
     } else if (PRESET_CRONS[value]) {
-        previewBanner.classList.remove('d-none');
-        previewText.textContent = PRESET_CRONS[value].label + '  ·  ' + PRESET_CRONS[value].cron;
+        const banner = document.getElementById('schedulePreviewBanner');
+        banner.classList.remove('d-none');
+        document.getElementById('schedulePreviewText').textContent =
+            PRESET_CRONS[value].label + '  ·  ' + PRESET_CRONS[value].cron;
     }
 }
 
 function updateDailyPreview() {
-    const h = String(document.getElementById('syncHour').value).padStart(2,'0');
-    const m = String(document.getElementById('syncMinute').value).padStart(2,'0');
+    const h = String(document.getElementById('syncHour').value).padStart(2, '0');
+    const m = String(document.getElementById('syncMinute').value).padStart(2, '0');
     document.getElementById('dailyTimePreview').textContent = `Runs at ${h}:${m} every day`;
-    const banner = document.getElementById('schedulePreviewBanner');
-    const text   = document.getElementById('schedulePreviewText');
-    banner.classList.remove('d-none');
-    text.textContent = `Runs at ${h}:${m} every day  ·  ${m} ${h} * * *`;
+    document.getElementById('schedulePreviewBanner').classList.remove('d-none');
+    document.getElementById('schedulePreviewText').textContent =
+        `Runs at ${h}:${m} every day  ·  ${m} ${h} * * *`;
 }
 
 document.getElementById('syncHour').addEventListener('change', updateDailyPreview);
 document.getElementById('syncMinute').addEventListener('change', updateDailyPreview);
-
 document.querySelectorAll('.freq-btn').forEach(btn => {
     btn.addEventListener('click', () => selectFrequency(btn.dataset.value));
 });
@@ -814,12 +909,12 @@ function loadScheduleStatus() {
     fetch('/api/schedule/status')
         .then(r => r.json())
         .then(data => {
-            const sync = data.sync || {};
+            const sync  = data.sync     || {};
             const sched = data.schedule || {};
 
-            // Status cards
             document.getElementById('statusLastSync').textContent =
-                sync.last_sync_end ? sync.last_sync_end : 'Never';
+                sync.last_sync_end || 'Never';
+
             const statusEl = document.getElementById('statusSyncStatus');
             const st = (sync.last_sync_status || '').toLowerCase();
             if (!sync.last_sync_status) {
@@ -831,10 +926,10 @@ function loadScheduleStatus() {
             } else {
                 statusEl.innerHTML = `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>${sync.last_sync_status}</span>`;
             }
-            document.getElementById('statusVmsSynced').textContent = sync.vms_synced ?? '—';
+
+            document.getElementById('statusVmsSynced').textContent      = sync.vms_synced      ?? '—';
             document.getElementById('statusHostsProcessed').textContent = sync.hosts_processed ?? '—';
 
-            // Load saved schedule into UI
             const enabled = sched.sync_enabled !== '0';
             document.getElementById('syncEnabledToggle').checked = enabled;
             document.getElementById('syncEnabledLabel').textContent = enabled ? 'Enabled' : 'Disabled';
@@ -842,23 +937,15 @@ function loadScheduleStatus() {
             const schedType = sched.sync_schedule_type || 'daily';
             selectFrequency(schedType);
 
-            if (sched.sync_hour) {
-                document.getElementById('syncHour').value = sched.sync_hour;
-            }
-            if (sched.sync_minute) {
-                document.getElementById('syncMinute').value = sched.sync_minute;
-            }
-            if (sched.sync_cron_expression) {
-                document.getElementById('syncCronExpression').value = sched.sync_cron_expression;
-            }
+            if (sched.sync_hour)            document.getElementById('syncHour').value = sched.sync_hour;
+            if (sched.sync_minute)          document.getElementById('syncMinute').value = sched.sync_minute;
+            if (sched.sync_cron_expression) document.getElementById('syncCronExpression').value = sched.sync_cron_expression;
             if (schedType === 'daily') updateDailyPreview();
         })
-        .catch(() => {
-            // silently ignore — no sync has run yet
-        });
+        .catch(() => { /* no sync run yet — silently ignore */ });
 }
 
-document.getElementById('syncEnabledToggle').addEventListener('change', function() {
+document.getElementById('syncEnabledToggle').addEventListener('change', function () {
     document.getElementById('syncEnabledLabel').textContent = this.checked ? 'Enabled' : 'Disabled';
 });
 
@@ -883,11 +970,9 @@ function saveSchedule() {
     })
     .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            showToast('Schedule saved. Restart Celery Beat to apply.', 'success');
-        } else {
-            showToast('Failed to save schedule.', 'danger');
-        }
+        showToast(data.success
+            ? 'Schedule saved. Restart Celery Beat to apply.'
+            : 'Failed to save schedule.', data.success ? 'success' : 'danger');
     })
     .catch(() => showToast('Network error — could not save schedule.', 'danger'))
     .finally(() => {
@@ -909,7 +994,7 @@ function triggerSyncNow() {
             if (data.success) {
                 msg.classList.remove('d-none');
                 showToast('Sync started successfully.', 'success');
-                setTimeout(() => { msg.classList.add('d-none'); }, 8000);
+                setTimeout(() => msg.classList.add('d-none'), 8000);
             } else {
                 showToast('Could not start sync: ' + (data.error || 'Unknown error'), 'danger');
             }
@@ -921,38 +1006,43 @@ function triggerSyncNow() {
         });
 }
 
-// Auto-load when the Schedule tab is activated
 document.getElementById('schedule-tab').addEventListener('shown.bs.tab', loadScheduleStatus);
-
-// If the page loads with #schedule in the URL, load immediately
 if (window.location.hash === '#schedule') {
     document.getElementById('schedule-tab').click();
 }
 
-// Default state: show daily + its preview
+// Default state: show daily preset + preview
 selectFrequency('daily');
 
-</script>
+// ── Notifications ─────────────────────────────────────────────────────────
 
-<!-- Cluster Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p id="deleteMessage"></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="POST" style="display:inline;">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+function toggleSection(sectionId, enabled) {
+    const el = document.getElementById(sectionId);
+    el.style.opacity      = enabled ? '' : '.5';
+    el.style.pointerEvents = enabled ? '' : 'none';
+    event.target.nextElementSibling.textContent = enabled ? 'Enabled' : 'Disabled';
+}
+
+const notifThresholdInput = document.querySelector('[name="storage_threshold_pct"]');
+if (notifThresholdInput) {
+    notifThresholdInput.addEventListener('input', () => {
+        const val    = Math.min(99, Math.max(1, parseInt(notifThresholdInput.value) || 20));
+        const pctEl  = document.getElementById('thresholdPct');
+        const zoneEl = document.getElementById('thresholdZone');
+        if (pctEl)  pctEl.textContent     = val;
+        if (zoneEl) zoneEl.style.width    = val + '%';
+    });
+}
+
+const notifForm = document.getElementById('notificationSettingsForm');
+if (notifForm) {
+    notifForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        fetch('/settings/notifications', { method: 'POST', body: new FormData(this) })
+            .then(() => location.reload())
+            .catch(() => showToast('Failed to save notification settings.', 'danger'));
+    });
+}
+</script>
 
 {% endblock %}

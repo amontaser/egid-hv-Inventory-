@@ -1,6 +1,6 @@
 """API route blueprints"""
 
-from flask import Blueprint, jsonify, request, redirect
+from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
