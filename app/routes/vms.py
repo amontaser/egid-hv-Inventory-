@@ -482,47 +482,60 @@ def export_vm_xlsx(vm_id):
         ]
         notes_text = "; ".join(n["note_text"] for n in notes_rows if n.get("note_text"))
 
+        client = _row_to_dict(
+            db.execute(
+                text("""
+                    SELECT c.name, c.website, c.country, c.description
+                    FROM clients c
+                    JOIN vm_clients vc ON c.id = vc.client_id
+                    WHERE vc.vm_id = :vm_id AND vc.cluster_name = :cn
+                """),
+                {"vm_id": vm_id, "cn": cn},
+            ).fetchone()
+        )
+
     info_rows = [
-        ("Machine Name", vm_d.get("vm_name", "")),
+        ("Machine Name", vm_d.get("machine_name", "")),
         ("VM ID", vm_d.get("vm_id", "")),
         ("Host", vm_d.get("host_name", "")),
         ("Cluster", vm_d.get("cluster_name", "")),
+        ("Client", client.get("name", "") if client else ""),
         ("State", vm_d.get("state", "")),
         ("vCPUs", vm_d.get("cpu_count", "")),
         ("Memory Assigned GB", vm_d.get("memory_assigned_gb", "")),
         ("Memory Demand GB", vm_d.get("memory_demand_gb", "")),
-        ("Dynamic Memory", vm_d.get("dynamic_memory", "")),
+        ("Memory Startup GB", vm_d.get("memory_startup_gb", "")),
+        ("Memory Minimum GB", vm_d.get("memory_minimum_gb", "")),
+        ("Memory Maximum GB", vm_d.get("memory_maximum_gb", "")),
+        ("Dynamic Memory", "Yes" if vm_d.get("dynamic_memory_enabled") else "No"),
         ("Generation", vm_d.get("generation", "")),
         ("Version", vm_d.get("version", "")),
+        ("Uptime Seconds", vm_d.get("uptime_seconds", "")),
+        ("Created", vm_d.get("created_at", "")),
+        ("Updated", vm_d.get("updated_at", "")),
         ("Notes", notes_text),
     ]
+    if client:
+        info_rows.append(("Client Website", client.get("website", "")))
+        info_rows.append(("Client Country", client.get("country", "")))
     sheets = [("Info", ["Field", "Value"], info_rows)]
 
     if disks:
         disk_rows = [
             (
-                d.get("vm_name", ""),
+                d.get("disk_name", ""),
                 d.get("controller_type", ""),
-                d.get("disk_type", ""),
-                d.get("path", ""),
+                d.get("disk_format", ""),
+                d.get("disk_path", ""),
                 d.get("size_gb", ""),
-                d.get("vhd_type", ""),
-                d.get("format", ""),
+                d.get("used_gb", ""),
             )
             for d in disks
         ]
         sheets.append(
             (
                 "Disks",
-                [
-                    "VM Name",
-                    "Controller",
-                    "Type",
-                    "Path",
-                    "Size GB",
-                    "VHD Type",
-                    "Format",
-                ],
+                ["Name", "Controller", "Format", "Path", "Size GB", "Used GB"],
                 disk_rows,
             )
         )
@@ -535,7 +548,7 @@ def export_vm_xlsx(vm_id):
                 n.get("vlan_id", ""),
                 n.get("ip_addresses", ""),
                 n.get("mac_address", ""),
-                n.get("connected", ""),
+                "Yes" if n.get("is_connected") else "No",
             )
             for n in networks
         ]
@@ -551,25 +564,27 @@ def export_vm_xlsx(vm_id):
         snap_rows = [
             (
                 s.get("snapshot_name", ""),
+                s.get("snapshot_type", ""),
                 s.get("creation_time", ""),
-                s.get("size_gb", ""),
             )
             for s in snapshots
         ]
-        sheets.append(("Snapshots", ["Name", "Creation Time", "Size GB"], snap_rows))
+        sheets.append(("Snapshots", ["Name", "Type", "Creation Time"], snap_rows))
 
     if replication:
         rep_rows = [
             ("State", replication.get("replication_state", "")),
+            ("Health", replication.get("replication_health", "")),
             ("Mode", replication.get("replication_mode", "")),
-            ("Frequency sec", replication.get("replication_frequency_sec", "")),
-            ("Last Sync", replication.get("last_replication_time", "")),
             ("Primary Server", replication.get("primary_server", "")),
+            ("Replica Server", replication.get("replica_server", "")),
+            ("Frequency sec", replication.get("frequency_seconds", "")),
+            ("Last Sync", replication.get("last_replication_time", "")),
         ]
         sheets.append(("Replication", ["Field", "Value"], rep_rows))
 
     wb = build_workbook(sheets)
-    return workbook_response(wb, vm_d.get("vm_name", "vm"))
+    return workbook_response(wb, vm_d.get("machine_name", "vm"))
 
 
 @bp.route("/vm/<vm_id>/history")
