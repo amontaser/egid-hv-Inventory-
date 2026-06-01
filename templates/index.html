@@ -334,9 +334,7 @@
                         <td>
                             <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
                             {% if vm.client_name %}
-                            <a href="/client/{{ vm.client_id }}" class="badge bg-primary ms-2" style="text-decoration: none;">
-                                <i class="bi bi-building"></i> {{ vm.client_name }}
-                            </a>
+                            <br><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="font-size:.75rem;color:var(--bs-link-color);"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
                             {% endif %}
                         </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
