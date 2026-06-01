@@ -105,6 +105,7 @@
                 </button>
             </form>
             <a href="/export/vms.xlsx" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-spreadsheet"></i> Export</a>
+            <button onclick="exportCurrentView()" class="btn btn-outline-secondary" title="Export only the VMs currently visible with your filters"><i class="bi bi-funnel"></i> Export View</button>
         </div>
     </div>
     <div class="row g-3 mb-4">
@@ -319,7 +320,8 @@
                   <tbody id="vmTableBody">
                    {% for vm in vms %}
                    <tr class="vm-row"
-                       data-name="{{ vm.machine_name|lower }}"
+                        data-vm-id="{{ vm.vm_id }}"
+                        data-name="{{ vm.machine_name|lower }}"
                        data-state="{{ vm.state }}"
                        data-host="{{ vm.host_node_name|lower if vm.host_node_name else vm.host_name|lower }}"
                        data-cluster="{{ vm.cluster_id or '' }}"
@@ -331,12 +333,12 @@
                         data-vlans="{{ vm.vlans or '' }}"
                         data-ips="{{ vm.ip_addresses or '' }}"
                         data-client="{{ (vm.client_name or '')|lower }}">
-                        <td>
-                            <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
-                            {% if vm.client_name %}
-                            <br><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="font-size:.75rem;color:var(--bs-link-color);"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
-                            {% endif %}
-                        </td>
+                         <td>
+                             <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
+                             {% if vm.client_name %}
+                             <br><small class="text-muted"><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="color:inherit;">{{ vm.client_name }}</a></small>
+                             {% endif %}
+                         </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
                        <td>
                            {{ vm.host_node_name if vm.host_node_name else vm.host_name }}
@@ -1134,6 +1136,22 @@ backToTopButton.addEventListener('click', () => {
         behavior: 'smooth'
     });
 });
+
+function exportCurrentView() {
+    const vmIds = filteredRows.map(r => r.dataset.vmId);
+    if (vmIds.length === 0) { alert('No VMs to export.'); return; }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/export/vms/filtered.xlsx';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'vm_ids';
+    input.value = JSON.stringify(vmIds);
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+}
 
 </script>
 {% endblock %}

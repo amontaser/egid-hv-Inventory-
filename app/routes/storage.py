@@ -328,7 +328,103 @@ def export_vms_xlsx():
     return workbook_response(wb, "HyperV_Inventory")
 
 
-@bp.route("/export/csv")
+@bp.route("/export/vms/filtered.xlsx", methods=["POST"])
+@login_required
+def export_filtered_vms_xlsx():
+    import json
+
+    vm_ids = json.loads(request.form.get("vm_ids", "[]"))
+    if not vm_ids:
+        return redirect(url_for("storage.export_vms_xlsx"))
+
+    placeholders = ",".join(f":id{i}" for i in range(len(vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(vm_ids)}
+
+    with get_db() as db:
+        vms_raw = db.execute(
+            text(f"""
+            SELECT
+                v.machine_name,
+                v.vm_id,
+                v.host_name,
+                v.cluster_name,
+                v.state,
+                v.cpu_count,
+                v.memory_assigned_gb,
+                v.memory_demand_gb,
+                v.dynamic_memory_enabled,
+                v.generation,
+                v.version,
+                v.notes,
+                (SELECT ROUND(SUM(size_gb), 2) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as total_disk_gb,
+                (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
+                (SELECT {str_agg("ip_addresses")} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
+                (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
+                v.created_at,
+                v.updated_at,
+                c.name as client_name
+            FROM vm_info v
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
+            LEFT JOIN clients c ON vc.client_id = c.id AND {bool_eq("c.state")}
+            WHERE v.vm_id IN ({placeholders})
+            ORDER BY v.machine_name
+        """),
+            params,
+        ).fetchall()
+
+    headers = [
+        "Machine Name",
+        "VM ID",
+        "Host",
+        "Cluster",
+        "Client",
+        "State",
+        "vCPUs",
+        "Memory (GB)",
+        "Memory Demand (GB)",
+        "Dynamic Memory",
+        "Generation",
+        "Version",
+        "Notes",
+        "Total Disk (GB)",
+        "Disk Count",
+        "IP Addresses",
+        "Snapshots",
+        "Created",
+        "Updated",
+    ]
+
+    rows = []
+    for vm_row in vms_raw:
+        vm = _row_to_dict(vm_row)
+        rows.append(
+            [
+                vm["machine_name"],
+                vm["vm_id"],
+                vm["host_name"],
+                vm["cluster_name"],
+                vm.get("client_name") or "",
+                vm["state"],
+                vm["cpu_count"],
+                vm["memory_assigned_gb"],
+                vm["memory_demand_gb"],
+                "Yes" if vm["dynamic_memory_enabled"] else "No",
+                vm["generation"],
+                vm["version"],
+                vm["notes"],
+                vm["total_disk_gb"],
+                vm["disk_count"],
+                vm["ip_addresses"],
+                vm["snapshot_count"],
+                vm["created_at"],
+                vm["updated_at"],
+            ]
+        )
+
+    wb = build_workbook([("VMs", headers, rows, None)])
+    return workbook_response(wb, "HyperV_Inventory_Filtered")
+
+
 @login_required
 def export_csv():
     return redirect(url_for("storage.export_vms_xlsx", **request.args))
