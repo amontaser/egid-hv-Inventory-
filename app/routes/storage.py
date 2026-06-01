@@ -264,8 +264,11 @@ def export_vms_xlsx():
                 (SELECT {str_agg("ip_addresses")} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as ip_addresses,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
-                v.updated_at
+                v.updated_at,
+                c.name as client_name
             FROM vm_info v
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
+            LEFT JOIN clients c ON vc.client_id = c.id AND {bool_eq("c.state")}
             {where_sql}
             ORDER BY v.machine_name
         """),
@@ -277,6 +280,7 @@ def export_vms_xlsx():
         "VM ID",
         "Host",
         "Cluster",
+        "Client",
         "State",
         "vCPUs",
         "Memory (GB)",
@@ -302,6 +306,7 @@ def export_vms_xlsx():
                 vm["vm_id"],
                 vm["host_name"],
                 vm["cluster_name"],
+                vm.get("client_name") or "",
                 vm["state"],
                 vm["cpu_count"],
                 vm["memory_assigned_gb"],

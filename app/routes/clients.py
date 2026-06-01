@@ -70,7 +70,7 @@ def add_client():
                     "website": request.form.get("website"),
                     "country": request.form.get("country"),
                     "description": request.form.get("description"),
-                    "state": int(request.form.get("state", 1)),
+                    "state": request.form.get("state", "1") == "1",
                 },
             )
             client_id = result.lastrowid
@@ -187,7 +187,7 @@ def edit_client(client_id):
                     "website": request.form.get("website"),
                     "country": request.form.get("country"),
                     "description": request.form.get("description"),
-                    "state": int(request.form.get("state", 1)),
+                    "state": request.form.get("state", "1") == "1",
                     "client_id": client_id,
                 },
             )

@@ -201,7 +201,7 @@
                              data-vlans="{{ vm.vlans or '' }}"
                              data-ips="{{ vm.ip_addresses or '' }}"
                              data-host="{{ vm.host_name|lower }}"
-                             data-client="{{ (vm.client_name or '')|lower }}">>
+                             data-client="{{ (vm.client_name or '')|lower }}">
 
                             <div class="d-flex align-items-center gap-3">
 
@@ -231,16 +231,12 @@
                                             <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }} snap{% if vm.snapshot_count != 1 %}s{% endif %}
                                         </span>
                                         {% endif %}
-                                        {% if vm.client_name %}
-                                        <a href="/client/{{ vm.client_id }}"
-                                           class="badge bg-primary-subtle text-primary border border-primary-subtle"
-                                           style="font-size:.65rem;text-decoration:none;">
-                                            <i class="bi bi-building me-1"></i>{{ vm.client_name }}
-                                        </a>
-                                        {% endif %}
                                     </div>
                                     <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.75rem;color:#6c757d;">
                                         <span><i class="bi bi-hdd-rack me-1"></i>{{ vm.host_name }}</span>
+                                        {% if vm.client_name %}
+                                        <a href="/client/{{ vm.client_id }}" style="font-size:.75rem;color:#0d6efd;text-decoration:none;"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
+                                        {% endif %}
                                         {% if vm.cluster_name %}
                                         <span><i class="bi bi-diagram-3 me-1"></i>{{ vm.cluster_name }}</span>
                                         {% endif %}
@@ -341,6 +337,12 @@
                                     <i class="bi bi-hdd-rack flex-shrink-0"></i>
                                     <span class="text-truncate">{{ vm.host_name }}</span>
                                 </div>
+                                {% if vm.client_name %}
+                                <div class="d-flex align-items-center gap-1 small mb-1">
+                                    <i class="bi bi-building flex-shrink-0 text-muted"></i>
+                                    <a href="/client/{{ vm.client_id }}" class="text-truncate" style="font-size:.75rem;color:#0d6efd;text-decoration:none;">{{ vm.client_name }}</a>
+                                </div>
+                                {% endif %}
                                 {% if vm.ip_addresses %}
                                 <div class="small font-monospace text-muted text-truncate">
                                     <i class="bi bi-router me-1"></i>{{ vm.ip_addresses.split(',')[0] }}
