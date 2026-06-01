@@ -7,6 +7,8 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+_CELERY_SERVICE = os.getenv("SERVICE", "") in ("celery-worker", "celery-beat")
+
 
 def configure_db(app):
     """Configure Flask-SQLAlchemy on the Flask app."""
@@ -20,6 +22,26 @@ def configure_db(app):
     )
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    if database_url.startswith("postgresql://"):
+        if _CELERY_SERVICE:
+            from sqlalchemy.pool import NullPool
+
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+                "poolclass": NullPool,
+                "pool_pre_ping": True,
+            }
+        else:
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+                "pool_size": 2,
+                "max_overflow": 3,
+                "pool_timeout": 30,
+                "pool_pre_ping": True,
+                "pool_recycle": 1800,
+            }
+    else:
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {}
+
     db.init_app(app)
 
 
