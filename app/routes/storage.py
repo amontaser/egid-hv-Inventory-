@@ -12,7 +12,7 @@ from flask import (
 from flask_login import login_required
 from app.utils.db import get_db
 from sqlalchemy import text
-from app.utils.db_compat import str_agg
+from app.utils.db_compat import str_agg, bool_eq
 from app.utils.export import build_workbook, workbook_response
 import logging
 
