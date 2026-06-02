@@ -347,11 +347,10 @@
                               {% if vm.client_name %}
                               <a href="/client/{{ vm.client_id }}" class="badge bg-secondary ms-1" style="font-size:.6rem;text-decoration:none;"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
                               {% endif %}
-                              {% if vm.tags %}
-                              {% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
-                              {% endif %}
-                              {% endif %}
-                          </td>
+                               {% if vm.tags %}
+                               {% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
+                               {% endif %}
+                           </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
                        <td>
                            {{ vm.host_node_name if vm.host_node_name else vm.host_name }}
