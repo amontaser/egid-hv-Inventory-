@@ -45,40 +45,62 @@
 
             <!-- Quick Stats Row -->
             <div class="row g-3 mt-3 pt-3 border-top">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="d-flex align-items-center">
                         <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
                             <i class="bi bi-cpu text-primary" style="font-size: 1.5rem;"></i>
                         </div>
                         <div>
-                            <small class="text-muted">Total VMs</small>
+                            <small class="text-muted">VMs</small>
                             <h5 class="mb-0">{{ vms|length }}</h5>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-speedometer text-success" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">vCPUs</small>
+                            <h5 class="mb-0">{{ stats.total_cpu or 0 }}</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-memory text-info" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">RAM</small>
+                            <h5 class="mb-0">{{ stats.total_ram_gb or 0 }}GB</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-hdd text-warning" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted">Disk</small>
+                            <h5 class="mb-0">{{ stats.total_disk_gb or 0 }}GB</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <div class="d-flex align-items-center">
                         <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
                             <i class="bi bi-diagram-3 text-info" style="font-size: 1.5rem;"></i>
                         </div>
                         <div>
                             <small class="text-muted">VLANs</small>
-                            <h5 class="mb-0">{% if client.vlans %}{{ client.vlans.split(',')|length }}{% else %}0{% endif %}</h5>
+                            <h5 class="mb-0">{{ stats.vlan_count or 0 }}</h5>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="d-flex align-items-center">
-                        <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
-                            <i class="bi bi-person-fill text-warning" style="font-size: 1.5rem;"></i>
-                        </div>
-                        <div>
-                            <small class="text-muted">Contacts</small>
-                            <h5 class="mb-0">{{ contacts|length }}</h5>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="d-flex align-items-center">
                         <div class="bg-secondary bg-opacity-10 rounded-circle p-3 me-3" style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
                             <i class="bi bi-card-text text-secondary" style="font-size: 1.5rem;"></i>

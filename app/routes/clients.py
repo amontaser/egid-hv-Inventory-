@@ -140,6 +140,26 @@ def client_details(client_id):
         ).fetchall()
         vms = [_row_to_dict(v) for v in vms_raw]
 
+        stats_raw = db.execute(
+            text("""
+            SELECT
+                COALESCE(SUM(v.cpu_count), 0) as total_cpu,
+                COALESCE(SUM(v.memory_assigned_gb), 0) as total_ram_gb,
+                COALESCE(SUM(v.memory_demand_gb), 0) as total_demand_gb,
+                (SELECT ROUND(SUM(d.size_gb), 2) FROM vm_disks d
+                 JOIN vm_clients vc ON d.vm_id = vc.vm_id AND d.cluster_name = vc.cluster_name
+                 WHERE vc.client_id = :client_id) as total_disk_gb,
+                (SELECT COUNT(DISTINCT na.vlan_id) FROM vm_network_adapters na
+                 JOIN vm_clients vc ON na.vm_id = vc.vm_id AND na.cluster_name = vc.cluster_name
+                 WHERE vc.client_id = :client_id AND na.vlan_id IS NOT NULL AND na.vlan_id != 0) as vlan_count
+            FROM vm_info v
+            JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
+            WHERE vc.client_id = :client_id
+        """),
+            {"client_id": client_id},
+        ).fetchone()
+        client_stats = _row_to_dict(stats_raw)
+
         account_managers_raw = db.execute(
             text(f"""
             SELECT am.* FROM account_managers am
@@ -177,6 +197,7 @@ def client_details(client_id):
             account_managers=account_managers,
             all_managers=all_managers,
             notes=notes,
+            stats=client_stats,
         )
 
 
