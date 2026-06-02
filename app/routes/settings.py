@@ -300,7 +300,7 @@ def add_manager():
         db.execute(
             text(
                 "INSERT INTO account_managers (name, email, phone, state, created_at, updated_at) "
-                "VALUES (:name, :email, :phone, 1, :now, :now)"
+                "VALUES (:name, :email, :phone, TRUE, :now, :now)"
             ),
             {"name": name, "email": email or None, "phone": phone or None, "now": now},
         )
@@ -320,7 +320,7 @@ def edit_manager(manager_id):
 
     email = request.form.get("email", "").strip()
     phone = request.form.get("phone", "").strip()
-    state = 1 if request.form.get("state") else 0
+    state = bool(request.form.get("state"))
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db() as db:
