@@ -726,9 +726,11 @@ function assignVm(vmId, clusterName, btn) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                btn.classList.add('d-none');
-                showToast('VM assigned successfully', 'success');
-                setTimeout(() => location.reload(), 500);
+                btn.closest('.list-group-item').remove();
+                const countEl = document.querySelector('#vms-content .card-header h5');
+                const currentCount = parseInt(countEl.textContent.match(/\((\d+)\)/)[1] || 0);
+                countEl.innerHTML = `<i class="bi bi-cpu me-2"></i>Assigned Virtual Machines (${currentCount + 1})`;
+                showToast('VM assigned', 'success');
             } else {
                 showToast(data.error || 'Error assigning VM', 'danger');
             }
