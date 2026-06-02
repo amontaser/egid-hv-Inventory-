@@ -231,6 +231,9 @@
                                             <i class="bi bi-camera me-1"></i>{{ vm.snapshot_count }} snap{% if vm.snapshot_count != 1 %}s{% endif %}
                                         </span>
                                         {% endif %}
+                                        {% if vm.tags %}
+                                        {% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
+                                        {% endif %}
                                     </div>
                                     <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.75rem;color:#6c757d;">
                                         <span><i class="bi bi-hdd-rack me-1"></i>{{ vm.host_name }}</span>
@@ -312,6 +315,9 @@
                                     <i class="bi bi-pc-display" style="font-size:.7rem;color:{% if vm.state == 'Running' %}#198754{% else %}#6c757d{% endif %};"></i>
                                 </div>
                                 <span class="fw-semibold text-truncate small flex-grow-1">{{ vm.machine_name }}</span>
+                                {% if vm.tags %}
+                                {% for t in vm.tags %}<span class="badge" style="background:{{ t.color }};color:#fff;font-size:.5rem;padding:1px 4px;">{{ t.name }}</span>{% endfor %}
+                                {% endif %}
                                 {% if vm.state == 'Running' %}
                                 <span class="badge bg-success" style="font-size:.6rem;">On</span>
                                 {% else %}

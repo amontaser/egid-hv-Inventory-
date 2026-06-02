@@ -131,14 +131,31 @@ def client_details(client_id):
         contacts = [_row_to_dict(c) for c in contacts_raw]
 
         vms_raw = db.execute(
-            text("""
-            SELECT v.* FROM vm_info v
+            text(
+                """
+            SELECT v.*,
+                (SELECT {sagg} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_names,
+                (SELECT {sagg2} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_colors
+            FROM vm_info v
             JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
             WHERE vc.client_id = :client_id
-        """),
+        """.format(sagg=str_agg("t.name"), sagg2=str_agg("t.color"))
+            ),
             {"client_id": client_id},
         ).fetchall()
-        vms = [_row_to_dict(v) for v in vms_raw]
+        vms = []
+        for v in vms_raw:
+            vd = _row_to_dict(v)
+            if vd.get("tag_names"):
+                names = vd["tag_names"].split(",")
+                colors = (vd.get("tag_colors") or "").split(",")
+                vd["tags"] = [
+                    {"name": n, "color": colors[i] if i < len(colors) else "#6c757d"}
+                    for i, n in enumerate(names)
+                ]
+            else:
+                vd["tags"] = []
+            vms.append(vd)
 
         stats_raw = db.execute(
             text("""

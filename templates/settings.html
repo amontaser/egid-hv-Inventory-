@@ -36,6 +36,11 @@
                 <i class="bi bi-bell me-1"></i> Notifications
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tags-tab" data-bs-toggle="tab" data-bs-target="#tags" type="button" role="tab">
+                <i class="bi bi-tags me-1"></i> Tags
+            </button>
+        </li>
     </ul>
 
     <!-- Tab Content -->
@@ -599,6 +604,28 @@
             </form>
         </div><!-- /tab-pane #notifications -->
 
+        <!-- ── Tags Tab ──────────────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="tags" role="tabpanel">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-tags me-2"></i>VM Tags</h5>
+                    <button class="btn btn-sm btn-primary" onclick="showAddTagForm()">
+                        <i class="bi bi-plus-circle me-1"></i>Add Tag
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="addTagForm" class="d-none mb-3 p-3 rounded border" style="background:rgba(13,110,253,.04);">
+                        <div class="d-flex gap-2">
+                            <input type="text" id="newTagName" class="form-control form-control-sm" placeholder="Tag name (e.g. Production)">
+                            <button class="btn btn-primary btn-sm" onclick="createTag()">Create</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('addTagForm').classList.add('d-none')">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="tagsList"></div>
+                </div>
+            </div>
+        </div>
+
     </div><!-- /tab-content -->
 </div><!-- /container-fluid -->
 
@@ -1043,6 +1070,56 @@ if (notifForm) {
             .catch(() => showToast('Failed to save notification settings.', 'danger'));
     });
 }
+
+function showAddTagForm() {
+    document.getElementById('addTagForm').classList.remove('d-none');
+    document.getElementById('newTagName').focus();
+}
+
+function createTag() {
+    const name = document.getElementById('newTagName').value.trim();
+    if (!name) return;
+    const fd = new FormData();
+    fd.append('name', name);
+    fetch('/settings/tags/add', {method:'POST', body:fd})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('newTagName').value = '';
+                document.getElementById('addTagForm').classList.add('d-none');
+                loadTags();
+            }
+        });
+}
+
+function deleteTag(id) {
+    if (!confirm('Delete this tag? It will be removed from all VMs.')) return;
+    fetch(`/settings/tags/${id}/delete`, {method:'POST'})
+        .then(r => r.json())
+        .then(() => loadTags());
+}
+
+function loadTags() {
+    fetch('/settings/tags').then(r => r.json()).then(tags => {
+        const el = document.getElementById('tagsList');
+        if (!tags.length) {
+            el.innerHTML = '<div class="text-center text-muted py-4">No tags yet</div>';
+            return;
+        }
+        el.innerHTML = '<div class="list-group">' + tags.map(t =>
+            `<div class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge" style="background:${t.color};color:#fff;min-width:14px;height:14px;"></span>
+                    <strong>${t.name}</strong>
+                    <small class="text-muted">${t.vm_count} VM${t.vm_count !== 1 ? 's' : ''}</small>
+                </div>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteTag(${t.id})"><i class="bi bi-trash"></i></button>
+            </div>`
+        ).join('') + '</div>';
+    });
+}
+
+document.querySelector('[data-bs-target="#tags"]')?.addEventListener('shown.bs.tab', loadTags);
 </script>
 
 {% endblock %}

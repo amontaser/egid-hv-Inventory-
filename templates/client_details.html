@@ -186,6 +186,9 @@
                                     <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}" class="text-decoration-none">
                                         <strong>{{ vm.machine_name }}</strong>
                                     </a>
+                                    {% if vm.tags %}
+                                    <br>{% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
+                                    {% endif %}
                                 </td>
                                 <td>{{ vm.host_name }}</td>
                                 <td class="text-center">
