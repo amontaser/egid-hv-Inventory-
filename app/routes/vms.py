@@ -155,7 +155,9 @@ def index():
                 (SELECT {str_agg("vlan_id", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
                 h.host_name as host_node_name,
                 c.id as client_id,
-                c.name as client_name
+                c.name as client_name,
+                (SELECT {str_agg("t.name")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_names,
+                (SELECT {str_agg("t.color")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_colors
             FROM vm_info v
             LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
@@ -170,6 +172,13 @@ def index():
             text("SELECT * FROM sync_metadata WHERE id = 1")
         ).fetchone()
 
+        all_tags = [
+            _row_to_dict(r)
+            for r in db.execute(
+                text("SELECT id, name, color FROM tags ORDER BY name")
+            ).fetchall()
+        ]
+
     vms = []
     for vm in vms_raw:
         vm_dict = _row_to_dict(vm)
@@ -177,6 +186,15 @@ def index():
             vm_dict["vlan_list"] = sorted([int(v) for v in vm_dict["vlans"].split(",")])
         else:
             vm_dict["vlan_list"] = []
+        if vm_dict.get("tag_names"):
+            names = vm_dict["tag_names"].split(",")
+            colors = (vm_dict.get("tag_colors") or "").split(",")
+            vm_dict["tags"] = [
+                {"name": n, "color": colors[i] if i < len(colors) else "#6c757d"}
+                for i, n in enumerate(names)
+            ]
+        else:
+            vm_dict["tags"] = []
         vms.append(vm_dict)
 
     stats_dict = _row_to_dict(stats)
@@ -192,6 +210,7 @@ def index():
         clusters=all_clusters,
         selected_cluster_id=cluster_id,
         selected_cluster_name=cluster_name,
+        all_tags=all_tags,
     )
 
 
@@ -239,7 +258,9 @@ def vms_list():
                 (SELECT {str_agg("vlan_id", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND vlan_id IS NOT NULL AND vlan_id != 0) as vlans,
                 h.host_name as host_node_name,
                 c.id as client_id,
-                c.name as client_name
+                c.name as client_name,
+                (SELECT {str_agg("t.name")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_names,
+                (SELECT {str_agg("t.color")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_colors
             FROM vm_info v
             LEFT JOIN hyperv_hosts h ON v.host_name = h.host_name
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
@@ -261,6 +282,15 @@ def vms_list():
             vm_dict["vlan_list"] = sorted([int(v) for v in vm_dict["vlans"].split(",")])
         else:
             vm_dict["vlan_list"] = []
+        if vm_dict.get("tag_names"):
+            names = vm_dict["tag_names"].split(",")
+            colors = (vm_dict.get("tag_colors") or "").split(",")
+            vm_dict["tags"] = [
+                {"name": n, "color": colors[i] if i < len(colors) else "#6c757d"}
+                for i, n in enumerate(names)
+            ]
+        else:
+            vm_dict["tags"] = []
         vms.append(vm_dict)
 
     stats_dict = _row_to_dict(stats)
@@ -494,12 +524,23 @@ def export_vm_xlsx(vm_id):
             ).fetchone()
         )
 
+        vm_tags_raw = db.execute(
+            text("""
+                SELECT t.name FROM tags t
+                JOIN vm_tags vt ON t.id = vt.tag_id
+                WHERE vt.vm_id = :vm_id AND vt.cluster_name = :cn ORDER BY t.name
+            """),
+            {"vm_id": vm_id, "cn": cn},
+        ).fetchall()
+        vm_tag_names = ", ".join(r[0] for r in vm_tags_raw)
+
     info_rows = [
         ("Machine Name", vm_d.get("machine_name", "")),
         ("VM ID", vm_d.get("vm_id", "")),
         ("Host", vm_d.get("host_name", "")),
         ("Cluster", vm_d.get("cluster_name", "")),
         ("Client", client.get("name", "") if client else ""),
+        ("Tags", vm_tag_names),
         ("State", vm_d.get("state", "")),
         ("vCPUs", vm_d.get("cpu_count", "")),
         ("Memory Assigned GB", vm_d.get("memory_assigned_gb", "")),

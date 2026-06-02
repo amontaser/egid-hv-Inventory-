@@ -137,6 +137,9 @@ def _clear_stale_vms():
             ("vm_notes", r._mapping["vm_id"], r._mapping["cluster_name"])
         )
         stale_params.append(
+            ("vm_tags", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
             ("vm_clients", r._mapping["vm_id"], r._mapping["cluster_name"])
         )
         stale_params.append(
@@ -557,6 +560,7 @@ def _aggregate_and_monitor_impl(results, vm_snapshot=None, csv_snapshot=None):
                     "vm_disks",
                     "vm_snapshots",
                     "vm_replication",
+                    "vm_tags",
                     "vm_notes",
                     "vm_clients",
                 ):

@@ -402,6 +402,35 @@ class Setting(db.Model):
     updated_at = db.Column(db.String(50))
 
 
+class Tag(db.Model):
+    __tablename__ = "tags"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    color = db.Column(db.String(7), nullable=False)
+
+
+class VMTag(db.Model):
+    __tablename__ = "vm_tags"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    vm_id = db.Column(db.String(255), nullable=False)
+    cluster_name = db.Column(db.String(255), nullable=False)
+    tag_id = db.Column(
+        db.Integer, db.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False
+    )
+
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["vm_id", "cluster_name"],
+            ["vm_info.vm_id", "vm_info.cluster_name"],
+            ondelete="CASCADE",
+        ),
+        db.UniqueConstraint("vm_id", "cluster_name", "tag_id"),
+        db.Index("idx_vm_tags_vm_id", "vm_id", "cluster_name"),
+    )
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 

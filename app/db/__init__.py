@@ -1,6 +1,7 @@
 """Database layer — Flask-SQLAlchemy integration, schema seeding."""
 
 import os
+import hashlib
 import logging
 from contextlib import contextmanager
 from datetime import datetime
@@ -8,6 +9,17 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 _CELERY_SERVICE = os.getenv("SERVICE", "") in ("celery-worker", "celery-beat")
+
+
+def tag_color(name: str) -> str:
+    h = int(hashlib.md5(name.lower().encode()).hexdigest()[:8], 16)
+    hue = h % 360
+    sat = 55 + (h // 360 % 3) * 15
+    lum = 40 + (h // 1080 % 3) * 8
+    import colorsys
+
+    r, g, b = colorsys.hls_to_rgb(hue / 360, lum / 100, sat / 100)
+    return f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
 
 def configure_db(app):
@@ -116,3 +128,25 @@ def _seed_defaults():
     except Exception as e:
         session.rollback()
         logger.debug(f"Admin user already exists: {e}")
+
+    try:
+        from app.models import Tag
+
+        seed_tags = [
+            "Production",
+            "Test",
+            "Pre-Production",
+            "Development",
+            "Internal",
+            "Staging",
+            "DR",
+            "Decommission",
+        ]
+        for name in seed_tags:
+            if session.query(Tag).filter_by(name=name).first() is None:
+                session.add(Tag(name=name, color=tag_color(name)))
+        session.commit()
+        logger.info("Seeded default tags")
+    except Exception as e:
+        session.rollback()
+        logger.debug(f"Tag seeding skipped: {e}")

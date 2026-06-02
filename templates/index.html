@@ -273,6 +273,14 @@
                         <option value="Paused">Paused</option>
                     </select>
                 </div>
+                <div class="col-auto" style="min-width: 140px;">
+                    <select id="tagFilter" class="form-select">
+                        <option value="">All Tags</option>
+                        {% for tag in all_tags %}
+                        <option value="{{ tag.name|lower }}">{{ tag.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="col">
                     <div class="input-group">
                         <span class="input-group-text">
@@ -332,13 +340,17 @@
                        data-snapshots="{{ vm.snapshot_count or 0 }}"
                         data-vlans="{{ vm.vlans or '' }}"
                         data-ips="{{ vm.ip_addresses or '' }}"
-                        data-client="{{ (vm.client_name or '')|lower }}">
-                         <td>
-                             <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
-                             {% if vm.client_name %}
-                             <br><small class="text-muted"><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="color:inherit;">{{ vm.client_name }}</a></small>
-                             {% endif %}
-                         </td>
+                         data-client="{{ (vm.client_name or '')|lower }}"
+                         data-tags="{{ (vm.tag_names or '')|lower }}">
+                          <td>
+                              <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
+                              {% if vm.tags %}
+                              <br>{% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
+                              {% endif %}
+                              {% if vm.client_name %}
+                              <br><small class="text-muted"><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="color:inherit;">{{ vm.client_name }}</a></small>
+                              {% endif %}
+                          </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
                        <td>
                            {{ vm.host_node_name if vm.host_node_name else vm.host_name }}
@@ -514,6 +526,8 @@ function clearAllFilters() {
     stateFilter.value = '';
     const cf = document.getElementById('clusterFilter');
     if (cf) cf.value = '';
+    const tf = document.getElementById('tagFilter');
+    if (tf) tf.value = '';
     filterAndDisplayVMs();
 }
 
@@ -522,6 +536,7 @@ function filterAndDisplayVMs() {
     const search = parseSearchTerm(searchInput.value);
     const stateValue = stateFilter.value;
     const clusterValue = document.getElementById('clusterFilter')?.value || '';
+    const tagValue = document.getElementById('tagFilter')?.value || '';
 
     // Update badge
     updateSearchBadge(search);
@@ -563,8 +578,9 @@ function filterAndDisplayVMs() {
 
         const matchesState = !stateValue || state === stateValue;
         const matchesCluster = !clusterValue || cluster === clusterValue;
+        const matchesTag = !tagValue || (row.dataset.tags || '').split(',').includes(tagValue);
 
-        if (matchesSearch && matchesState && matchesCluster) {
+        if (matchesSearch && matchesState && matchesCluster && matchesTag) {
             filteredRows.push(row);
         }
     });
@@ -739,6 +755,7 @@ stateFilter?.addEventListener('change', filterAndDisplayVMs);
 
 // Cluster filter handler
 document.getElementById('clusterFilter')?.addEventListener('change', filterAndDisplayVMs);
+document.getElementById('tagFilter')?.addEventListener('change', filterAndDisplayVMs);
 
 // Keyboard shortcut: Escape to clear search
 searchInput?.addEventListener('keydown', (e) => {

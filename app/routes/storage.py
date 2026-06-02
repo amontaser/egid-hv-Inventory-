@@ -265,7 +265,8 @@ def export_vms_xlsx():
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at,
-                c.name as client_name
+                c.name as client_name,
+                (SELECT {str_agg("t.name")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_names
             FROM vm_info v
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
             LEFT JOIN clients c ON vc.client_id = c.id AND {bool_eq("c.state")}
@@ -281,6 +282,7 @@ def export_vms_xlsx():
         "Host",
         "Cluster",
         "Client",
+        "Tags",
         "State",
         "vCPUs",
         "Memory (GB)",
@@ -307,6 +309,7 @@ def export_vms_xlsx():
                 vm["host_name"],
                 vm["cluster_name"],
                 vm.get("client_name") or "",
+                vm.get("tag_names") or "",
                 vm["state"],
                 vm["cpu_count"],
                 vm["memory_assigned_gb"],
@@ -362,7 +365,8 @@ def export_filtered_vms_xlsx():
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at,
-                c.name as client_name
+                c.name as client_name,
+                (SELECT {str_agg("t.name")} FROM vm_tags vt JOIN tags t ON vt.tag_id = t.id WHERE vt.vm_id = v.vm_id AND vt.cluster_name = v.cluster_name) as tag_names
             FROM vm_info v
             LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
             LEFT JOIN clients c ON vc.client_id = c.id AND {bool_eq("c.state")}
@@ -378,6 +382,7 @@ def export_filtered_vms_xlsx():
         "Host",
         "Cluster",
         "Client",
+        "Tags",
         "State",
         "vCPUs",
         "Memory (GB)",
@@ -404,6 +409,7 @@ def export_filtered_vms_xlsx():
                 vm["host_name"],
                 vm["cluster_name"],
                 vm.get("client_name") or "",
+                vm.get("tag_names") or "",
                 vm["state"],
                 vm["cpu_count"],
                 vm["memory_assigned_gb"],

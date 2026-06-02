@@ -424,3 +424,94 @@ def export_history_xlsx():
 
     wb = build_workbook([("History", headers, rows)])
     return workbook_response(wb, "HyperV_History")
+
+
+@bp.route("/settings/tags")
+@login_required
+def list_tags():
+    with get_db() as db:
+        rows = db.execute(
+            text("""
+            SELECT t.id, t.name, t.color,
+                (SELECT COUNT(*) FROM vm_tags WHERE tag_id = t.id) as vm_count
+            FROM tags t ORDER BY t.name
+        """)
+        ).fetchall()
+        return jsonify([_row_to_dict(r) for r in rows])
+
+
+@bp.route("/settings/tags/add", methods=["POST"])
+@login_required
+def add_tag():
+    name = request.form.get("name", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "Name is required"}), 400
+    from app.db import tag_color
+
+    color = tag_color(name)
+    with get_db() as db:
+        db.execute(
+            text(
+                "INSERT INTO tags (name, color) VALUES (:name, :color) ON CONFLICT (name) DO NOTHING"
+            ),
+            {"name": name, "color": color},
+        )
+        db.commit()
+    return jsonify({"success": True})
+
+
+@bp.route("/settings/tags/<int:tag_id>/delete", methods=["POST"])
+@login_required
+def delete_tag(tag_id):
+    with get_db() as db:
+        db.execute(text("DELETE FROM tags WHERE id = :id"), {"id": tag_id})
+        db.commit()
+    return jsonify({"success": True})
+
+
+@bp.route("/vm/<vm_id>/tags")
+@login_required
+def vm_tags(vm_id):
+    cluster = request.args.get("cluster")
+    with get_db() as db:
+        rows = db.execute(
+            text("""
+                SELECT t.id, t.name, t.color FROM tags t
+                JOIN vm_tags vt ON t.id = vt.tag_id
+                WHERE vt.vm_id = :vm_id AND vt.cluster_name = :cn
+                ORDER BY t.name
+            """),
+            {"vm_id": vm_id, "cn": cluster},
+        ).fetchall()
+        return jsonify([_row_to_dict(r) for r in rows])
+
+
+@bp.route("/vm/<vm_id>/tags/add", methods=["POST"])
+@login_required
+def add_vm_tag(vm_id):
+    tag_id = request.form.get("tag_id")
+    cluster = request.form.get("cluster_name")
+    with get_db() as db:
+        db.execute(
+            text(
+                "INSERT INTO vm_tags (vm_id, cluster_name, tag_id) VALUES (:vm_id, :cn, :tag_id) ON CONFLICT DO NOTHING"
+            ),
+            {"vm_id": vm_id, "cn": cluster, "tag_id": tag_id},
+        )
+        db.commit()
+    return jsonify({"success": True})
+
+
+@bp.route("/vm/<vm_id>/tags/<int:tag_id>/remove", methods=["POST"])
+@login_required
+def remove_vm_tag(vm_id, tag_id):
+    cluster = request.form.get("cluster_name")
+    with get_db() as db:
+        db.execute(
+            text(
+                "DELETE FROM vm_tags WHERE vm_id = :vm_id AND cluster_name = :cn AND tag_id = :tag_id"
+            ),
+            {"vm_id": vm_id, "cn": cluster, "tag_id": tag_id},
+        )
+        db.commit()
+    return jsonify({"success": True})
