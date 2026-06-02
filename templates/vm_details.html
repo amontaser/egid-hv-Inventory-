@@ -510,23 +510,32 @@
                             </div>
                         {% endif %}
                     </div>
-
-                    <!-- Add Note Form -->
-                    <div id="addNoteForm" class="d-none mt-3">
-                        <textarea id="newNoteText" class="form-control form-control-sm mb-2" rows="3"
-                                  placeholder="Enter note..."></textarea>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-primary btn-sm flex-grow-1" onclick="addNote()">
-                                <i class="bi bi-check-circle me-1"></i>Save
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="hideAddNoteForm()">Cancel</button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
         </div><!-- /col-lg-4 -->
     </div><!-- /row -->
+</div>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="addNoteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea id="newNoteText" class="form-control" rows="4" placeholder="Enter note..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addNote()">
+                    <i class="bi bi-check-circle me-1"></i>Save Note
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Edit Note Modal -->
@@ -555,13 +564,12 @@ const VM_ID = '{{ vm.vm_id }}';
 const CLUSTER_PARAM = '{{ vm.cluster_name }}' ? '?cluster={{ vm.cluster_name }}' : '';
 
 function showAddNoteForm() {
-    document.getElementById('addNoteForm').classList.remove('d-none');
-    document.getElementById('newNoteText').focus();
+    document.getElementById('newNoteText').value = '';
+    new bootstrap.Modal(document.getElementById('addNoteModal')).show();
 }
 
 function hideAddNoteForm() {
-    document.getElementById('addNoteForm').classList.add('d-none');
-    document.getElementById('newNoteText').value = '';
+    bootstrap.Modal.getInstance(document.getElementById('addNoteModal'))?.hide();
 }
 
 function addNote() {
