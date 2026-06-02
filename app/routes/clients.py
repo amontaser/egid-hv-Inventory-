@@ -71,7 +71,7 @@ def add_client():
 
             result = db.execute(
                 text(
-                    "INSERT INTO clients (name, website, country, description, state) VALUES (:name, :website, :country, :description, :state)"
+                    "INSERT INTO clients (name, website, country, description, state) VALUES (:name, :website, :country, :description, :state) RETURNING id"
                 ),
                 {
                     "name": name,
@@ -81,7 +81,7 @@ def add_client():
                     "state": request.form.get("state", "1") == "1",
                 },
             )
-            client_id = result.lastrowid
+            client_id = result.fetchone()[0]
 
             manager_ids = request.form.getlist("account_managers")
             if manager_ids:
