@@ -219,14 +219,14 @@
                                         <span class="badge bg-info">{{ manager.client_count }}</span>
                                     </td>
                                     <td>
-                                        {% if manager.state == 1 %}
+                                        {% if manager.state %}
                                         <span class="badge bg-success">Active</span>
                                         {% else %}
                                         <span class="badge bg-secondary">Inactive</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="editManager({{ manager.id }}, '{{ manager.name }}', '{{ manager.email or '' }}', '{{ manager.phone or '' }}', {{ manager.state }})">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="editManager({{ manager.id }}, '{{ manager.name }}', '{{ manager.email or '' }}', '{{ manager.phone or '' }}', {{ 'true' if manager.state else 'false' }})">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteManager({{ manager.id }}, '{{ manager.name }}')">
@@ -763,7 +763,7 @@ function editManager(id, name, email, phone, state) {
     document.getElementById('editManagerName').value = name;
     document.getElementById('editManagerEmail').value = email;
     document.getElementById('editManagerPhone').value = phone;
-    document.getElementById('editManagerState').checked = state === 1;
+    document.getElementById('editManagerState').checked = state === true || state === 1;
     new bootstrap.Modal(document.getElementById('editManagerModal')).show();
 }
 
