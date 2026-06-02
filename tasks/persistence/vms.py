@@ -1,6 +1,7 @@
 """Persist VM-related data to SQLite."""
 
 import logging
+from datetime import datetime
 from typing import List, Dict, Optional
 
 from sqlalchemy import text
@@ -27,12 +28,12 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
                 vm_id, cluster_name, machine_name, host_name, state,
                 uptime_seconds, cpu_count, memory_assigned_gb, memory_demand_gb,
                 memory_startup_gb, memory_minimum_gb, memory_maximum_gb,
-                dynamic_memory_enabled, generation, version, created_at
+                dynamic_memory_enabled, generation, version, created_at, updated_at
             ) VALUES (
                 :vm_id, :cluster_name, :machine_name, :host_name, :state,
                 :uptime_seconds, :cpu_count, :memory_assigned_gb, :memory_demand_gb,
                 :memory_startup_gb, :memory_minimum_gb, :memory_maximum_gb,
-                :dynamic_memory_enabled, :generation, :version, :created_at
+                :dynamic_memory_enabled, :generation, :version, :created_at, :updated_at
             )
             ON CONFLICT (vm_id, cluster_name) DO UPDATE SET
                 machine_name           = EXCLUDED.machine_name,
@@ -48,7 +49,7 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
                 dynamic_memory_enabled = EXCLUDED.dynamic_memory_enabled,
                 generation             = EXCLUDED.generation,
                 version                = EXCLUDED.version,
-                created_at             = EXCLUDED.created_at
+                updated_at             = EXCLUDED.updated_at
         """),
             {
                 "vm_id": vm.get("VMId"),
@@ -67,6 +68,7 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
                 "generation": vm.get("Generation", 0),
                 "version": vm.get("Version"),
                 "created_at": vm.get("CreatedTime"),
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
         )
     session.commit()

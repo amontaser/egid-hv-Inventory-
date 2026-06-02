@@ -93,19 +93,82 @@ def _update_sync_metadata(status: str, **kwargs):
         logger.warning(f"sync_metadata update failed: {e}")
 
 
-def _clear_vm_data():
+def _clear_host_child_data(vm_ids: list, cluster_name: str):
+    if not vm_ids:
+        return
     session = get_db_connection()
-    for tbl in (
-        "vm_notes",
-        "vm_clients",
-        "vm_network_adapters",
-        "vm_disks",
-        "vm_snapshots",
-        "vm_replication",
-        "vm_info",
-    ):
-        session.execute(text(f"DELETE FROM {tbl}"))
+    ph = ",".join(f":id{i}" for i in range(len(vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(vm_ids)}
+    params["cn"] = cluster_name
+    for tbl in ("vm_network_adapters", "vm_disks", "vm_snapshots", "vm_replication"):
+        session.execute(
+            text(f"DELETE FROM {tbl} WHERE vm_id IN ({ph}) AND cluster_name = :cn"),
+            params,
+        )
     session.commit()
+
+
+def _clear_stale_vms():
+    session = get_db_connection()
+    active_clusters = session.execute(
+        text(f"SELECT cluster_name FROM clusters WHERE {bool_eq('is_enabled')}")
+    ).fetchall()
+    cluster_names = [r._mapping["cluster_name"] for r in active_clusters]
+
+    if not cluster_names:
+        return
+
+    placeholders = ",".join(f":c{i}" for i in range(len(cluster_names)))
+    params = {f"c{i}": cn for i, cn in enumerate(cluster_names)}
+
+    stale = session.execute(
+        text(
+            f"SELECT vm_id, cluster_name FROM vm_info WHERE cluster_name NOT IN ({placeholders})"
+        ),
+        params,
+    ).fetchall()
+
+    if not stale:
+        return
+
+    stale_params = []
+    for r in stale:
+        stale_params.append(
+            ("vm_notes", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
+            ("vm_clients", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
+            ("vm_network_adapters", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
+            ("vm_disks", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
+            ("vm_snapshots", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+        stale_params.append(
+            ("vm_replication", r._mapping["vm_id"], r._mapping["cluster_name"])
+        )
+
+    for tbl, vm_id, cn in stale_params:
+        session.execute(
+            text(f"DELETE FROM {tbl} WHERE vm_id = :vm_id AND cluster_name = :cn"),
+            {"vm_id": vm_id, "cn": cn},
+        )
+
+    stale_vm_ids = list(
+        set((r._mapping["vm_id"], r._mapping["cluster_name"]) for r in stale)
+    )
+    for vm_id, cn in stale_vm_ids:
+        session.execute(
+            text("DELETE FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cn"),
+            {"vm_id": vm_id, "cn": cn},
+        )
+
+    session.commit()
+    logger.info(f"Cleaned {len(stale)} stale VMs from disabled/removed clusters")
 
 
 def _discover_cluster_nodes(cluster_id: int, cluster_name: str) -> Dict[str, str]:
@@ -247,7 +310,7 @@ def _fetch_hyperv_data_impl():
         return {"status": "error", "message": msg}
 
     _update_sync_metadata("running", start=True, hosts_discovered=total_nodes)
-    _clear_vm_data()
+    _clear_stale_vms()
 
     for ip, cid in node_to_cluster.items():
         task_sigs.append(fetch_single_host.s(ip, cid))
@@ -302,6 +365,9 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
         logger.info(f"[Host] Collecting VMs from {host_ip}")
         vms = collect_vms(session)
         save_vms(vms, host_ip, cluster_name=cluster_name)
+
+        vm_ids = [v["VMId"] for v in vms if v.get("VMId")]
+        _clear_host_child_data(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting disks from {host_ip}")
         save_disks(collect_disks(session), cluster_name=cluster_name)
@@ -461,14 +527,69 @@ def _aggregate_and_monitor_impl(results, vm_snapshot=None, csv_snapshot=None):
         storage_events = detect_storage_changes(
             csv_snapshot or {}, threshold_pct=threshold
         )
-        all_events = vm_events + storage_events
 
-        if all_events:
-            persist_events(all_events)
-            dispatch_notifications(all_events)
-            logger.info(
-                f"Detected {len(all_events)} changes ({len(vm_events)} VM, {len(storage_events)} storage)"
-            )
+        current_keys = set()
+        session = get_db_connection()
+        for r in session.execute(
+            text("SELECT vm_id, cluster_name FROM vm_info")
+        ).fetchall():
+            current_keys.add(f"{r._mapping['vm_id']}||{r._mapping['cluster_name']}")
+
+        deleted_keys = set(vm_snapshot.keys()) - current_keys
+        if deleted_keys:
+            deleted_events = []
+            for key in deleted_keys:
+                old = vm_snapshot[key]
+                deleted_events.append(
+                    {
+                        "vm_id": old["vm_id"],
+                        "machine_name": old["name"],
+                        "change_type": "deleted",
+                        "field_name": "vm",
+                        "old_value": old["name"],
+                        "new_value": None,
+                        "change_description": f"VM {old['name']} removed from cluster {old['cluster']}",
+                        "cluster_name": old["cluster"],
+                    }
+                )
+                for tbl in (
+                    "vm_network_adapters",
+                    "vm_disks",
+                    "vm_snapshots",
+                    "vm_replication",
+                    "vm_notes",
+                    "vm_clients",
+                ):
+                    session.execute(
+                        text(
+                            f"DELETE FROM {tbl} WHERE vm_id = :vm_id AND cluster_name = :cn"
+                        ),
+                        {"vm_id": old["vm_id"], "cn": old["cluster"]},
+                    )
+                session.execute(
+                    text(
+                        "DELETE FROM vm_info WHERE vm_id = :vm_id AND cluster_name = :cn"
+                    ),
+                    {"vm_id": old["vm_id"], "cn": old["cluster"]},
+                )
+            session.commit()
+            vm_events = deleted_events + vm_events
+            all_events = vm_events + storage_events
+
+            if all_events:
+                persist_events(all_events)
+                dispatch_notifications(all_events)
+                logger.info(
+                    f"Detected {len(all_events)} changes ({len(vm_events)} VM incl {len(deleted_events)} deleted, {len(storage_events)} storage)"
+                )
+        else:
+            all_events = vm_events + storage_events
+            if all_events:
+                persist_events(all_events)
+                dispatch_notifications(all_events)
+                logger.info(
+                    f"Detected {len(all_events)} changes ({len(vm_events)} VM, {len(storage_events)} storage)"
+                )
 
     status = "success" if not errors else "partial"
     _update_sync_metadata(
