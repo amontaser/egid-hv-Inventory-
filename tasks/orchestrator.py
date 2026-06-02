@@ -96,6 +96,8 @@ def _update_sync_metadata(status: str, **kwargs):
 def _clear_vm_data():
     session = get_db_connection()
     for tbl in (
+        "vm_notes",
+        "vm_clients",
         "vm_network_adapters",
         "vm_disks",
         "vm_snapshots",

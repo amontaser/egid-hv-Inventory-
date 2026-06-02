@@ -204,6 +204,31 @@ def sync_status():
             return jsonify({"status": "never_synced"})
 
         data = _row_to_dict(sync_info)
+
+        if data.get("last_sync_status") == "running" and data.get("last_sync_start"):
+            try:
+                from datetime import datetime as dt
+
+                started = dt.strptime(data["last_sync_start"], "%Y-%m-%d %H:%M:%S")
+                elapsed = (dt.now() - started).total_seconds()
+                if elapsed > 1800:
+                    db.execute(
+                        text("""
+                            UPDATE sync_metadata
+                            SET last_sync_status = 'error',
+                                last_sync_end = :end_time,
+                                errors = 'Sync timed out (stale for >30 min)'
+                            WHERE id = 1
+                        """),
+                        {"end_time": dt.now().strftime("%Y-%m-%d %H:%M:%S")},
+                    )
+                    db.commit()
+                    data["last_sync_status"] = "error"
+                    data["last_sync_end"] = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+                    data["errors"] = "Sync timed out (stale for >30 min)"
+            except Exception:
+                pass
+
         vm_row = db.execute(text("SELECT COUNT(*) as cnt FROM vm_info")).fetchone()
         data["vms_discovered"] = _row_to_dict(vm_row)["cnt"]
 
