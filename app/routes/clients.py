@@ -61,12 +61,20 @@ def add_client():
     """Add a new client."""
     if request.method == "POST":
         with get_db() as db:
+            name = request.form["name"].strip()
+            existing = db.execute(
+                text("SELECT id FROM clients WHERE LOWER(name) = LOWER(:name)"),
+                {"name": name},
+            ).fetchone()
+            if existing:
+                return redirect(f"/client/{existing[0]}")
+
             result = db.execute(
                 text(
                     "INSERT INTO clients (name, website, country, description, state) VALUES (:name, :website, :country, :description, :state)"
                 ),
                 {
-                    "name": request.form["name"],
+                    "name": name,
                     "website": request.form.get("website"),
                     "country": request.form.get("country"),
                     "description": request.form.get("description"),
