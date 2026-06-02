@@ -496,3 +496,74 @@ def export_clients_xlsx():
 
     wb = build_workbook([("Clients", headers, rows)])
     return workbook_response(wb, "HyperV_Clients")
+
+
+@bp.route("/client/<int:client_id>/vms/available")
+@login_required
+def available_vms(client_id):
+    """Search VMs not assigned to any client, for the add-vm picker."""
+    q = request.args.get("q", "").strip()
+    with get_db() as db:
+        sql = """
+            SELECT v.vm_id, v.machine_name, v.host_name, v.cluster_name, v.state, v.cpu_count, v.memory_assigned_gb
+            FROM vm_info v
+            LEFT JOIN vm_clients vc ON v.vm_id = vc.vm_id AND v.cluster_name = vc.cluster_name
+            WHERE vc.id IS NULL
+        """
+        params = {}
+        if q:
+            sql += " AND (LOWER(v.machine_name) LIKE :q OR LOWER(v.host_name) LIKE :q)"
+            params["q"] = f"%{q.lower()}%"
+        sql += " ORDER BY v.machine_name LIMIT 50"
+        rows = db.execute(text(sql), params).fetchall()
+        return jsonify([_row_to_dict(r) for r in rows])
+
+
+@bp.route("/client/<int:client_id>/vms/add", methods=["POST"])
+@login_required
+def add_vm_to_client(client_id):
+    """Assign a VM to this client."""
+    vm_id = request.form.get("vm_id")
+    cluster_name = request.form.get("cluster_name")
+    if not vm_id or not cluster_name:
+        return jsonify(
+            {"success": False, "error": "Missing vm_id or cluster_name"}
+        ), 400
+
+    with get_db() as db:
+        existing = db.execute(
+            text(
+                "SELECT id FROM vm_clients WHERE vm_id = :vm_id AND cluster_name = :cn"
+            ),
+            {"vm_id": vm_id, "cn": cluster_name},
+        ).fetchone()
+        if existing:
+            return jsonify(
+                {"success": False, "error": "VM already assigned to a client"}
+            ), 409
+
+        db.execute(
+            text(
+                "INSERT INTO vm_clients (vm_id, cluster_name, client_id) VALUES (:vm_id, :cn, :client_id)"
+            ),
+            {"vm_id": vm_id, "cn": cluster_name, "client_id": client_id},
+        )
+        db.commit()
+    return jsonify({"success": True})
+
+
+@bp.route("/client/<int:client_id>/vms/remove", methods=["POST"])
+@login_required
+def remove_vm_from_client(client_id):
+    """Remove a VM assignment from this client."""
+    vm_id = request.form.get("vm_id")
+    cluster_name = request.form.get("cluster_name")
+    with get_db() as db:
+        db.execute(
+            text(
+                "DELETE FROM vm_clients WHERE vm_id = :vm_id AND cluster_name = :cn AND client_id = :client_id"
+            ),
+            {"vm_id": vm_id, "cn": cluster_name, "client_id": client_id},
+        )
+        db.commit()
+    return jsonify({"success": True})
