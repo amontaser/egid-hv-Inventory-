@@ -344,11 +344,12 @@
                          data-tags="{{ (vm.tag_names or '')|lower }}">
                           <td>
                               <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
-                              {% if vm.tags %}
-                              <br>{% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
-                              {% endif %}
                               {% if vm.client_name %}
-                              <br><small class="text-muted"><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="color:inherit;">{{ vm.client_name }}</a></small>
+                              <a href="/client/{{ vm.client_id }}" class="badge bg-secondary ms-1" style="font-size:.6rem;text-decoration:none;"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
+                              {% endif %}
+                              {% if vm.tags %}
+                              {% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
+                              {% endif %}
                               {% endif %}
                           </td>
                        <td>{% if vm.state == 'Running' %}<span class="badge bg-success">Running</span>{% else %}<span class="badge bg-secondary">{{ vm.state }}</span>{% endif %}</td>
