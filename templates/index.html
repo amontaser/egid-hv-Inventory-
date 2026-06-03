@@ -347,6 +347,11 @@
                               {% if vm.tags %}
                               {% for t in vm.tags %}<span class="badge me-1" style="background:{{ t.color }};color:#fff;font-size:.6rem;">{{ t.name }}</span>{% endfor %}
                               {% endif %}
+                              {% if vm.guest_fqdn %}
+                              <br><small class="text-muted font-monospace" style="font-size:.7rem;">{{ vm.guest_fqdn }}</small>
+                              {% elif vm.guest_hostname %}
+                              <br><small class="text-muted font-monospace" style="font-size:.7rem;">{{ vm.guest_hostname }}</small>
+                              {% endif %}
                               {% if vm.client_name %}
                               <br><a href="/client/{{ vm.client_id }}" class="text-decoration-none" style="font-size:.7rem;color:var(--bs-link-color);"><i class="bi bi-building me-1"></i>{{ vm.client_name }}</a>
                               {% endif %}

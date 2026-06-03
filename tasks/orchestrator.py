@@ -372,6 +372,13 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
         vm_ids = [v["VMId"] for v in vms if v.get("VMId")]
         _clear_host_child_data(vm_ids, cluster_name)
 
+        logger.info(f"[Host] Collecting guest hostnames from {host_ip}")
+        from tasks.collectors.vms import collect_guest_names
+
+        guest_names = collect_guest_names(session)
+
+        save_vms(vms, host_ip, cluster_name=cluster_name, guest_names=guest_names)
+
         logger.info(f"[Host] Collecting disks from {host_ip}")
         save_disks(collect_disks(session), cluster_name=cluster_name)
 

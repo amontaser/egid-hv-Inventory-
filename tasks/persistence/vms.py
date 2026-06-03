@@ -11,10 +11,16 @@ from app.db import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None):
+def save_vms(
+    vms: List[Dict],
+    host_name: str,
+    cluster_name: Optional[str] = None,
+    guest_names: Dict[str, Dict] = None,
+):
     if not vms:
         return
     session = get_db_connection()
+    gn = guest_names or {}
     for vm in vms:
         effective_cluster = (
             cluster_name
@@ -22,18 +28,21 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
             else vm.get("ClusterName", "Unknown")
         )
         effective_host = vm.get("ComputerName") or host_name
+        guest = gn.get(vm.get("VMId"), {})
         session.execute(
             text("""
             INSERT INTO vm_info (
                 vm_id, cluster_name, machine_name, host_name, state,
                 uptime_seconds, cpu_count, memory_assigned_gb, memory_demand_gb,
                 memory_startup_gb, memory_minimum_gb, memory_maximum_gb,
-                dynamic_memory_enabled, generation, version, created_at, updated_at
+                dynamic_memory_enabled, generation, version, created_at, updated_at,
+                guest_hostname, guest_fqdn
             ) VALUES (
                 :vm_id, :cluster_name, :machine_name, :host_name, :state,
                 :uptime_seconds, :cpu_count, :memory_assigned_gb, :memory_demand_gb,
                 :memory_startup_gb, :memory_minimum_gb, :memory_maximum_gb,
-                :dynamic_memory_enabled, :generation, :version, :created_at, :updated_at
+                :dynamic_memory_enabled, :generation, :version, :created_at, :updated_at,
+                :guest_hostname, :guest_fqdn
             )
             ON CONFLICT (vm_id, cluster_name) DO UPDATE SET
                 machine_name           = EXCLUDED.machine_name,
@@ -49,7 +58,9 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
                 dynamic_memory_enabled = EXCLUDED.dynamic_memory_enabled,
                 generation             = EXCLUDED.generation,
                 version                = EXCLUDED.version,
-                updated_at             = EXCLUDED.updated_at
+                updated_at             = EXCLUDED.updated_at,
+                guest_hostname         = EXCLUDED.guest_hostname,
+                guest_fqdn             = EXCLUDED.guest_fqdn
         """),
             {
                 "vm_id": vm.get("VMId"),
@@ -69,6 +80,8 @@ def save_vms(vms: List[Dict], host_name: str, cluster_name: Optional[str] = None
                 "version": vm.get("Version"),
                 "created_at": vm.get("CreatedTime"),
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "guest_hostname": guest.get("GuestHostname"),
+                "guest_fqdn": guest.get("GuestFQDN"),
             },
         )
     session.commit()

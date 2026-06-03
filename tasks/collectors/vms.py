@@ -93,6 +93,34 @@ Get-VM | ForEach-Object {
 } | ConvertTo-Json
 """
 
+PS_GET_VM_GUEST_NAMES = """
+$ErrorActionPreference = "SilentlyContinue"
+Get-VM | ForEach-Object {
+    $vm = $_
+    $hostname = $null
+    $fqdn = $null
+    try {
+        $net = $vm.NetworkAdapters | Where-Object { $_.IPAddresses -and $_.Status -eq 'Ok' } | Select-Object -First 1
+        if ($net -and $net.IPAddresses) {
+            $ip = $net.IPAddresses | Where-Object { $_ -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$' } | Select-Object -First 1
+            if ($ip) {
+                $resolved = [System.Net.Dns]::GetHostEntry($ip)
+                if ($resolved) { $fqdn = $resolved.HostName; $hostname = $fqdn.Split('.')[0] }
+            }
+        }
+    } catch {}
+    @{VMId=$vm.Id;GuestHostname=$hostname;GuestFQDN=$fqdn}
+} | ConvertTo-Json -Compress
+"""
+
+
+def collect_guest_names(session: winrm.Session) -> Dict[str, Dict]:
+    result = run_ps(session, PS_GET_VM_GUEST_NAMES, context="collect_guest_names")
+    if not result:
+        return {}
+    return {r["VMId"]: r for r in result if r.get("VMId")}
+
+
 PS_GET_VM_REPLICATION = """
 Get-VM | ForEach-Object {
     $vm = $_

@@ -24,6 +24,8 @@ class VMInfo(db.Model):
     generation = db.Column(db.Integer)
     version = db.Column(db.String(50))
     notes = db.Column(db.Text)
+    guest_hostname = db.Column(db.String(255))
+    guest_fqdn = db.Column(db.String(255))
     created_at = db.Column(db.String(50))
     updated_at = db.Column(db.String(50))
 
