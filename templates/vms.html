@@ -112,6 +112,33 @@
             </div>
             {% endif %}
 
+            <!-- Advanced Filters -->
+            <div class="card mb-3">
+                <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold small"><i class="bi bi-funnel me-1"></i>Quick Filters</span>
+                    <button class="btn btn-sm btn-link p-0 text-muted" style="font-size:.7rem;" onclick="clearQuickFilters()" id="clearQuickBtn" title="Clear quick filters">clear</button>
+                </div>
+                <div class="card-body p-2">
+                    <div class="d-grid gap-1" id="quickFilterGroup">
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-secondary"
+                                data-quick="no-client" onclick="toggleQuickFilter(this, 'no-client')">
+                            <i class="bi bi-building-x"></i>
+                            <span class="flex-grow-1">No Client</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-secondary"
+                                data-quick="no-tag" onclick="toggleQuickFilter(this, 'no-tag')">
+                            <i class="bi bi-tag"></i>
+                            <span class="flex-grow-1">No Tags</span>
+                        </button>
+                        <button class="btn btn-sm text-start d-flex align-items-center gap-2 btn-outline-secondary"
+                                data-quick="no-ip" onclick="toggleQuickFilter(this, 'no-ip')">
+                            <i class="bi bi-router"></i>
+                            <span class="flex-grow-1">No IP</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Resource Summary -->
             <div class="card mb-3">
                 <div class="card-header py-2">
@@ -200,8 +227,10 @@
                              data-cluster="{{ vm.cluster_name or '' }}"
                              data-vlans="{{ vm.vlans or '' }}"
                              data-ips="{{ vm.ip_addresses or '' }}"
-                             data-host="{{ vm.host_name|lower }}"
-                             data-client="{{ (vm.client_name or '')|lower }}">
+                         data-host="{{ vm.host_name|lower }}"
+                         data-client="{{ (vm.client_name or '')|lower }}"
+                         data-tags="{{ (vm.tag_names or '')|lower }}"
+                         data-has-ip="{{ 'yes' if vm.ip_addresses else 'no' }}">
 
                             <div class="d-flex align-items-center gap-3">
 
@@ -307,7 +336,9 @@
                           data-vlans="{{ vm.vlans or '' }}"
                           data-ips="{{ vm.ip_addresses or '' }}"
                           data-host="{{ vm.host_name|lower }}"
-                          data-client="{{ (vm.client_name or '')|lower }}">
+                          data-client="{{ (vm.client_name or '')|lower }}"
+                          data-tags="{{ (vm.tag_names or '')|lower }}"
+                          data-has-ip="{{ 'yes' if vm.ip_addresses else 'no' }}">
                         <div class="card h-100" style="border-radius:.625rem;">
                             <div class="card-header d-flex align-items-center gap-2 py-2">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -413,6 +444,7 @@
 let currentState   = '';
 let currentCluster = '';
 let currentSearch  = '';
+let currentQuick   = '';
 let currentView    = localStorage.getItem('vmView') || 'list';
 
 // ── View toggle ──
@@ -463,6 +495,31 @@ document.getElementById('search').addEventListener('input', function() {
     applyFilters();
 });
 
+function toggleQuickFilter(btn, filter) {
+    if (currentQuick === filter) {
+        currentQuick = '';
+    } else {
+        currentQuick = filter;
+    }
+    document.querySelectorAll('#quickFilterGroup button').forEach(b => {
+        const active = b.dataset.quick === currentQuick;
+        b.classList.toggle('btn-primary', active);
+        b.classList.toggle('btn-outline-secondary', !active);
+    });
+    document.getElementById('clearQuickBtn').classList.toggle('d-none', !currentQuick);
+    applyFilters();
+}
+
+function clearQuickFilters() {
+    currentQuick = '';
+    document.querySelectorAll('#quickFilterGroup button').forEach(b => {
+        b.classList.remove('btn-primary');
+        b.classList.add('btn-outline-secondary');
+    });
+    document.getElementById('clearQuickBtn').classList.add('d-none');
+    applyFilters();
+}
+
 // ── Apply all filters ──
 function applyFilters() {
     const allItems = document.querySelectorAll('.vm-item');
@@ -476,10 +533,18 @@ function applyFilters() {
         const ips     = item.dataset.ips     || '';
         const host    = item.dataset.host    || '';
         const client  = item.dataset.client  || '';
+        const tags    = item.dataset.tags    || '';
+        const hasIp   = item.dataset.hasIp   || '';
 
         let show = true;
         if (currentState   && state   !== currentState)   show = false;
         if (currentCluster && cluster !== currentCluster) show = false;
+
+        if (show && currentQuick) {
+            if (currentQuick === 'no-client' && client)   show = false;
+            if (currentQuick === 'no-tag'    && tags)     show = false;
+            if (currentQuick === 'no-ip'     && hasIp === 'yes') show = false;
+        }
 
         if (show && currentSearch) {
             const vlanMatch   = currentSearch.match(/^vlan\s+(\d+)$/i);
@@ -504,7 +569,7 @@ function applyFilters() {
 
     document.getElementById('visibleCount').textContent = visible;
     document.getElementById('emptyState').classList.toggle('d-none', visible > 0 || allItems.length === 0);
-    document.getElementById('clearFiltersBtn').classList.toggle('d-none', !currentState && !currentCluster && !currentSearch);
+    document.getElementById('clearFiltersBtn').classList.toggle('d-none', !currentState && !currentCluster && !currentSearch && !currentQuick);
 
     // show/hide list vs grid container
     const listCard = document.querySelector('#listView .card');
@@ -515,6 +580,7 @@ function applyFilters() {
 
 function clearAllFilters() {
     currentState = ''; currentCluster = ''; currentSearch = '';
+    clearQuickFilters();
     document.getElementById('search').value = '';
     setStateFilter(document.querySelector('#stateFilterGroup button[data-state=""]'), '');
     setClusterFilter(document.querySelector('#clusterFilterGroup button[data-cluster=""]'), '');
