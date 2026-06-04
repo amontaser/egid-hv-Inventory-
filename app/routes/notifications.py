@@ -105,7 +105,7 @@ def clear_old_notifications():
         elif _USE_POSTGRES:
             result = db.execute(
                 text(
-                    f"DELETE FROM notifications WHERE {bool_eq('is_read')} AND created_at < NOW() - make_interval(days => :days)"
+                    f"DELETE FROM notifications WHERE {bool_eq('is_read')} AND created_at::timestamp < NOW() - make_interval(days => :days)"
                 ),
                 {"days": days},
             )
