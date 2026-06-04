@@ -83,3 +83,40 @@ def mark_read(notification_id):
         db.commit()
         flash("Notification marked as read", "success")
         return redirect("/notifications")
+
+
+@bp.route("/notifications/clear-old", methods=["POST"])
+@login_required
+def clear_old_notifications():
+    """Delete read notifications older than X days."""
+    days = request.form.get("days", "30")
+    try:
+        days = int(days)
+    except ValueError:
+        days = 30
+
+    from app.utils.db_compat import _USE_POSTGRES
+
+    with get_db() as db:
+        if days == 0:
+            result = db.execute(
+                text(f"DELETE FROM notifications WHERE {bool_eq('is_read')}")
+            )
+        elif _USE_POSTGRES:
+            result = db.execute(
+                text(
+                    f"DELETE FROM notifications WHERE {bool_eq('is_read')} AND created_at < NOW() - make_interval(days => :days)"
+                ),
+                {"days": days},
+            )
+        else:
+            result = db.execute(
+                text(
+                    f"DELETE FROM notifications WHERE {bool_eq('is_read')} AND datetime(created_at) < datetime('now', '-{days} days')"
+                ),
+            )
+        deleted = result.rowcount
+        db.commit()
+
+    flash(f"Deleted {deleted} old notification(s)", "success")
+    return redirect("/notifications")
