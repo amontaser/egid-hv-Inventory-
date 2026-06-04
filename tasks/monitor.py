@@ -196,7 +196,11 @@ def detect_vm_changes(
 def detect_storage_changes(
     old_csv_snapshot: Dict[str, Dict], threshold_pct: float = 20.0
 ) -> List[Dict]:
-    """Check current CSVs for low free space."""
+    """Check current CSVs for low free space.
+
+    Only alerts when a volume newly crosses below the threshold,
+    not on every scan while it remains low.
+    """
     session = get_db_connection()
     rows = session.execute(
         text(
@@ -210,25 +214,32 @@ def detect_storage_changes(
 
     for row in rows:
         pct_used = row._mapping["percent_used"] or 0
-        if pct_used >= free_threshold:
-            pct_free = round(100 - pct_used, 1)
-            events.append(
-                {
-                    "vm_id": None,
-                    "machine_name": row._mapping["name"],
-                    "change_type": "storage_low",
-                    "field_name": "percent_used",
-                    "old_value": None,
-                    "new_value": str(pct_used),
-                    "cluster_name": row._mapping["cluster_name"],
-                    "severity": "warning",
-                    "message": (
-                        f"CSV '{row._mapping['name']}' on cluster {row._mapping['cluster_name']}: "
-                        f"only {pct_free}% free (threshold {threshold_pct}%)"
-                    ),
-                    "detected_at": now,
-                }
-            )
+        if pct_used < free_threshold:
+            continue
+
+        key = f"{row._mapping['name']}||{row._mapping['cluster_name']}"
+        old = old_csv_snapshot.get(key)
+        if old and (old["pct_used"] or 0) >= free_threshold:
+            continue
+
+        pct_free = round(100 - pct_used, 1)
+        events.append(
+            {
+                "vm_id": None,
+                "machine_name": row._mapping["name"],
+                "change_type": "storage_low",
+                "field_name": "percent_used",
+                "old_value": str(old["pct_used"]) if old else None,
+                "new_value": str(pct_used),
+                "cluster_name": row._mapping["cluster_name"],
+                "severity": "warning",
+                "message": (
+                    f"CSV '{row._mapping['name']}' on cluster {row._mapping['cluster_name']}: "
+                    f"only {pct_free}% free (threshold {threshold_pct}%)"
+                ),
+                "detected_at": now,
+            }
+        )
 
     return events
 
