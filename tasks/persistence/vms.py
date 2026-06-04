@@ -124,6 +124,32 @@ def save_disks(disks: List[Dict], cluster_name: str = "Unknown"):
     logger.info(f"Saved {len(disks)} VM disks")
 
 
+def delete_stale_disks(collected_vm_ids: List[str], cluster_name: str):
+    if not collected_vm_ids:
+        return
+    session = get_db_connection()
+    ph = ",".join(f":id{i}" for i in range(len(collected_vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(collected_vm_ids)}
+    params["cn"] = cluster_name
+    result = session.execute(
+        text(
+            f"SELECT id FROM vm_disks WHERE vm_id NOT IN ({ph}) AND cluster_name = :cn"
+        ),
+        params,
+    )
+    stale_ids = [r._mapping["id"] for r in result]
+    if stale_ids:
+        stale_ph = ",".join(f":sid{i}" for i in range(len(stale_ids)))
+        stale_params = {f"sid{i}": sid for i, sid in enumerate(stale_ids)}
+        session.execute(
+            text(f"DELETE FROM vm_disks WHERE id IN ({stale_ph})"), stale_params
+        )
+        session.commit()
+        logger.info(
+            f"Deleted {len(stale_ids)} stale disk entries for cluster {cluster_name}"
+        )
+
+
 def save_networks(networks: List[Dict], cluster_name: str = "Unknown"):
     if not networks:
         return
@@ -156,6 +182,33 @@ def save_networks(networks: List[Dict], cluster_name: str = "Unknown"):
     session.commit()
 
 
+def delete_stale_networks(collected_vm_ids: List[str], cluster_name: str):
+    if not collected_vm_ids:
+        return
+    session = get_db_connection()
+    ph = ",".join(f":id{i}" for i in range(len(collected_vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(collected_vm_ids)}
+    params["cn"] = cluster_name
+    result = session.execute(
+        text(
+            f"SELECT id FROM vm_network_adapters WHERE vm_id NOT IN ({ph}) AND cluster_name = :cn"
+        ),
+        params,
+    )
+    stale_ids = [r._mapping["id"] for r in result]
+    if stale_ids:
+        stale_ph = ",".join(f":sid{i}" for i in range(len(stale_ids)))
+        stale_params = {f"sid{i}": sid for i, sid in enumerate(stale_ids)}
+        session.execute(
+            text(f"DELETE FROM vm_network_adapters WHERE id IN ({stale_ph})"),
+            stale_params,
+        )
+        session.commit()
+        logger.info(
+            f"Deleted {len(stale_ids)} stale network adapter entries for cluster {cluster_name}"
+        )
+
+
 def save_snapshots(snapshots: List[Dict], cluster_name: str = "Unknown"):
     if not snapshots:
         return
@@ -181,6 +234,32 @@ def save_snapshots(snapshots: List[Dict], cluster_name: str = "Unknown"):
             },
         )
     session.commit()
+
+
+def delete_stale_snapshots(collected_vm_ids: List[str], cluster_name: str):
+    if not collected_vm_ids:
+        return
+    session = get_db_connection()
+    ph = ",".join(f":id{i}" for i in range(len(collected_vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(collected_vm_ids)}
+    params["cn"] = cluster_name
+    result = session.execute(
+        text(
+            f"SELECT id FROM vm_snapshots WHERE vm_id NOT IN ({ph}) AND cluster_name = :cn"
+        ),
+        params,
+    )
+    stale_ids = [r._mapping["id"] for r in result]
+    if stale_ids:
+        stale_ph = ",".join(f":sid{i}" for i in range(len(stale_ids)))
+        stale_params = {f"sid{i}": sid for i, sid in enumerate(stale_ids)}
+        session.execute(
+            text(f"DELETE FROM vm_snapshots WHERE id IN ({stale_ph})"), stale_params
+        )
+        session.commit()
+        logger.info(
+            f"Deleted {len(stale_ids)} stale snapshot entries for cluster {cluster_name}"
+        )
 
 
 def save_replication(reps: List[Dict], cluster_name: str = "Unknown"):
@@ -217,3 +296,29 @@ def save_replication(reps: List[Dict], cluster_name: str = "Unknown"):
             },
         )
     session.commit()
+
+
+def delete_stale_replication(collected_vm_ids: List[str], cluster_name: str):
+    if not collected_vm_ids:
+        return
+    session = get_db_connection()
+    ph = ",".join(f":id{i}" for i in range(len(collected_vm_ids)))
+    params = {f"id{i}": vid for i, vid in enumerate(collected_vm_ids)}
+    params["cn"] = cluster_name
+    result = session.execute(
+        text(
+            f"SELECT id FROM vm_replication WHERE vm_id NOT IN ({ph}) AND cluster_name = :cn"
+        ),
+        params,
+    )
+    stale_ids = [r._mapping["id"] for r in result]
+    if stale_ids:
+        stale_ph = ",".join(f":sid{i}" for i in range(len(stale_ids)))
+        stale_params = {f"sid{i}": sid for i, sid in enumerate(stale_ids)}
+        session.execute(
+            text(f"DELETE FROM vm_replication WHERE id IN ({stale_ph})"), stale_params
+        )
+        session.commit()
+        logger.info(
+            f"Deleted {len(stale_ids)} stale replication entries for cluster {cluster_name}"
+        )

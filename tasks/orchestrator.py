@@ -37,6 +37,10 @@ from tasks.persistence.vms import (
     save_networks,
     save_snapshots,
     save_replication,
+    delete_stale_disks,
+    delete_stale_networks,
+    delete_stale_snapshots,
+    delete_stale_replication,
 )
 from tasks.persistence.hosts import save_host, save_physical_disks
 from tasks.persistence.storage import save_csv_volumes
@@ -91,21 +95,6 @@ def _update_sync_metadata(status: str, **kwargs):
         session.commit()
     except Exception as e:
         logger.warning(f"sync_metadata update failed: {e}")
-
-
-def _clear_host_child_data(vm_ids: list, cluster_name: str):
-    if not vm_ids:
-        return
-    session = get_db_connection()
-    ph = ",".join(f":id{i}" for i in range(len(vm_ids)))
-    params = {f"id{i}": vid for i, vid in enumerate(vm_ids)}
-    params["cn"] = cluster_name
-    for tbl in ("vm_network_adapters", "vm_disks", "vm_snapshots", "vm_replication"):
-        session.execute(
-            text(f"DELETE FROM {tbl} WHERE vm_id IN ({ph}) AND cluster_name = :cn"),
-            params,
-        )
-    session.commit()
 
 
 def _clear_stale_vms():
@@ -370,7 +359,6 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
         save_vms(vms, host_ip, cluster_name=cluster_name)
 
         vm_ids = [v["VMId"] for v in vms if v.get("VMId")]
-        _clear_host_child_data(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting guest hostnames from {host_ip}")
         from tasks.collectors.vms import collect_guest_names
@@ -381,15 +369,19 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
 
         logger.info(f"[Host] Collecting disks from {host_ip}")
         save_disks(collect_disks(session), cluster_name=cluster_name)
+        delete_stale_disks(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting networks from {host_ip}")
         save_networks(collect_networks(session), cluster_name=cluster_name)
+        delete_stale_networks(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting snapshots from {host_ip}")
         save_snapshots(collect_snapshots(session), cluster_name=cluster_name)
+        delete_stale_snapshots(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting replication from {host_ip}")
         save_replication(collect_replication(session), cluster_name=cluster_name)
+        delete_stale_replication(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting host info from {host_ip}")
         host_info = collect_host_info(session)
