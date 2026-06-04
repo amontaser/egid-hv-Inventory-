@@ -17,7 +17,7 @@
                 <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export
             </a>
             <form id="syncForm" action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
-                <button type="submit" class="btn btn-primary btn-sm" id="syncButton">
+                <button type="submit" class="btn btn-primary btn-sm" id="syncButton" data-sync-btn>
                     <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
                 </button>
             </form>
@@ -395,7 +395,7 @@
                     <h5 class="text-muted mt-3 mb-1">No Virtual Machines Found</h5>
                     <p class="text-muted small mb-3">Run a sync to discover VMs from your clusters.</p>
                     <form action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
-                        <button type="submit" class="btn btn-sm btn-primary">
+                        <button type="submit" class="btn btn-sm btn-primary" data-sync-btn>
                             <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
                         </button>
                     </form>
@@ -522,11 +522,12 @@ function clearAllFilters() {
 }
 
 function startSync(e) {
-    const btn = document.getElementById('syncButton');
-    if (btn) {
+    e.preventDefault();
+    document.querySelectorAll('[data-sync-btn]').forEach(btn => {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
-    }
+        btn.classList.add('btn-syncing', 'disabled');
+    });
+    e.target.closest('form').submit();
 }
 
 // Init

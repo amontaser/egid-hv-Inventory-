@@ -1011,6 +1011,7 @@ function saveSchedule() {
 function triggerSyncNow() {
     const btn = document.getElementById('triggerSyncBtn');
     const msg = document.getElementById('syncRunningMsg');
+    if (btn.disabled) return;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting…';
     btn.disabled = true;
     msg.classList.add('d-none');
@@ -1021,16 +1022,15 @@ function triggerSyncNow() {
             if (data.success) {
                 msg.classList.remove('d-none');
                 showToast('Sync started successfully.', 'success');
-                setTimeout(() => msg.classList.add('d-none'), 8000);
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Sync Running…';
+                setTimeout(() => { msg.classList.add('d-none'); btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Sync Now'; btn.disabled = false; }, 30000);
             } else {
                 showToast('Could not start sync: ' + (data.error || 'Unknown error'), 'danger');
+                btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Sync Now';
+                btn.disabled = false;
             }
         })
-        .catch(() => showToast('Network error — could not trigger sync.', 'danger'))
-        .finally(() => {
-            btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Sync Now';
-            btn.disabled = false;
-        });
+        .catch(() => { showToast('Network error — could not trigger sync.', 'danger'); btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Sync Now'; btn.disabled = false; });
 }
 
 document.getElementById('schedule-tab').addEventListener('shown.bs.tab', loadScheduleStatus);

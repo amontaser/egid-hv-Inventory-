@@ -100,7 +100,7 @@
         </div>
         <div>
             <form id="syncForm" action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
-                <button type="submit" class="btn btn-primary" id="syncButton">
+                <button type="submit" class="btn btn-primary" id="syncButton" data-sync-btn>
                     <i class="bi bi-arrow-clockwise"></i> Sync
                 </button>
             </form>
@@ -414,7 +414,7 @@
                 <h6 class="text-muted mt-3 mb-1">No Virtual Machines Found</h6>
                 <p class="text-muted small mb-3">Run a sync to discover VMs from your Hyper-V clusters.</p>
                 <form action="/update" method="POST" class="d-inline" onsubmit="startSync(event)">
-                    <button type="submit" class="btn btn-sm btn-primary">
+                    <button type="submit" class="btn btn-sm btn-primary" data-sync-btn>
                         <i class="bi bi-arrow-clockwise me-1"></i>Sync Now
                     </button>
                 </form>
@@ -778,14 +778,27 @@ document.addEventListener('DOMContentLoaded', () => {
 let syncCheckInterval = null;
 let lastSyncStatus = null;
 let syncStartTime = null;
-let lastVmsDiscovered = 0;  // Track previous value for per-host calculation
+let lastVmsDiscovered = 0;
+
+function disableAllSyncButtons() {
+    document.querySelectorAll('[data-sync-btn]').forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('btn-syncing', 'disabled');
+    });
+}
+
+function enableAllSyncButtons() {
+    document.querySelectorAll('[data-sync-btn]').forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('btn-syncing', 'disabled');
+    });
+}
 
 function showSyncStatus(title, details, progress = 0) {
     const alert = document.getElementById('syncStatus');
     const titleEl = document.getElementById('syncStatusTitle');
     const detailsEl = document.getElementById('syncStatusDetails');
     const progressBar = document.getElementById('syncProgressBar');
-    const syncButton = document.getElementById('syncButton');
 
     alert.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-warning');
     alert.classList.add('alert-info', 'sync-status-enter');
@@ -799,11 +812,7 @@ function showSyncStatus(title, details, progress = 0) {
         spinner.classList.remove('d-none');
     }
 
-    // Disable sync button
-    if (syncButton) {
-        syncButton.classList.add('btn-syncing', 'disabled');
-        syncButton.disabled = true;
-    }
+    disableAllSyncButtons();
 }
 
 function updateSyncStatusSuccess(message) {
@@ -811,7 +820,6 @@ function updateSyncStatusSuccess(message) {
     const titleEl = document.getElementById('syncStatusTitle');
     const detailsEl = document.getElementById('syncStatusDetails');
     const progressBar = document.getElementById('syncProgressBar');
-    const syncButton = document.getElementById('syncButton');
 
     alert.classList.remove('alert-info');
     alert.classList.add('alert-success');
@@ -823,16 +831,8 @@ function updateSyncStatusSuccess(message) {
     const spinner = alert.querySelector('.spinner-border');
     spinner.classList.add('d-none');
 
-    // Re-enable sync button
-    if (syncButton) {
-        syncButton.classList.remove('btn-syncing', 'disabled');
-        syncButton.disabled = false;
-    }
-
-    // Reset sync start time
+    enableAllSyncButtons();
     syncStartTime = null;
-
-    // Auto-hide after 5 seconds
     setTimeout(() => {
         hideSyncStatus();
     }, 5000);
@@ -842,41 +842,25 @@ function updateSyncStatusError(message) {
     const alert = document.getElementById('syncStatus');
     const titleEl = document.getElementById('syncStatusTitle');
     const detailsEl = document.getElementById('syncStatusDetails');
-    const syncButton = document.getElementById('syncButton');
 
     alert.classList.remove('alert-info');
     alert.classList.add('alert-danger');
     titleEl.textContent = 'Sync Failed';
     detailsEl.textContent = message;
 
-    // Hide spinner
     const spinner = alert.querySelector('.spinner-border');
-    spinner.classList.add('d-none');
+    if (spinner) spinner.classList.add('d-none');
 
-    // Re-enable sync button
-    if (syncButton) {
-        syncButton.classList.remove('btn-syncing', 'disabled');
-        syncButton.disabled = false;
-    }
-
-    // Reset sync start time
+    enableAllSyncButtons();
     syncStartTime = null;
 }
 
 function hideSyncStatus() {
     const alert = document.getElementById('syncStatus');
-    const syncButton = document.getElementById('syncButton');
 
     alert.classList.add('d-none');
     stopSyncMonitoring();
-
-    // Re-enable sync button
-    if (syncButton) {
-        syncButton.classList.remove('btn-syncing', 'disabled');
-        syncButton.disabled = false;
-    }
-
-    // Reset sync start time
+    enableAllSyncButtons();
     syncStartTime = null;
 }
 
@@ -886,10 +870,11 @@ function showSyncStarting() {
 }
 
 async function startSync(event) {
-    event.preventDefault(); // Prevent form submission and page reload
-    
+    event.preventDefault();
+    if (document.querySelector('[data-sync-btn]:disabled')) return;
+
     showSyncStarting();
-    startSyncMonitoring(); // Start monitoring immediately
+    startSyncMonitoring();
     
     try {
         const response = await fetch('/update', {
@@ -900,7 +885,6 @@ async function startSync(event) {
         });
         
         if (response.ok) {
-            // Sync started successfully, monitoring will pick it up
             console.log('Sync triggered successfully');
         } else {
             updateSyncStatusError('Failed to trigger sync');
@@ -1048,38 +1032,29 @@ function stopSyncMonitoring() {
          const timeSinceEnd = lastSyncEnd ? (new Date() - lastSyncEnd) / 1000 : null;
          
          // Show sync status if running OR if recently completed (within 30 seconds)
-         if (status === 'running' || (status !== 'never_synced' && timeSinceEnd !== null && timeSinceEnd < 30)) {
-             const alert = document.getElementById('syncStatus');
-             const syncButton = document.getElementById('syncButton');
-             
-             // Remove d-none to show the alert
-             alert.classList.remove('d-none');
-             
-             if (status === 'running') {
-                 // Sync is running - restore the UI state
-                 syncStartTime = data.last_sync_start ? new Date(data.last_sync_start) : new Date();
-                 lastSyncStatus = 'running';
-                 
-                 alert.classList.remove('alert-success', 'alert-danger', 'alert-warning');
-                 alert.classList.add('alert-info');
-                 
-                 // Disable sync button
-                 if (syncButton) {
-                     syncButton.classList.add('btn-syncing', 'disabled');
-                     syncButton.disabled = true;
-                 }
-                 
-                 // Show spinner
-                 const spinner = alert.querySelector('.spinner-border');
-                 if (spinner) {
-                     spinner.classList.remove('d-none');
-                 }
-                 
-                 // Update status details
-                 document.getElementById('syncStatusTitle').textContent = 'Sync in Progress';
-                 document.getElementById('syncStatusDetails').textContent = 'Restoring sync status...';
-                 updateDetailedSyncStatus(data);
-                 startSyncMonitoring();
+          if (status === 'running' || (status !== 'never_synced' && timeSinceEnd !== null && timeSinceEnd < 30)) {
+              const alert = document.getElementById('syncStatus');
+              
+              alert.classList.remove('d-none');
+              
+              if (status === 'running') {
+                  syncStartTime = data.last_sync_start ? new Date(data.last_sync_start) : new Date();
+                  lastSyncStatus = 'running';
+                  
+                  alert.classList.remove('alert-success', 'alert-danger', 'alert-warning');
+                  alert.classList.add('alert-info');
+                  
+                  disableAllSyncButtons();
+                  
+                  const spinner = alert.querySelector('.spinner-border');
+                  if (spinner) {
+                      spinner.classList.remove('d-none');
+                  }
+                  
+                  document.getElementById('syncStatusTitle').textContent = 'Sync in Progress';
+                  document.getElementById('syncStatusDetails').textContent = 'Restoring sync status...';
+                  updateDetailedSyncStatus(data);
+                  startSyncMonitoring();
                  
              } else if (status === 'error') {
                  // Show recent error
