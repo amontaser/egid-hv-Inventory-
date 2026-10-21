@@ -2,6 +2,8 @@
 
 import logging
 
+from sqlalchemy import inspect, text
+
 logger = logging.getLogger(__name__)
 
 _MIGRATIONS = [
@@ -42,7 +44,51 @@ _MIGRATIONS = [
 ]
 
 
+def _column_exists(db, table_name: str, column_name: str) -> bool:
+    inspector = inspect(db.get_bind())
+    return any(
+        column["name"] == column_name
+        for column in inspector.get_columns(table_name)
+    )
+
+
+def _ensure_vm_info_guest_columns(db):
+    """Add columns introduced after the original vm_info table was created.
+
+    db.create_all() only creates missing tables; it does not alter existing
+    tables. Without this, PostgreSQL databases created before guest hostname
+    collection fail every VM upsert with UndefinedColumn.
+    """
+    added = []
+    for column_name in ("guest_hostname", "guest_fqdn"):
+        if _column_exists(db, "vm_info", column_name):
+            continue
+        try:
+            db.execute(
+                text(f"ALTER TABLE vm_info ADD COLUMN {column_name} VARCHAR(255)")
+            )
+            db.commit()
+            added.append(column_name)
+        except Exception:
+            db.rollback()
+            # Another process (web/worker) may have added it concurrently.
+            if not _column_exists(db, "vm_info", column_name):
+                raise
+    if added:
+        logger.info(
+            "Migration 005_vm_info_guest_columns applied: %s", ", ".join(added)
+        )
+
+
 def run_migrations(db):
+    try:
+        _ensure_vm_info_guest_columns(db)
+    except Exception:
+        db.rollback()
+        logger.warning(
+            "Migration 005_vm_info_guest_columns skipped", exc_info=True
+        )
+
     for mig in _MIGRATIONS:
         try:
             result = db.execute(mig["check"]).fetchone()
