@@ -45,6 +45,113 @@ def test_save_vms_uses_explicit_cluster_name(app_ctx):
     assert row[0] == "CORRECT"
 
 
+def test_save_vms_persists_cluster_role_fields(app_ctx):
+    from sqlalchemy import text
+
+    save_vms(
+        [
+            {
+                "VMId": "vm3",
+                "Name": "clustered-vm",
+                "State": "Running",
+                "IsClustered": True,
+                "ClusterRoleState": "Online",
+                "ClusterOwnerNode": "HV-Node01",
+            }
+        ],
+        "HOST-01",
+        cluster_name="PROD",
+    )
+    row = _db.session.execute(
+        text(
+            "SELECT is_clustered, cluster_role_state, cluster_owner_node "
+            "FROM vm_info WHERE vm_id='vm3'"
+        )
+    ).fetchone()
+    assert bool(row[0]) is True
+    assert row[1] == "Online"
+    assert row[2] == "HV-Node01"
+
+
+def test_save_vms_updates_cluster_role_fields_on_upsert(app_ctx):
+    from sqlalchemy import text
+
+    save_vms(
+        [
+            {
+                "VMId": "vm4",
+                "Name": "moved-vm",
+                "State": "Running",
+                "IsClustered": True,
+                "ClusterRoleState": "Online",
+                "ClusterOwnerNode": "HV-Node01",
+            }
+        ],
+        "HOST-01",
+        cluster_name="PROD",
+    )
+    save_vms(
+        [
+            {
+                "VMId": "vm4",
+                "Name": "moved-vm",
+                "State": "Running",
+                "IsClustered": False,
+                "ClusterRoleState": None,
+                "ClusterOwnerNode": None,
+            }
+        ],
+        "HOST-01",
+        cluster_name="PROD",
+    )
+    row = _db.session.execute(
+        text(
+            "SELECT is_clustered, cluster_role_state, cluster_owner_node "
+            "FROM vm_info WHERE vm_id='vm4'"
+        )
+    ).fetchone()
+    assert bool(row[0]) is False
+    assert row[1] is None
+    assert row[2] is None
+
+
+def test_save_vms_keeps_known_cluster_flag_when_lookup_failed(app_ctx):
+    """An unresolved cluster-role lookup must not mark VMs as standalone."""
+    from sqlalchemy import text
+
+    save_vms(
+        [
+            {
+                "VMId": "vm5",
+                "Name": "known-vm",
+                "State": "Running",
+                "IsClustered": True,
+                "ClusterRoleState": "Online",
+            }
+        ],
+        "HOST-01",
+        cluster_name="PROD",
+    )
+    save_vms(
+        [
+            {
+                "VMId": "vm5",
+                "Name": "known-vm",
+                "State": "Running",
+                "IsClustered": None,
+                "ClusterRoleState": None,
+            }
+        ],
+        "HOST-01",
+        cluster_name="PROD",
+    )
+    row = _db.session.execute(
+        text("SELECT is_clustered, cluster_role_state FROM vm_info WHERE vm_id='vm5'")
+    ).fetchone()
+    assert bool(row[0]) is True
+    assert row[1] == "Online"
+
+
 def test_save_host_upserts(app_ctx):
     from sqlalchemy import text
 

@@ -354,6 +354,13 @@
                                 {% else %}
                                 <span class="badge bg-secondary" style="font-size:.6rem;">{{ vm.state }}</span>
                                 {% endif %}
+                                {% if vm.is_clustered %}
+                                <span class="badge text-bg-primary" style="font-size:.6rem;">Clustered</span>
+                                {% elif vm.is_clustered is none %}
+                                <span class="badge text-bg-light text-dark" style="font-size:.6rem;">HA Unknown</span>
+                                {% else %}
+                                <span class="badge text-bg-secondary" style="font-size:.6rem;">Standalone</span>
+                                {% endif %}
                             </div>
                             <div class="card-body py-2">
                                 <div class="row g-2 mb-2">

@@ -17,10 +17,29 @@ $ErrorActionPreference = "SilentlyContinue"
 $clusterName = $null
 try { $c = Get-Cluster -ErrorAction SilentlyContinue; if ($c) { $clusterName = $c.Name } } catch {}
 
+# Map of cluster VM role name -> @{State; Owner}. VirtualMachine group type = 111.
+# Get-ClusterGroup has no -GroupType parameter on every Hyper-V build, so the
+# group type is filtered with Where-Object.
+# rolesResolved stays $false when the lookup fails, so VMs are reported as
+# "unknown" instead of being wrongly marked as standalone.
+$roles = @{}
+$rolesResolved = $false
+try {
+    Get-ClusterGroup -ErrorAction Stop |
+        Where-Object { $_.GroupType -eq 111 } |
+        ForEach-Object {
+            $owner = $null
+            try { $owner = $_.OwnerNode.Name } catch {}
+            $roles[$_.Name] = @{ State = $_.State.ToString(); Owner = $owner }
+        }
+    $rolesResolved = $true
+} catch {}
+
 Get-VM | ForEach-Object {
     $vm = $_
     $uptime = 0
     if ($vm.State -eq 'Running' -and $vm.Uptime) { $uptime = [int]$vm.Uptime.TotalSeconds }
+    $role = $roles[$vm.Name]
     [PSCustomObject]@{
         VMId = $vm.Id
         Name = $vm.Name
@@ -40,6 +59,9 @@ Get-VM | ForEach-Object {
         VirtualMachinePath = $vm.ConfigurationLocation
         PrimaryIPAddress = ($vm.NetworkAdapters | Where-Object {$_.IPAddresses} | ForEach-Object {$_.IPAddresses} | Where-Object {$_ -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$'} | Select-Object -First 1)
         ClusterName = $clusterName
+        IsClustered = if ($rolesResolved) { ($null -ne $role) } else { $null }
+        ClusterRoleState = if ($role) { $role.State } else { $null }
+        ClusterOwnerNode = if ($role) { $role.Owner } else { $null }
         CreatedTime = if ($vm.CreationTime) { $vm.CreationTime.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
         UptimeSeconds = $uptime
     }

@@ -29,6 +29,13 @@ def _row_to_dict(row):
         return dict(row)
 
 
+def _clustered_label(value):
+    """Yes / No / Unknown for the cluster-role flag."""
+    if value is None:
+        return "Unknown"
+    return "Yes" if value else "No"
+
+
 def get_all_clusters():
     """Get all clusters with statistics."""
     with get_db() as db:
@@ -263,6 +270,8 @@ def export_vms_xlsx():
                 (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
                 (SELECT {str_agg("ip_addresses", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
                 (SELECT {str_agg("mac_address", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND mac_address IS NOT NULL AND mac_address != '') as mac_addresses,
+                v.is_clustered,
+                v.cluster_role_state,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at,
@@ -296,6 +305,8 @@ def export_vms_xlsx():
         "Disk Count",
         "IP Addresses",
         "MAC Addresses",
+        "Clustered",
+        "HA State",
         "Snapshots",
         "Created",
         "Updated",
@@ -324,6 +335,8 @@ def export_vms_xlsx():
                 vm["disk_count"],
                 vm["ip_addresses"],
                 vm["mac_addresses"],
+                _clustered_label(vm.get("is_clustered")),
+                vm.get("cluster_role_state") or "",
                 vm["snapshot_count"],
                 vm["created_at"],
                 vm["updated_at"],
@@ -366,6 +379,8 @@ def export_filtered_vms_xlsx():
                 (SELECT COUNT(*) FROM vm_disks WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as disk_count,
                 (SELECT {str_agg("ip_addresses", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND ip_addresses IS NOT NULL AND ip_addresses != '') as ip_addresses,
                 (SELECT {str_agg("mac_address", distinct=True)} FROM vm_network_adapters WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name AND mac_address IS NOT NULL AND mac_address != '') as mac_addresses,
+                v.is_clustered,
+                v.cluster_role_state,
                 (SELECT COUNT(*) FROM vm_snapshots WHERE vm_id = v.vm_id AND cluster_name = v.cluster_name) as snapshot_count,
                 v.created_at,
                 v.updated_at,
@@ -399,6 +414,8 @@ def export_filtered_vms_xlsx():
         "Disk Count",
         "IP Addresses",
         "MAC Addresses",
+        "Clustered",
+        "HA State",
         "Snapshots",
         "Created",
         "Updated",
@@ -427,6 +444,8 @@ def export_filtered_vms_xlsx():
                 vm["disk_count"],
                 vm["ip_addresses"],
                 vm["mac_addresses"],
+                _clustered_label(vm.get("is_clustered")),
+                vm.get("cluster_role_state") or "",
                 vm["snapshot_count"],
                 vm["created_at"],
                 vm["updated_at"],

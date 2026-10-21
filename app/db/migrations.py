@@ -44,6 +44,20 @@ _MIGRATIONS = [
 ]
 
 
+# Columns added to existing tables after the initial schema was released.
+# db.create_all() only creates missing tables, it never alters existing ones,
+# so PostgreSQL databases created earlier must be migrated on startup.
+_COLUMN_SPECS = {
+    "vm_info": [
+        ("guest_hostname", "VARCHAR(255)"),
+        ("guest_fqdn", "VARCHAR(255)"),
+        ("is_clustered", "BOOLEAN"),
+        ("cluster_role_state", "VARCHAR(50)"),
+        ("cluster_owner_node", "VARCHAR(255)"),
+    ],
+}
+
+
 def _column_exists(db, table_name: str, column_name: str) -> bool:
     inspector = inspect(db.get_bind())
     return any(
@@ -52,42 +66,37 @@ def _column_exists(db, table_name: str, column_name: str) -> bool:
     )
 
 
-def _ensure_vm_info_guest_columns(db):
-    """Add columns introduced after the original vm_info table was created.
-
-    db.create_all() only creates missing tables; it does not alter existing
-    tables. Without this, PostgreSQL databases created before guest hostname
-    collection fail every VM upsert with UndefinedColumn.
-    """
+def _ensure_columns(db):
+    """Add any missing columns to existing tables (idempotent)."""
     added = []
-    for column_name in ("guest_hostname", "guest_fqdn"):
-        if _column_exists(db, "vm_info", column_name):
-            continue
-        try:
-            db.execute(
-                text(f"ALTER TABLE vm_info ADD COLUMN {column_name} VARCHAR(255)")
-            )
-            db.commit()
-            added.append(column_name)
-        except Exception:
-            db.rollback()
-            # Another process (web/worker) may have added it concurrently.
-            if not _column_exists(db, "vm_info", column_name):
-                raise
+    for table_name, columns in _COLUMN_SPECS.items():
+        for column_name, column_type in columns:
+            if _column_exists(db, table_name, column_name):
+                continue
+            try:
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table_name} ADD COLUMN "
+                        f"{column_name} {column_type}"
+                    )
+                )
+                db.commit()
+                added.append(f"{table_name}.{column_name}")
+            except Exception:
+                db.rollback()
+                # Another process (web/worker) may have added it concurrently.
+                if not _column_exists(db, table_name, column_name):
+                    raise
     if added:
-        logger.info(
-            "Migration 005_vm_info_guest_columns applied: %s", ", ".join(added)
-        )
+        logger.info("Schema migration applied: %s", ", ".join(added))
 
 
 def run_migrations(db):
     try:
-        _ensure_vm_info_guest_columns(db)
+        _ensure_columns(db)
     except Exception:
         db.rollback()
-        logger.warning(
-            "Migration 005_vm_info_guest_columns skipped", exc_info=True
-        )
+        logger.warning("Schema migration skipped", exc_info=True)
 
     for mig in _MIGRATIONS:
         try:

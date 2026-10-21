@@ -37,10 +37,7 @@ from tasks.persistence.vms import (
     save_networks,
     save_snapshots,
     save_replication,
-    delete_stale_disks,
-    delete_stale_networks,
-    delete_stale_snapshots,
-    delete_stale_replication,
+    delete_stale_cluster_data,
 )
 from tasks.persistence.hosts import save_host, save_physical_disks
 from tasks.persistence.storage import save_csv_volumes
@@ -369,19 +366,15 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
 
         logger.info(f"[Host] Collecting disks from {host_ip}")
         save_disks(collect_disks(session), cluster_name=cluster_name)
-        delete_stale_disks(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting networks from {host_ip}")
         save_networks(collect_networks(session), cluster_name=cluster_name)
-        delete_stale_networks(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting snapshots from {host_ip}")
         save_snapshots(collect_snapshots(session), cluster_name=cluster_name)
-        delete_stale_snapshots(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting replication from {host_ip}")
         save_replication(collect_replication(session), cluster_name=cluster_name)
-        delete_stale_replication(vm_ids, cluster_name)
 
         logger.info(f"[Host] Collecting host info from {host_ip}")
         host_info = collect_host_info(session)
@@ -447,11 +440,26 @@ def _fetch_single_host_impl(host_ip: str, cluster_id: int = None):
             pass
 
         logger.info(f"[Host] Done: {host_ip} — {len(vms)} VMs")
-        return {"status": "success", "host": host_ip, "vms": len(vms)}
+        effective_hostname = (host_info or {}).get("HostName") or (
+            vms[0].get("ComputerName") if vms else None
+        ) or host_ip
+        return {
+            "status": "success",
+            "host": host_ip,
+            "host_name": effective_hostname,
+            "cluster_name": cluster_name,
+            "vms": len(vms),
+            "vm_ids": vm_ids,
+        }
 
     except Exception as e:
         logger.error(f"[Host] Error on {host_ip}: {e}")
-        return {"status": "error", "host": host_ip, "error": str(e)}
+        return {
+            "status": "error",
+            "host": host_ip,
+            "cluster_name": cluster_name,
+            "error": str(e),
+        }
 
 
 @shared_task(name="tasks.sync.fetch_cluster_csv_storage")
@@ -594,12 +602,63 @@ def _aggregate_and_monitor_impl(results, vm_snapshot=None, csv_snapshot=None):
                     f"Detected {len(all_events)} changes ({len(vm_events)} VM, {len(storage_events)} storage)"
                 )
 
+    try:
+        _cleanup_clusters_after_sync(results)
+    except Exception as e:
+        logger.error(f"Stale VM cleanup failed: {e}")
+
     status = "success" if not errors else "partial"
     _update_sync_metadata(
         status, vms_synced=total_vms, errors="; ".join(errors) if errors else None
     )
     logger.info(f"Sync complete: {total_vms} VMs, status={status}")
     return {"status": status, "vms_synced": total_vms}
+
+
+def _cleanup_clusters_after_sync(results) -> int:
+    """Remove VMs (and their collected data) that no longer exist in a cluster.
+
+    Runs once per cluster, after every node of that cluster was collected, so
+    a failing node never causes another node's data to be deleted. When any
+    node of a cluster failed, the cluster is skipped entirely.
+    """
+    by_cluster = {}
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        cluster = r.get("cluster_name")
+        if not cluster:
+            continue
+        entry = by_cluster.setdefault(cluster, {"success": [], "failed": 0})
+        if r.get("status") == "success":
+            entry["success"].append(r)
+        else:
+            entry["failed"] += 1
+
+    removed_total = 0
+    for cluster, entry in by_cluster.items():
+        if entry["failed"]:
+            logger.warning(
+                "Skipping stale cleanup for %s: %d host(s) failed during the sync",
+                cluster,
+                entry["failed"],
+            )
+            continue
+
+        seen_vm_ids = set()
+        for r in entry["success"]:
+            seen_vm_ids.update(r.get("vm_ids") or [])
+        if not seen_vm_ids:
+            logger.warning(
+                "Skipping stale cleanup for %s: no VMs were collected", cluster
+            )
+            continue
+
+        removed = delete_stale_cluster_data(cluster, sorted(seen_vm_ids))
+        removed_total += removed
+        logger.info("Cleanup for %s: removed %d stale VM(s)", cluster, removed)
+
+    return removed_total
 
 
 def _should_rescan_csv(cluster_id: int, cache_seconds: int) -> bool:

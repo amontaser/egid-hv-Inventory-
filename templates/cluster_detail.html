@@ -166,6 +166,55 @@
         </div>
     </div>
 
+    <!-- Nodes -->
+    {% if nodes %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Nodes ({{ nodes|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="nodeStats">
+                <thead>
+                    <tr>
+                        <th>Node</th>
+                        <th>State</th>
+                        <th>IP Address</th>
+                        <th class="text-end">VMs</th>
+                        <th class="text-end">Clustered</th>
+                        <th class="text-end">Standalone</th>
+                        <th class="text-end">Unknown</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for node in nodes %}
+                    <tr data-node="{{ node.node_name }}"
+                        data-total="{{ node.total_vms }}"
+                        data-clustered="{{ node.clustered_vms }}"
+                        data-standalone="{{ node.standalone_vms }}"
+                        data-unknown="{{ node.unknown_vms }}">
+                        <td><strong>{{ node.node_name }}</strong></td>
+                        <td>
+                            {% if node.node_state %}
+                            <span class="badge bg-{% if node.node_state|lower == 'up' %}success{% else %}secondary{% endif %}">
+                                {{ node.node_state }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ node.ip_address or '-' }}</code></td>
+                        <td class="text-end">{{ node.total_vms }}</td>
+                        <td class="text-end">{{ node.clustered_vms }}</td>
+                        <td class="text-end">{{ node.standalone_vms }}</td>
+                        <td class="text-end">{{ node.unknown_vms }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- VMs in this Cluster -->
     {% if vms %}
     <div class="card">
@@ -187,7 +236,16 @@
                 <tbody>
                     {% for vm in vms %}
                     <tr>
-                        <td><a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a></td>
+                        <td>
+                            <a href="/vm/{{ vm.vm_id }}?cluster={{ vm.cluster_name }}">{{ vm.machine_name }}</a>
+                            {% if vm.is_clustered %}
+                            <span class="badge text-bg-primary" style="font-size:.65rem;">Clustered</span>
+                            {% elif vm.is_clustered is none %}
+                            <span class="badge text-bg-light text-dark" style="font-size:.65rem;">HA Unknown</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary" style="font-size:.65rem;">Standalone</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if vm.state == 'Running' %}
                             <span class="badge bg-success">Running</span>

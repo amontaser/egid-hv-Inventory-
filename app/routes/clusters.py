@@ -134,6 +134,75 @@ def add_cluster():
     return render_template("cluster_form.html", cluster={}, mode="add")
 
 
+def _get_cluster_node_stats(db, cluster_name: str):
+    """Per-node VM counts for a cluster (total / clustered / standalone).
+
+    Nodes come from cluster_nodes; VMs are matched case-insensitively because
+    Hyper-V reports host names in its own casing (HV-NODE01 vs HV-Node01).
+    """
+    node_rows = db.execute(
+        text(
+            "SELECT node_name, node_state, ip_address FROM cluster_nodes "
+            "WHERE cluster_name = :cn ORDER BY node_name"
+        ),
+        {"cn": cluster_name},
+    ).fetchall()
+
+    vm_rows = db.execute(
+        text(
+            "SELECT host_name, COUNT(*) as total_vms, "
+            "SUM(CASE WHEN is_clustered IS TRUE THEN 1 ELSE 0 END) as clustered_vms, "
+            "SUM(CASE WHEN is_clustered IS FALSE THEN 1 ELSE 0 END) as standalone_vms, "
+            "SUM(CASE WHEN is_clustered IS NULL THEN 1 ELSE 0 END) as unknown_vms "
+            "FROM vm_info WHERE cluster_name = :cn GROUP BY host_name"
+        ),
+        {"cn": cluster_name},
+    ).fetchall()
+
+    counts_by_host = {}
+    for r in vm_rows:
+        d = _row_to_dict(r)
+        counts_by_host[(d.get("host_name") or "").lower()] = d
+
+    nodes = []
+    used_hosts = set()
+    for r in node_rows:
+        d = _row_to_dict(r)
+        name = d.get("node_name")
+        key = (name or "").lower()
+        used_hosts.add(key)
+        counts = counts_by_host.get(key, {})
+        nodes.append(
+            {
+                "node_name": name,
+                "node_state": d.get("node_state"),
+                "ip_address": d.get("ip_address"),
+                "total_vms": counts.get("total_vms") or 0,
+                "clustered_vms": counts.get("clustered_vms") or 0,
+                "standalone_vms": counts.get("standalone_vms") or 0,
+                "unknown_vms": counts.get("unknown_vms") or 0,
+            }
+        )
+
+    # Hosts that have VMs but are not (yet) listed as cluster nodes.
+    for key, counts in counts_by_host.items():
+        if key in used_hosts:
+            continue
+        nodes.append(
+            {
+                "node_name": counts.get("host_name"),
+                "node_state": None,
+                "ip_address": None,
+                "total_vms": counts.get("total_vms") or 0,
+                "clustered_vms": counts.get("clustered_vms") or 0,
+                "standalone_vms": counts.get("standalone_vms") or 0,
+                "unknown_vms": counts.get("unknown_vms") or 0,
+            }
+        )
+
+    return nodes
+
+
 @bp.route("/cluster/<int:cluster_id>")
 @login_required
 def cluster_details(cluster_id):
@@ -170,8 +239,15 @@ def cluster_details(cluster_id):
             "host_count": len(hosts),
         }
 
+        nodes = _get_cluster_node_stats(db, cn)
+
     return render_template(
-        "cluster_detail.html", cluster=cluster, vms=vms, hosts=hosts, stats=stats
+        "cluster_detail.html",
+        cluster=cluster,
+        vms=vms,
+        hosts=hosts,
+        stats=stats,
+        nodes=nodes,
     )
 
 

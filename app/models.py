@@ -26,6 +26,9 @@ class VMInfo(db.Model):
     notes = db.Column(db.Text)
     guest_hostname = db.Column(db.String(255))
     guest_fqdn = db.Column(db.String(255))
+    is_clustered = db.Column(db.Boolean)
+    cluster_role_state = db.Column(db.String(50))
+    cluster_owner_node = db.Column(db.String(255))
     created_at = db.Column(db.String(50))
     updated_at = db.Column(db.String(50))
 

@@ -18,7 +18,16 @@ def app_client(monkeypatch):
     app.config.update(TESTING=True)
     with app.app_context():
         save_vms(
-            [{"VMId": "vm-1", "Name": "app-01", "State": "Running"}],
+            [
+                {
+                    "VMId": "vm-1",
+                    "Name": "app-01",
+                    "State": "Running",
+                    "IsClustered": True,
+                    "ClusterRoleState": "Online",
+                    "ClusterOwnerNode": "HV-Node01",
+                }
+            ],
             "HOST-01",
             cluster_name="CLUSTER-01",
         )
@@ -92,6 +101,39 @@ def test_export_vms_adds_aggregated_mac_addresses(app_client):
     }
 
 
+def test_export_vms_includes_clustered_flag(app_client):
+    headers, rows = _workbook_rows(app_client.get("/export/vms.xlsx"))
+
+    assert "Clustered" in headers
+    assert "HA State" in headers
+
+    row = dict(zip(headers, rows[0]))
+    assert row["Clustered"] == "Yes"
+    assert row["HA State"] == "Online"
+
+
+def test_export_vms_reports_unknown_cluster_flag(app_client):
+    from tasks.persistence.vms import save_vms
+
+    with app_client.application.app_context():
+        save_vms(
+            [
+                {
+                    "VMId": "vm-2",
+                    "Name": "app-02",
+                    "State": "Running",
+                    "IsClustered": None,
+                }
+            ],
+            "HOST-01",
+            cluster_name="CLUSTER-01",
+        )
+
+    headers, rows = _workbook_rows(app_client.get("/export/vms.xlsx"))
+    row = dict(zip(headers, next(r for r in rows if r[0] == "app-02")))
+    assert row["Clustered"] == "Unknown"
+
+
 def test_filtered_export_vms_adds_aggregated_mac_addresses(app_client):
     response = app_client.post(
         "/export/vms/filtered.xlsx",
@@ -110,3 +152,18 @@ def test_filtered_export_vms_adds_aggregated_mac_addresses(app_client):
         "00155D000002",
         "00155D000003",
     }
+
+
+def test_filtered_export_vms_includes_clustered_flag(app_client):
+    response = app_client.post(
+        "/export/vms/filtered.xlsx",
+        data={"vm_ids": json.dumps(["vm-1"])},
+    )
+    headers, rows = _workbook_rows(response)
+
+    assert "Clustered" in headers
+    assert "HA State" in headers
+
+    row = dict(zip(headers, rows[0]))
+    assert row["Clustered"] == "Yes"
+    assert row["HA State"] == "Online"

@@ -164,6 +164,27 @@
                                 </dd>
                                 {% endif %}
 
+                                <dt class="col-5 text-muted fw-normal">High Availability</dt>
+                                <dd class="col-7 mb-0">
+                                    {% if vm.is_clustered %}
+                                    <span class="badge text-bg-primary">Clustered</span>
+                                    {% if vm.cluster_role_state %}
+                                    <span class="badge text-bg-{% if vm.cluster_role_state|lower == 'online' %}success{% else %}warning text-dark{% endif %}">
+                                        {{ vm.cluster_role_state }}
+                                    </span>
+                                    {% endif %}
+                                    {% elif vm.is_clustered is none %}
+                                    <span class="badge text-bg-light text-dark">Unknown</span>
+                                    {% else %}
+                                    <span class="badge text-bg-secondary">Standalone</span>
+                                    {% endif %}
+                                </dd>
+
+                                {% if vm.cluster_owner_node %}
+                                <dt class="col-5 text-muted fw-normal">Cluster Owner Node</dt>
+                                <dd class="col-7 mb-0"><i class="bi bi-hdd-rack text-muted me-1"></i>{{ vm.cluster_owner_node }}</dd>
+                                {% endif %}
+
                                 <dt class="col-5 text-muted fw-normal">Created</dt>
                                 <dd class="col-7 mb-0 small text-muted">{{ vm.created_at or 'Unknown' }}</dd>
                             </dl>
