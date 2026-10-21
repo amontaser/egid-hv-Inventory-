@@ -89,23 +89,76 @@ def _load_cluster_credentials(cluster_id: int):
     return username, password, transport, dns_servers, domain_name
 
 
-def _decrypt_password(encrypted_pw: str) -> Optional[str]:
-    try:
-        import hashlib, base64
-        from cryptography.fernet import Fernet
+def _candidate_fernet_keys() -> list:
+    """Return (label, key) pairs used to decrypt stored cluster passwords.
 
-        secret = os.getenv("SECRET_KEY", "")
-        if not secret:
-            logger.error("SECRET_KEY is not set. Cannot decrypt password.")
-            return None
+    Passwords created by this version are encrypted with a key derived from
+    SECRET_KEY. Passwords created before commit 25f9667 used ENCRYPTION_KEY /
+    encryption_key.key. Try all of them so upgrading does not orphan existing
+    cluster credentials.
+    """
+    import hashlib
+    import base64
+    from pathlib import Path
+
+    candidates = []
+
+    secret = os.getenv("SECRET_KEY", "")
+    if secret:
         derived = base64.urlsafe_b64encode(
             hashlib.sha256((secret + "hyperv-inventory-encryption").encode()).digest()
         )
-        f = Fernet(derived)
-        return f.decrypt(encrypted_pw.encode()).decode()
-    except Exception as e:
-        logger.error(f"Password decryption failed: {e}")
+        candidates.append(("SECRET_KEY", derived))
+
+    env_key = os.getenv("ENCRYPTION_KEY", "").strip()
+    if env_key:
+        candidates.append(("ENCRYPTION_KEY", env_key.encode()))
+
+    key_file = os.getenv("ENCRYPTION_KEY_FILE", "").strip()
+    if not key_file:
+        key_file = str(Path(__file__).resolve().parents[2] / "encryption_key.key")
+    try:
+        file_key = Path(key_file).read_text().strip()
+        if file_key:
+            candidates.append(("encryption_key.key", file_key.encode()))
+    except OSError:
+        pass
+
+    return candidates
+
+
+def _decrypt_password(encrypted_pw: str) -> Optional[str]:
+    if not encrypted_pw:
         return None
+
+    from cryptography.fernet import Fernet, InvalidToken
+
+    candidates = _candidate_fernet_keys()
+    if not candidates:
+        logger.error(
+            "Cannot decrypt cluster password: no key source available "
+            "(SECRET_KEY, ENCRYPTION_KEY or encryption_key.key)"
+        )
+        return None
+
+    errors = []
+    for label, key in candidates:
+        try:
+            value = Fernet(key).decrypt(encrypted_pw.encode()).decode()
+            if label != "SECRET_KEY":
+                logger.info(
+                    "Decrypted cluster password with legacy key source '%s'; "
+                    "re-save the cluster credentials to migrate to SECRET_KEY.",
+                    label,
+                )
+            return value
+        except (InvalidToken, ValueError) as exc:
+            errors.append(f"{label}: {type(exc).__name__}")
+
+    logger.error(
+        "Password decryption failed with all key sources (%s)", ", ".join(errors)
+    )
+    return None
 
 
 def run_ps(session: winrm.Session, script: str, context: str = "") -> Optional[Any]:
